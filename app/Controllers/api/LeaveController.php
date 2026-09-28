@@ -45,41 +45,45 @@ class LeaveController extends ResourceController
 
         $requestedUserId = $this->request->getGet('user_id'); // Get user_id from query parameter
 
-        if ($authUser->role === 'admin') {
-            // ✅ Admin: Fetch all HR and Employee leave records OR a specific user's leave if requested
-            $users = $userModel->whereIn('role', ['employee', 'hr']);
-            if ($requestedUserId) {
-                $users = $users->where('user_id', $requestedUserId);
-            }
-            // $users = $users->where('is_deleted', 0);
-            $users = $users->findAll();
-            $leaveRecords = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type,users.username AS created_by_username')
-                ->join('user_info', 'leaves.user_id = user_info.user_id', 'left')
-                ->join('users', 'leaves.created_by = users.id', 'left') // creator of leave
-                ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left');
+        $filterBranchId = $this->request->getGet('branch_id');
+        if ($filterBranchId === null || $filterBranchId === '') {
+            $filterBranchId = $this->authService->getBranchId();
+        } else {
+            $filterBranchId = (int)$filterBranchId;
+        }
 
+        if ($authUser->role === 'admin') {
+            // ✅ Admin: Fetch all HR and Employee leave records (filtered by active branch if selected)
+            $leaveRecords = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type, users.username AS created_by_username')
+                ->join('user_info', 'leaves.user_id = user_info.user_id', 'left')
+                ->join('users', 'leaves.created_by = users.id', 'left')
+                ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left')
+                ->join('users emp_u', 'leaves.user_id = emp_u.id', 'inner')
+                ->where('emp_u.is_deleted', 0);
+
+            if (!empty($filterBranchId)) {
+                $leaveRecords->where('emp_u.branch_id', (int)$filterBranchId);
+            }
             if ($requestedUserId) {
-                $leaveRecords = $leaveRecords->where('leaves.user_id', $requestedUserId);
+                $leaveRecords->where('leaves.user_id', $requestedUserId);
             }
 
             $leaveRecords = $leaveRecords->findAll();
         } elseif ($authUser->role === 'hr') {
-            // ✅ HR: Fetch their own leave + all employee leave records OR specific user if requested
-            $users = $userModel->whereIn('role', ['employee', 'hr']);
-            if ($requestedUserId) {
-                $users = $users->where('user_id', $requestedUserId);
-            }
-            // $users = $users->where('is_deleted', 0);
-            $users = $users->findAll();
-
+            // ✅ HR: Fetch their own branch employee leaves
+            $hrBranchId = (new \App\Services\AuthService(service('request')))->getBranchId();
             $leaveRecords = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type, users.username AS created_by_username')
                 ->join('user_info', 'leaves.user_id = user_info.user_id', 'left')
-                ->join('users', 'leaves.created_by = users.id', 'left') // creator of leave
-                ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left');
+                ->join('users', 'leaves.created_by = users.id', 'left')
+                ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left')
+                ->join('users emp_u', 'leaves.user_id = emp_u.id', 'inner')
+                ->where('emp_u.is_deleted', 0);
 
-
+            if (!empty($hrBranchId)) {
+                $leaveRecords->where('emp_u.branch_id', (int)$hrBranchId);
+            }
             if ($requestedUserId) {
-                $leaveRecords = $leaveRecords->where('leaves.user_id', $requestedUserId);
+                $leaveRecords->where('leaves.user_id', $requestedUserId);
             }
 
             $leaveRecords = $leaveRecords->findAll();
@@ -853,10 +857,22 @@ class LeaveController extends ResourceController
             return redirect()->to('/login');
         }
 
-        // Fetch all active employees for the dropdown
-        $employees = $this->userModel->where('is_deleted', 0)
-            ->whereIn('role', ['employee', 'hr'])
-            ->findAll();
+        $filterBranchId = $this->authService->getBranchId();
+
+        // Fetch active employees for the dropdown (branch-scoped)
+        $employeeQuery = $this->userModel->where('is_deleted', 0);
+        if ($user->role === 'admin') {
+            $employeeQuery->whereIn('role', ['employee', 'hr']);
+            if (!empty($filterBranchId)) {
+                $employeeQuery->where('branch_id', (int)$filterBranchId);
+            }
+        } elseif ($user->role === 'hr') {
+            $employeeQuery->where('role', 'employee');
+            if (!empty($filterBranchId)) {
+                $employeeQuery->where('branch_id', (int)$filterBranchId);
+            }
+        }
+        $employees = $employeeQuery->findAll();
 
         return view('leave/manage_leaves', [
             'employees' => $employees,
@@ -909,6 +925,17 @@ class LeaveController extends ResourceController
             $builder->where('leaves.user_id', $authUser->sub);
         } elseif (!empty($userId)) {
             $builder->where('leaves.user_id', $userId);
+        } else {
+            $filterBranchId = $this->request->getGet('branch_id');
+            if ($filterBranchId === null || $filterBranchId === '') {
+                $filterBranchId = $this->authService->getBranchId();
+            } else {
+                $filterBranchId = (int)$filterBranchId;
+            }
+            if (!empty($filterBranchId)) {
+                $builder->join('users emp_b_u', 'emp_b_u.id = leaves.user_id', 'inner')
+                        ->where('emp_b_u.branch_id', (int)$filterBranchId);
+            }
         }
 
         if (!empty($departmentId)) {

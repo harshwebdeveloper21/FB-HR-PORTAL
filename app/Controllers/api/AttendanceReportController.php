@@ -19,8 +19,15 @@ class AttendanceReportController extends Controller
         
         $builder = $userInfoModel->select('user_info.user_id as id, user_info.firstname, user_info.lastname, user_info.employee_id, department.department_name')
             ->join('department', 'department.id = user_info.department_id', 'left')
+            ->join('users', 'users.id = user_info.user_id', 'left')
             ->where("(LOWER(user_info.status) NOT IN ('inactive', 'resigned') OR user_info.status IS NULL)")
             ->where("(user_info.last_working_day IS NULL OR user_info.last_working_day >= CURDATE())");
+
+        $authService = new \App\Services\AuthService(service('request'));
+        $branchId = $authService->getBranchId();
+        if (!empty($branchId)) {
+            $builder->where('users.branch_id', (int)$branchId);
+        }
 
         if (!empty($departmentId) && $departmentId !== 'null') {
             $builder->where('user_info.department_id', (int)$departmentId);
@@ -40,14 +47,21 @@ class AttendanceReportController extends Controller
         $departmentModel = new DepartmentModel();
         $departments = $departmentModel->findAll();
 
+        $authService = new \App\Services\AuthService(service('request'));
+        $branchId = $authService->getBranchId();
+
         $userInfoModel = new UserInfoModel();
-        $employees = $userInfoModel->select('user_info.user_id as id, user_info.firstname, user_info.lastname, user_info.employee_id')
+        $empBuilder = $userInfoModel->select('user_info.user_id as id, user_info.firstname, user_info.lastname, user_info.employee_id')
             ->join('users', 'users.id = user_info.user_id', 'left')
             ->where("(LOWER(user_info.status) NOT IN ('inactive', 'resigned') OR user_info.status IS NULL)")
             ->where("(user_info.last_working_day IS NULL OR user_info.last_working_day >= CURDATE())")
-            ->whereIn('users.role', ['employee', 'hr'])
-            ->orderBy('user_info.firstname', 'ASC')
-            ->findAll();
+            ->whereIn('users.role', ['employee', 'hr']);
+
+        if (!empty($branchId)) {
+            $empBuilder->where('users.branch_id', (int)$branchId);
+        }
+
+        $employees = $empBuilder->orderBy('user_info.firstname', 'ASC')->findAll();
 
         return view('report/attendanceReport', [
             'departments' => $departments,
@@ -93,6 +107,12 @@ class AttendanceReportController extends Controller
             ->where("(LOWER(user_info.status) NOT IN ('inactive', 'resigned') OR user_info.status IS NULL)")
             ->where("(user_info.last_working_day IS NULL OR user_info.last_working_day >= CURDATE())")
             ->whereIn('users.role', ['employee', 'hr']);
+
+        $authService = new \App\Services\AuthService(service('request'));
+        $branchId = $authService->getBranchId();
+        if (!empty($branchId)) {
+            $userBuilder->where('users.branch_id', (int)$branchId);
+        }
 
         if (!empty($departmentId) && $departmentId !== 'null') {
             $userBuilder->where('user_info.department_id', (int)$departmentId);

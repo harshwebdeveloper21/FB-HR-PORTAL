@@ -150,7 +150,7 @@
                                 "<?= base_url('upload/') ?>" + user.profile_image :
                                 "<?= base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg') ?>";
 
-                            let statusIcon = user.chat_status === 'online' ? 'ðŸŸ¢ Online' : 'ðŸ”´ Offline';
+                            let statusIcon = user.chat_status === 'online' ? '<i class="mdi mdi-circle text-success me-1"></i> Online' : '<i class="mdi mdi-circle text-danger me-1"></i> Offline';
 
                             return `
                         <li class="clearfix user-item" data-id="${user.id}" data-name="${user.name}" data-image="${profileImage}" data-status="${user.chat_status}">

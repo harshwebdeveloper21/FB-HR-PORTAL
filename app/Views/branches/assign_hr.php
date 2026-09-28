@@ -13,7 +13,7 @@
             </h4>
             <p class="text-muted mb-0">Toggle which HR users are assigned to this branch.</p>
           </div>
-          <a href="<?= base_url('/branches') ?>" class="btn btn-secondary btn-sm">
+          <a href="<?= base_url('/branches') ?>" class="btn hr-btnbg">
             <i class="mdi mdi-arrow-left me-1"></i> Back
           </a>
         </div>

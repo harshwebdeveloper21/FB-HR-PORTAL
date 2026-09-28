@@ -616,7 +616,7 @@
         </div>
 
         <div class="alert alert-info small">
-            âš ï¸ This action will update attendance for all dates between selected range.
+            <i class="mdi mdi-alert-circle-outline me-1"></i> This action will update attendance for all dates between selected range.
         </div>
 
       </div>

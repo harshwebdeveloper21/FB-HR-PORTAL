@@ -11,8 +11,8 @@ class UserModel extends Model
     protected $allowedFields = [
         'username', 'email', 'password', 'role', 'created_at', 'is_read',
         'is_deleted', 'chat_status', 'last_activity',
-        // Branch support
-        'branch_id', 'can_transfer_staff',
+        // Branch & Department support
+        'branch_id', 'department_id', 'can_transfer_staff',
     ];
 
     protected $useTimestamps = true;

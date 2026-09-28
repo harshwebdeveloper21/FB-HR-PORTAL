@@ -45,53 +45,91 @@ class DepartmentController extends ResourceController
 
     // Create Department
     public function create()
-{
-    $user = $this->authorize(['admin', 'hr']);
-    if (!$user) {
-        return $this->failUnauthorized('Unauthorized access');
+    {
+        $user = $this->authorize(['admin', 'hr', 'branch_admin']);
+        if (!$user) {
+            return $this->failUnauthorized('Unauthorized access');
+        }
+
+        $data = $this->request->getPost();
+
+        // Validation
+        if (!$this->validate([
+            'department_name' => 'required|min_length[3]',
+        ])) {
+            return $this->failValidationErrors($this->validator->getErrors());
+        }
+
+        // Normalize department name
+        $departmentName = ucwords(strtolower(trim($data['department_name'])));
+
+        // Resolve branch_id
+        if ($user->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+        } else {
+            $branchId = !empty($data['branch_id']) ? (int)$data['branch_id'] : ($this->authService->getBranchId() ?: null);
+        }
+
+        $managerId = !empty($data['manager_id']) ? (int)$data['manager_id'] : null;
+
+        // Check duplicate within the same branch
+        $dupQuery = $this->departmentModel->where('LOWER(department_name)', strtolower($departmentName));
+        if (!empty($branchId)) {
+            $dupQuery->where('branch_id', $branchId);
+        }
+        $existing = $dupQuery->first();
+
+        if ($existing) {
+            return $this->respond([
+                'status' => 'error',
+                'message' => 'Department already exists in this branch.'
+            ], 409);
+        }
+
+        // Insert the department
+        $departmentId = $this->departmentModel->insert([
+            'department_name' => $departmentName,
+            'branch_id'       => $branchId,
+            'manager_id'      => $managerId,
+        ]);
+
+        // If manager assigned, update their user record to department_manager role and link department
+        if ($managerId && $departmentId) {
+            $userModel = new \App\Models\UserModel();
+            $managerUpdate = [
+                'role'          => 'department_manager',
+                'department_id' => $departmentId,
+            ];
+            if ($branchId) {
+                $managerUpdate['branch_id'] = $branchId;
+            }
+            $userModel->update($managerId, $managerUpdate);
+        }
+
+        return $this->respondCreated([
+            'message' => 'Department created successfully!',
+            'id' => $departmentId,
+        ]);
     }
-
-    $data = $this->request->getPost();
-
-    // Validation
-    if (!$this->validate([
-        'department_name' => 'required|min_length[3]',
-    ])) {
-        return $this->failValidationErrors($this->validator->getErrors());
-    }
-
-    // ✅ Normalize department name
-    $departmentName = ucwords(strtolower(trim($data['department_name'])));
-
-    // ✅ Check if department already exists (case-insensitive)
-    $existing = $this->departmentModel
-        ->where('LOWER(department_name)', strtolower($departmentName))
-        ->first();
-
-    if ($existing) {
-        return $this->respond([
-            'status' => 'error',
-            'message' => 'Department already exists.'
-        ], 409); // 409 Conflict
-    }
-
-    // Insert the department
-    $departmentId = $this->departmentModel->insert([
-        'department_name' => $departmentName,
-    ]);
-
-    return $this->respondCreated([
-        'message' => 'Department created successfully!',
-        'id' => $departmentId,
-    ]);
-}
 
     // Update Department
     public function update($id = null)
     {
-        $user = $this->authorize(['admin', 'hr']);
+        $user = $this->authorize(['admin', 'hr', 'branch_admin']);
         if (!$user) {
             return $this->failUnauthorized('Unauthorized access');
+        }
+
+        $department = $this->departmentModel->find($id);
+        if (!$department) {
+            return $this->failNotFound('Department not found');
+        }
+
+        if ($user->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            if ((int)($department['branch_id'] ?? 0) !== $branchId) {
+                return $this->failForbidden('Forbidden: You can only update departments in your branch.');
+            }
         }
 
         $data = $this->request->getPost();
@@ -103,10 +141,33 @@ class DepartmentController extends ResourceController
             return $this->failValidationErrors($this->validator->getErrors());
         }
 
-        // Update the department
-        $updated = $this->departmentModel->update($id, [
-            'department_name' => $data['department_name'],
-        ]);
+        $updateData = [
+            'department_name' => ucwords(strtolower(trim($data['department_name']))),
+        ];
+
+        if ($user->role !== 'branch_admin' && isset($data['branch_id'])) {
+            $updateData['branch_id'] = !empty($data['branch_id']) ? (int)$data['branch_id'] : null;
+        }
+
+        if (array_key_exists('manager_id', $data)) {
+            $newManagerId = !empty($data['manager_id']) ? (int)$data['manager_id'] : null;
+            $updateData['manager_id'] = $newManagerId;
+
+            if ($newManagerId) {
+                $userModel = new \App\Models\UserModel();
+                $mgrUpdate = [
+                    'role'          => 'department_manager',
+                    'department_id' => $id,
+                ];
+                $targetBranch = $updateData['branch_id'] ?? $department['branch_id'];
+                if ($targetBranch) {
+                    $mgrUpdate['branch_id'] = $targetBranch;
+                }
+                $userModel->update($newManagerId, $mgrUpdate);
+            }
+        }
+
+        $updated = $this->departmentModel->update($id, $updateData);
 
         if (!$updated) {
             return $this->failServerError('Failed to update department');
@@ -117,23 +178,93 @@ class DepartmentController extends ResourceController
         ]);
     }
 
-
-
     // Display All Departments
     public function index()
     {
-        $user = $this->authorize(['admin', 'hr']); // Only allow admin and hr roles
+        $user = $this->authorize(['admin', 'hr', 'branch_admin', 'department_manager']);
         if (!$user) {
             return $this->failUnauthorized('Unauthorized access');
         }
 
-        $departments = $this->departmentModel->orderBy('created_at', 'DESC')->findAll();
+        $builder = $this->departmentModel->builder()
+            ->select('department.*, branches.name as branch_name, 
+                      COALESCE(CONCAT(ui.firstname, " ", ui.lastname), users.username) as manager_name, 
+                      users.email as manager_email,
+                      ui.contact_number as manager_phone,
+                      ui.profile_image as manager_photo,
+                      (SELECT COUNT(*) FROM user_info WHERE department_id = department.id) as staff_count')
+            ->join('branches', 'branches.id = department.branch_id', 'left')
+            ->join('users', 'users.id = department.manager_id', 'left')
+            ->join('user_info ui', 'ui.user_id = users.id', 'left');
+
+        if ($user->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            $builder->where('department.branch_id', $branchId);
+        } elseif ($user->role === 'department_manager') {
+            $dmUser = (new \App\Models\UserModel())->find($user->sub);
+            if (!empty($dmUser['department_id'])) {
+                $builder->where('department.id', (int)$dmUser['department_id']);
+            }
+        } else {
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $builder->where('department.branch_id', (int)$filterBranchId);
+            }
+        }
+
+        $departments = $builder->orderBy('department.created_at', 'DESC')->get()->getResultArray();
 
         return $this->respond([
             'departments' => $departments,
         ]);
     }
 
+    public function managersPage()
+    {
+        $user = $this->authService->check();
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
+            return redirect()->to('/dashboard')->with('error', 'Unauthorized access.');
+        }
+        return view('department/managers');
+    }
+
+    public function getDepartmentManagers()
+    {
+        $user = $this->authorize(['admin', 'hr', 'branch_admin', 'department_manager']);
+        if (!$user) {
+            return $this->failUnauthorized('Unauthorized access');
+        }
+
+        $builder = $this->departmentModel->builder()
+            ->select('department.*, branches.name as branch_name, 
+                      users.id as manager_id,
+                      COALESCE(CONCAT(ui.firstname, " ", ui.lastname), users.username) as manager_name, 
+                      users.email as manager_email,
+                      ui.contact_number as manager_phone,
+                      ui.employee_id as manager_emp_code,
+                      ui.profile_image as manager_photo,
+                      (SELECT COUNT(*) FROM user_info WHERE department_id = department.id) as staff_count')
+            ->join('branches', 'branches.id = department.branch_id', 'left')
+            ->join('users', 'users.id = department.manager_id', 'left')
+            ->join('user_info ui', 'ui.user_id = users.id', 'left');
+
+        if ($user->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            $builder->where('department.branch_id', $branchId);
+        } else {
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $builder->where('department.branch_id', (int)$filterBranchId);
+            }
+        }
+
+        $departments = $builder->orderBy('department.department_name', 'ASC')->get()->getResultArray();
+
+        return $this->respond([
+            'status' => 'success',
+            'data'   => $departments,
+        ]);
+    }
 
     // Display Single Department
     public function getById($id = null)
@@ -143,8 +274,7 @@ class DepartmentController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        // Only Admin and HR can access leave records
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'])) {
             return $this->failForbidden('Forbidden: You do not have access to this resource');
         }
 
@@ -190,17 +320,24 @@ class DepartmentController extends ResourceController
 
     // Delete Department
     public function delete($id = null)
-{
-    $user = $this->authorize(['admin', 'hr']); // Only allow admin and HR roles
-    if (!$user) {
-        return $this->failUnauthorized('Unauthorized access');
-    }
+    {
+        $user = $this->authorize(['admin', 'hr', 'branch_admin']);
+        if (!$user) {
+            return $this->failUnauthorized('Unauthorized access');
+        }
 
-    // Check if the department exists
-    $department = $this->departmentModel->find($id);
-    if (!$department) {
-        return $this->failNotFound('Department not found');
-    }
+        // Check if the department exists
+        $department = $this->departmentModel->find($id);
+        if (!$department) {
+            return $this->failNotFound('Department not found');
+        }
+
+        if ($user->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            if ((int)($department['branch_id'] ?? 0) !== $branchId) {
+                return $this->failForbidden('Forbidden: You can only delete departments in your branch.');
+            }
+        }
 
     // Check if the department is used in other tables
     $employeeCount = $this->userInfoModel->where('department_id', $id)->countAllResults();
@@ -325,7 +462,7 @@ class DepartmentController extends ResourceController
      */
     public function exportExcel()
     {
-        $user = $this->authorize(['admin', 'hr', 'employee']);
+        $user = $this->authorize(['admin', 'hr', 'branch_admin', 'employee']);
         if (!$user) {
             return $this->response->setStatusCode(401)->setJSON(['message' => 'Unauthorized access']);
         }
@@ -334,6 +471,16 @@ class DepartmentController extends ResourceController
 
         $builder = $this->departmentModel->builder();
         $builder->select('department.*');
+
+        if ($user->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            $builder->where('department.branch_id', $branchId);
+        } else {
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $builder->where('department.branch_id', (int)$filterBranchId);
+            }
+        }
 
         if (!empty($search)) {
             $builder->like('department.department_name', $search);

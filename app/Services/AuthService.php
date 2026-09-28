@@ -215,12 +215,13 @@ class AuthService
             return null;
         }
 
-        // Admin checks session for active filter branch (null = full access)
-        if ($row['role'] === 'admin') {
+        // Admin and Global HR check session for active filter branch (null = full cross-branch access)
+        if (in_array($row['role'], ['admin', 'hr'])) {
             $activeBranch = session()->get('admin_active_branch');
             return !empty($activeBranch) ? (int)$activeBranch : null;
         }
 
+        // Branch Admin, Department Manager, and Employee are strictly locked to their assigned branch
         return isset($row['branch_id']) ? (int)$row['branch_id'] : null;
     }
 }

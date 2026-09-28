@@ -101,8 +101,11 @@
         <div class="card">
             <div class="card-body">
                 <div class="d-md-flex justify-content-between align-items-center mb-3">
-                    <h4 class="card-title">Manage Departments</h4>
-                    <div class="d-flex gap-2">
+                    <h4 class="card-title mb-0">Manage Departments</h4>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a href="/department-managers" class="btn hr-btnbg attendenceall text-nowrap">
+                            <i class="mdi mdi-account-tie iconfontsize"></i> Department Managers
+                        </a>
                         <button type="button" id="btnExportDepartment" class="btn hr-btnbg attendenceall text-nowrap">
                             <i class="mdi mdi-file-excel iconfontsize"></i> Export
                         </button>
@@ -117,6 +120,9 @@
                             <tr>
                                 <th>No.</th>
                                 <th>Department</th>
+                                <th>Branch</th>
+                                <th>Department Manager</th>
+                                <th class="text-center">Staff Count</th>
                                 <th class="desktop-only-col">Action</th>
                                 <th class="mobile-expand-col" style="width: 50px;">Details</th>
                             </tr>
@@ -152,13 +158,26 @@
                         let tableRows = '';
                         departments.forEach((department, index) => {
                             const formattedName = department.department_name.charAt(0).toUpperCase() + department.department_name.slice(1).toLowerCase();
+                            const branchName = department.branch_name ? department.branch_name : '<span class="text-muted small">All / Unassigned</span>';
+                            const managerBadge = department.manager_name
+                                ? `<span class="badge bg-warning text-dark"><i class="mdi mdi-account-tie me-1"></i>${department.manager_name}</span>`
+                                : `<span class="badge bg-light text-muted border"><i class="mdi mdi-plus me-1"></i>Not Assigned</span>`;
+
                             tableRows += `
                         <tr data-id="${department.id}">
                             <td>${index + 1}</td>
                             <td>
                                 <div style="flex: 1;">
-                                    <span>${formattedName}</span>
+                                    <strong>${formattedName}</strong>
                                     <div class="expanded-details" id="dept-details-${department.id}" onclick="event.stopPropagation();">
+                                        <div class="detail-row mb-1">
+                                            <span class="detail-label">Branch:</span>
+                                            <span class="detail-value">${branchName}</span>
+                                        </div>
+                                        <div class="detail-row mb-2">
+                                            <span class="detail-label">Manager:</span>
+                                            <span class="detail-value">${managerBadge}</span>
+                                        </div>
                                         <div class="detail-actions">
                                             <a href="/department?id=${department.id}" class="btn btn-sm btn-warning"><i class="mdi mdi-pencil"></i> Edit</a>
                                             <a href="#" class="btn btn-sm btn-danger delete-department" data-id="${department.id}"><i class="mdi mdi-delete"></i> Delete</a>
@@ -166,8 +185,11 @@
                                     </div>
                                 </div>
                             </td>
-                            <td class="desktop-only-col" style="display: flex; align-items: center; gap: 8px;">
-                                <a href="/department?id=${department.id}" class="text-warning fs-5" title="Edit"><i class="mdi mdi-pencil"></i></a>
+                            <td>${branchName}</td>
+                            <td>${managerBadge}</td>
+                            <td class="text-center"><span class="badge bg-primary">${department.staff_count || 0}</span></td>
+                            <td class="desktop-only-col" style="align-items: center; gap: 8px;">
+                                <a href="/department?id=${department.id}" class="text-warning fs-5 me-2" title="Edit"><i class="mdi mdi-pencil"></i></a>
                                 <a href="#" class="text-danger fs-5 delete-department" data-id="${department.id}" title="Delete"><i class="mdi mdi-delete"></i></a>
                             </td>
                             <td class="mobile-expand-col text-center">
@@ -183,7 +205,7 @@
                         $('#department-table').DataTable({
                             columnDefs: [
                                 {
-                                    targets: 3, // mobile expand column
+                                    targets: [5, 6], // Action and mobile expand columns
                                     orderable: false,
                                     searchable: false
                                 }

@@ -65,7 +65,7 @@
     }
 }
 
-/* â”€â”€â”€ Modern Status Tabs â”€â”€â”€ */
+/* - Modern Status Tabs - */
 .emp-status-tabs-container {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -126,7 +126,7 @@
     color: #94a3b8;
 }
 
-/* â”€â”€â”€ Modal override: force visibility on ALL screen sizes for ALL modals â”€â”€â”€ */
+/* - Modal override: force visibility on ALL screen sizes for ALL modals - */
 .modal {
     display: none;
     opacity: 1 !important;
@@ -143,7 +143,7 @@
     opacity: 0.5 !important;
     z-index: 9998 !important;
 }
-/* â”€â”€â”€ Manage Employees Header Controls (Uniform Height, Width & Border-Radius) â”€â”€â”€ */
+/* - Manage Employees Header Controls (Uniform Height, Width & Border-Radius) - */
 .emp-header-bar {
     display: flex;
     justify-content: space-between;
@@ -281,6 +281,13 @@
                         <div class="emp-filters-row">
                             <select class="form-select" id="departmentFilter">
                                 <option value="">All Departments</option>
+                            </select>
+                            <select class="form-select" id="roleFilter">
+                                <option value="">All Roles</option>
+                                <option value="employee">Staff / Employees</option>
+                                <option value="department_manager">Department Managers</option>
+                                <option value="branch_admin">Branch Admins</option>
+                                <option value="hr">Global HR</option>
                             </select>
                             <select class="form-select" id="monthFilter">
                                 <option value="">All Months</option>
@@ -629,14 +636,15 @@
         function capitalizeFirstLetter(string) {
             return string ? string.charAt(0).toUpperCase() + string.slice(1).toLowerCase() : '';
         }
-        // âœ… Fetch and display employees
-        function fetchEmployees(departmentId = '', viewType = 'active', month = '', year = '') {
+        // Fetch and display employees
+        function fetchEmployees(departmentId = '', viewType = 'active', month = '', year = '', role = '') {
             $.ajax({
                 url: '<?= base_url('/api/employees') ?>',
                 type: 'GET',
                 data: {
                     department_id: departmentId || '',
-                    view: viewType
+                    view: viewType,
+                    role: role || ''
                 },
 
                 headers: {
@@ -668,6 +676,17 @@
                                 const empName = `${capitalizeFirstLetter(employee.user_info.firstname || 'N/A')} ${capitalizeFirstLetter(employee.user_info.lastname || '')}`;
                                 const empEmail = employee.user?.email || 'N/A';
                                 const empDept = employee.user_info?.department_name || 'N/A';
+                                const rawRole = employee.user?.role || 'employee';
+                                let roleBadgeHtml = '<span class="badge bg-light text-dark border" style="font-size: 11px;">Employee</span>';
+                                if (rawRole === 'admin') {
+                                    roleBadgeHtml = '<span class="badge bg-danger text-white" style="font-size: 11px;"><i class="mdi mdi-shield-account me-1"></i>Super Admin</span>';
+                                } else if (rawRole === 'hr') {
+                                    roleBadgeHtml = '<span class="badge bg-info text-dark" style="font-size: 11px;"><i class="mdi mdi-account-star me-1"></i>Global HR</span>';
+                                } else if (rawRole === 'branch_admin') {
+                                    roleBadgeHtml = '<span class="badge bg-primary text-white" style="font-size: 11px;"><i class="mdi mdi-office-building me-1"></i>Branch Admin</span>';
+                                } else if (rawRole === 'department_manager') {
+                                    roleBadgeHtml = '<span class="badge bg-warning text-dark" style="font-size: 11px;"><i class="mdi mdi-account-tie me-1"></i>Dept Manager</span>';
+                                }
                                 const empRole = employee.user?.role ? employee.user.role.charAt(0).toUpperCase() + employee.user.role.slice(1) : 'N/A';
                                 const empRemPaid = employee.user_info?.remaining_paid_leave !== undefined ? employee.user_info.remaining_paid_leave : 0;
                                 const empRemSick = employee.user_info?.remaining_sick_leave !== undefined ? employee.user_info.remaining_sick_leave : 0;
@@ -728,7 +747,7 @@
                                                     </div>
                                                     <div class="detail-row">
                                                         <span class="detail-label">Role:</span>
-                                                        <span class="detail-value">${empRole}</span>
+                                                        <span class="detail-value">${roleBadgeHtml}</span>
                                                     </div>
                                                     <div class="detail-row">
                                                         <span class="detail-label">Rem. Paid Leave:</span>
@@ -758,7 +777,7 @@
                                         <td class="desktop-only-col">
                                             <span class="text-truncate d-inline-block" style="max-width: 120px;" title="${empDept}">${empDept}</span>
                                         </td>
-                                        <td class="desktop-only-col"><span class="badge badge-outline-secondary" style="font-size: 11px;">${empRole}</span></td>
+                                        <td class="desktop-only-col">${roleBadgeHtml}</td>
                                         <td class="desktop-only-col text-center"><a href="#" class="open-leave-history text-decoration-none fw-bold text-success" data-id="${employee.user.id}" data-name="${empName}">${empRemPaid} <i class="mdi mdi-information-outline small text-muted"></i></a></td>
                                         <td class="desktop-only-col text-center"><a href="#" class="open-leave-history text-decoration-none fw-bold text-warning" data-id="${employee.user.id}" data-name="${empName}">${empRemSick} <i class="mdi mdi-information-outline small text-muted"></i></a></td>
                                         <td class="desktop-only-col text-center">${statusBadge}</td>
@@ -898,34 +917,36 @@
             });
         }
 
-        // âœ… Filter change events
+        // Filter change events
         function triggerFilter() {
             const selectedDeptId = $('#departmentFilter').val();
+            const selectedRole   = $('#roleFilter').val();
             const selectedMonth  = $('#monthFilter').val();
             const selectedYear   = $('#yearFilter').val();
             const activeView     = $('#employeeTabs .emp-status-tab-btn.active').data('view') || 'active';
-            fetchEmployees(selectedDeptId, activeView, selectedMonth, selectedYear);
+            fetchEmployees(selectedDeptId, activeView, selectedMonth, selectedYear, selectedRole);
         }
 
-        $('#departmentFilter, #monthFilter, #yearFilter').on('change', function () {
+        $('#departmentFilter, #roleFilter, #monthFilter, #yearFilter').on('change', function () {
             triggerFilter();
         });
 
-        // âœ… Tab switch event
+        // Tab switch event
         $(document).on('click', '#employeeTabs .emp-status-tab-btn', function () {
             $('#employeeTabs .emp-status-tab-btn').removeClass('active');
             $(this).addClass('active');
             triggerFilter();
         });
 
-        // ðŸš€ Initial calls
+        // - Initial calls
         fetchDepartments();
         fetchEmployees('', 'active');
 
-        // ðŸ“¥ Export to Excel functionality
+        // - Export to Excel functionality
         $('#btnExportEmployees').on('click', function () {
             const $btn = $(this);
             const departmentId = $('#departmentFilter').val() || '';
+            const role = $('#roleFilter').val() || '';
             const month = $('#monthFilter').val() || '';
             const year = $('#yearFilter').val() || '';
             const viewType = $('#employeeTabs .emp-status-tab-btn.active').data('view') || 'active';
@@ -935,6 +956,7 @@
 
             const queryParams = new URLSearchParams({
                 department_id: departmentId,
+                role: role,
                 month: month,
                 year: year,
                 view: viewType
@@ -1031,9 +1053,9 @@
             if (open) hideBsModal(open.id);
         });
 
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // -
         // Status Change Modal Handler
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // -
         function toggleStatusModalFields(status) {
             const isAct = String(status || '').toLowerCase() === 'active';
             if (isAct) {
@@ -1098,9 +1120,9 @@
             });
         });
 
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // -
         // Month-wise Leave History Modal Handler
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // -
         $(document).on('click', '.open-leave-history', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -1156,21 +1178,21 @@
         });
 
 
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // -
         // Permanent Delete Employee
-        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // -
         window.deleteEmployee = function (employeeId, employeeName) {
             if (!employeeName) {
                 employeeName = $(`tr[data-id="${employeeId}"]`).find('a.text-dark').first().text().trim() || 'Employee #' + employeeId;
             }
 
-            // âš ï¸ Detailed warning listing ALL data that will be permanently erased
+            // <i class="mdi mdi-alert-circle-outline me-1"></i> Detailed warning listing ALL data that will be permanently erased
             Swal.fire({
-                title: 'âš ï¸ Permanent Delete Warning',
+                title: 'Permanent Delete Warning',
                 html: `
                     <div style="text-align:left; font-size:14px; line-height:1.7;">
                         <p>You are about to <strong>permanently delete</strong> the employee record for:</p>
-                        <p style="font-size:16px; font-weight:700; color:#E66136; margin:6px 0 12px;">ðŸ‘¤ ${employeeName}</p>
+                        <p style="font-size:16px; font-weight:700; color:#E66136; margin:6px 0 12px;"><i class="mdi mdi-account me-1"></i>${employeeName}</p>
                     </div>
                 `,
                 icon: 'warning',
@@ -1429,9 +1451,9 @@
         });
     });
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // Increment History Modal â€” AJAX fetch
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // -
+    // Increment History Modal - AJAX fetch
+    // -
     $(document).on('click', '.open-increment-history', function (e) {
         e.preventDefault();
         e.stopPropagation();

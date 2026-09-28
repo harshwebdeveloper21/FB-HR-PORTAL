@@ -12,7 +12,7 @@
             <i class="mdi mdi-office-building me-2 text-primary"></i>
             <?= $isEdit ? 'Edit Branch' : 'Create Branch' ?>
           </h4>
-          <a href="<?= base_url('/branches') ?>" class="btn btn-secondary btn-sm">
+          <a href="<?= base_url('/branches') ?>" class="btn hr-btnbg">
             <i class="mdi mdi-arrow-left me-1"></i> Back
           </a>
         </div>
@@ -89,7 +89,7 @@
               <i class="mdi mdi-content-save me-1"></i>
               <?= $isEdit ? 'Update Branch' : 'Create Branch' ?>
             </button>
-            <a href="<?= base_url('/branches') ?>" class="btn btn-secondary">Cancel</a>
+            <a href="<?= base_url('/branches') ?>" class="btn hr-btnbg">Cancel</a>
           </div>
         </form>
       </div>

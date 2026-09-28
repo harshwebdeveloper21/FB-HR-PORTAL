@@ -8,7 +8,7 @@ class AddLocationColumnsToAttendance extends Migration
 {
     public function up() { if ($this->db->fieldExists('ip_address', 'attendance')) { return; } 
         $fields = [
-            // â”€â”€ Check-In location fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // - Check-In location fields -
             'ip_address' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 64,
@@ -40,7 +40,7 @@ class AddLocationColumnsToAttendance extends Migration
                 'after'      => 'longitude',
             ],
 
-            // â”€â”€ Check-Out location fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // - Check-Out location fields -
             'checkout_ip_address' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 64,

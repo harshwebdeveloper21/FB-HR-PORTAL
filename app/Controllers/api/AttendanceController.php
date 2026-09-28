@@ -143,6 +143,7 @@ class AttendanceController extends ResourceController
         $this->leaveModel = new LeaveModel();
         $this->authService = new AuthService(service('request'));
         $this->pushNotificationService = new PushNotificationService();
+        $this->hierarchyService = new \App\Services\HierarchyService();
         $this->userModel = new UserModel();
     }
 
@@ -415,21 +416,7 @@ class AttendanceController extends ResourceController
             try {
                 $notificationSettingsModel = new NotificationSettingsModel();
                 if ($notificationSettingsModel->isAttendanceNotificationsEnabled()) {
-                    $employee     = $this->userModel->find($user->sub);
-                    $employeeName = $employee ? $employee['username'] : 'Employee';
-                    log_message('info', '📝 Employee check-in: ' . $employeeName . ' at ' . $timeOnly);
-                    $this->pushNotificationService->notifyAdmins(
-                        'Employee Check-In',
-                        $employeeName . ' has checked in at ' . $timeOnly,
-                        [
-                            'type'     => 'checkin',
-                            'user_id'  => $user->sub,
-                            'username' => $employeeName,
-                            'time'     => $timeOnly,
-                            'date'     => $date,
-                            'url'      => base_url('/attendence')
-                        ]
-                    );
+                    $this->hierarchyService->dispatchCheckInNotification((int)$user->sub, $timeOnly, $date);
                 }
             } catch (\Throwable $e) {
                 log_message('error', 'Check-in push notification failed: ' . $e->getMessage());
@@ -1177,18 +1164,29 @@ class AttendanceController extends ResourceController
             $branchId = (int)$branchId;
         }
 
-        // 🔹 Get users
+        // 🔹 Get users based on role hierarchy
         $userQuery = $userModel->where('is_deleted', 0);
-        if ($authUser->role === 'admin') {
-            $userQuery->whereIn('role', ['employee', 'hr']);
+        if (in_array($authUser->role, ['admin', 'hr'])) {
+            $userQuery->whereIn('role', ['hr', 'branch_admin', 'department_manager', 'employee']);
             if (!empty($branchId)) {
                 $userQuery->where('branch_id', (int)$branchId);
             }
-        } elseif ($authUser->role === 'hr') {
+        } elseif ($authUser->role === 'branch_admin') {
+            $userQuery->whereIn('role', ['department_manager', 'employee']);
+            $assignedBranch = $this->authService->getBranchId();
+            if ($assignedBranch) {
+                $userQuery->where('branch_id', $assignedBranch);
+            }
+        } elseif ($authUser->role === 'department_manager') {
             $userQuery->where('role', 'employee');
-            $hrBranchId = (new \App\Services\AuthService(service('request')))->getBranchId();
-            if (!empty($hrBranchId)) {
-                $userQuery->where('branch_id', (int)$hrBranchId);
+            $assignedBranch = $this->authService->getBranchId();
+            if ($assignedBranch) {
+                $userQuery->where('branch_id', $assignedBranch);
+            }
+            $currUser = $this->hierarchyService->getUserDetails((int)$authUser->sub);
+            $mgrDeptId = (int)($currUser['department_id'] ?: $currUser['ui_department_id'] ?: 0);
+            if ($mgrDeptId) {
+                $userQuery->where('department_id', $mgrDeptId);
             }
         } else {
             $userQuery->where('id', $authUser->sub);
@@ -2069,25 +2067,7 @@ class AttendanceController extends ResourceController
             // Check if attendance notifications are enabled
             $notificationSettingsModel = new NotificationSettingsModel();
             if ($notificationSettingsModel->isAttendanceNotificationsEnabled()) {
-                // Send push notification to admins
-                $employee = $this->userModel->find($user->sub);
-                $employeeName = $employee ? $employee['username'] : 'Employee';
-
-                log_message('info', '📝 Employee face check-in: ' . $employeeName . ' at ' . $timeOnly);
-
-                $this->pushNotificationService->notifyAdmins(
-                    'Employee Check-In (Face Recognition)',
-                    $employeeName . ' has checked in via face recognition at ' . $timeOnly,
-                    [
-                        'type' => 'checkin',
-                        'user_id' => $user->sub,
-                        'username' => $employeeName,
-                        'time' => $timeOnly,
-                        'date' => $date,
-                        'method' => 'face_recognition',
-                        'url' => base_url('/attendence')
-                    ]
-                );
+                $this->hierarchyService->dispatchCheckInNotification((int)$user->sub, $timeOnly, $date);
             } else {
                 log_message('info', '📝 Attendance notifications are disabled - skipping push notification');
             }

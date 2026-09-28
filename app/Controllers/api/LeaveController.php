@@ -5,6 +5,7 @@ namespace App\Controllers\Api;
 use App\Models\LeaveModel;
 use CodeIgniter\RESTful\ResourceController;
 use App\Services\AuthService;
+use App\Services\HierarchyService;
 use App\Models\LeaveTypeModel;
 use App\Models\UserModel;
 use App\Models\UserInfoModel;
@@ -52,9 +53,9 @@ class LeaveController extends ResourceController
             $filterBranchId = (int)$filterBranchId;
         }
 
-        if ($authUser->role === 'admin') {
-            // ✅ Admin: Fetch all HR and Employee leave records (filtered by active branch if selected)
-            $leaveRecords = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type, users.username AS created_by_username')
+        if ($authUser->role === 'admin' || $authUser->role === 'hr') {
+            // Super Admin or Global HR: Fetch leave records across company (filtered by active branch if selected)
+            $leaveQuery = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type, users.username AS created_by_username')
                 ->join('user_info', 'leaves.user_id = user_info.user_id', 'left')
                 ->join('users', 'leaves.created_by = users.id', 'left')
                 ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left')
@@ -62,41 +63,101 @@ class LeaveController extends ResourceController
                 ->where('emp_u.is_deleted', 0);
 
             if (!empty($filterBranchId)) {
-                $leaveRecords->where('emp_u.branch_id', (int)$filterBranchId);
+                $leaveQuery->where('emp_u.branch_id', (int)$filterBranchId);
             }
             if ($requestedUserId) {
-                $leaveRecords->where('leaves.user_id', $requestedUserId);
+                $leaveQuery->where('leaves.user_id', $requestedUserId);
             }
 
-            $leaveRecords = $leaveRecords->findAll();
-        } elseif ($authUser->role === 'hr') {
-            // ✅ HR: Fetch their own branch employee leaves
-            $hrBranchId = (new \App\Services\AuthService(service('request')))->getBranchId();
-            $leaveRecords = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type, users.username AS created_by_username')
+            $leaveRecords = $leaveQuery->findAll();
+
+            $userQuery = $userModel->select('user_info.*, users.username, users.role')
+                ->join('users', 'user_info.user_id = users.id')
+                ->where('users.is_deleted', 0);
+            if (!empty($filterBranchId)) {
+                $userQuery->where('users.branch_id', (int)$filterBranchId);
+            }
+            if ($requestedUserId) {
+                $userQuery->where('users.id', $requestedUserId);
+            }
+            $users = $userQuery->findAll();
+
+        } elseif ($authUser->role === 'branch_admin') {
+            // Branch Admin: Fetch leaves of employees in their branch
+            $branchId = (int)$this->authService->getBranchId();
+            $leaveQuery = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type, users.username AS created_by_username')
                 ->join('user_info', 'leaves.user_id = user_info.user_id', 'left')
                 ->join('users', 'leaves.created_by = users.id', 'left')
                 ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left')
                 ->join('users emp_u', 'leaves.user_id = emp_u.id', 'inner')
-                ->where('emp_u.is_deleted', 0);
+                ->where('emp_u.is_deleted', 0)
+                ->where('emp_u.branch_id', $branchId);
 
-            if (!empty($hrBranchId)) {
-                $leaveRecords->where('emp_u.branch_id', (int)$hrBranchId);
-            }
             if ($requestedUserId) {
-                $leaveRecords->where('leaves.user_id', $requestedUserId);
+                $leaveQuery->where('leaves.user_id', $requestedUserId);
             }
+            $leaveRecords = $leaveQuery->findAll();
 
-            $leaveRecords = $leaveRecords->findAll();
-        } else {
-            // ✅ Employee: Fetch only their own leave records
-            $users = $userModel->where('user_id', $authUser->sub)->findAll();
-            $leaveRecords = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type,users.username AS created_by_username')
+            $userQuery = $userModel->select('user_info.*, users.username, users.role')
+                ->join('users', 'user_info.user_id = users.id')
+                ->where('users.is_deleted', 0)
+                ->where('users.branch_id', $branchId);
+            if ($requestedUserId) {
+                $userQuery->where('users.id', $requestedUserId);
+            }
+            $users = $userQuery->findAll();
+
+        } elseif ($authUser->role === 'department_manager') {
+            // Department Manager: Fetch leaves in their department and branch (plus their own)
+            $dmUser = $usersModel->find($authUser->sub);
+            $dmBranchId = (int)($dmUser['branch_id'] ?? 0);
+            $dmDeptId = (int)($dmUser['department_id'] ?? 0);
+
+            $leaveQuery = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type, users.username AS created_by_username')
                 ->join('user_info', 'leaves.user_id = user_info.user_id', 'left')
-                ->join('users', 'leaves.created_by = users.id', 'left') // creator of leave
+                ->join('users', 'leaves.created_by = users.id', 'left')
+                ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left')
+                ->join('users emp_u', 'leaves.user_id = emp_u.id', 'inner')
+                ->where('emp_u.is_deleted', 0)
+                ->groupStart()
+                    ->where('leaves.user_id', $authUser->sub)
+                    ->orGroupStart()
+                        ->where('emp_u.branch_id', $dmBranchId)
+                        ->where('emp_u.department_id', $dmDeptId)
+                    ->groupEnd()
+                ->groupEnd();
+
+            if ($requestedUserId) {
+                $leaveQuery->where('leaves.user_id', $requestedUserId);
+            }
+            $leaveRecords = $leaveQuery->findAll();
+
+            $userQuery = $userModel->select('user_info.*, users.username, users.role')
+                ->join('users', 'user_info.user_id = users.id')
+                ->where('users.is_deleted', 0)
+                ->groupStart()
+                    ->where('users.id', $authUser->sub)
+                    ->orGroupStart()
+                        ->where('users.branch_id', $dmBranchId)
+                        ->where('users.department_id', $dmDeptId)
+                    ->groupEnd()
+                ->groupEnd();
+            if ($requestedUserId) {
+                $userQuery->where('users.id', $requestedUserId);
+            }
+            $users = $userQuery->findAll();
+
+        } else {
+            // Employee: Fetch only their own leave records
+            $users = $userModel->where('user_id', $authUser->sub)->findAll();
+            $leaveRecords = $leaveModel->select('leaves.*, user_info.firstname, leave_type.leave_type, users.username AS created_by_username')
+                ->join('user_info', 'leaves.user_id = user_info.user_id', 'left')
+                ->join('users', 'leaves.created_by = users.id', 'left')
                 ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left')
                 ->where('leaves.user_id', $authUser->sub)
                 ->findAll();
         }
+
         // Map leave records to corresponding users
         $userLeaveData = [];
         foreach ($leaveRecords as $leave) {
@@ -113,7 +174,7 @@ class LeaveController extends ResourceController
         return $this->respond([
             'status' => 'success',
             'data' => $leaveData,
-            'role' => $authUser->role // 👈 add this
+            'role' => $authUser->role
         ]);
     }
 
@@ -137,12 +198,32 @@ class LeaveController extends ResourceController
 
         $leaveTypes = $leaveTypeModel->findAll();
 
-        if ($role === 'admin') {
-            // Admin sees all HRs and Employees
-            $users = $userModel->whereIn('role', ['hr', 'employee'])->where('is_deleted', 0)->findAll();
-        } elseif ($role === 'hr') {
-            // HR sees all employees and themselves
-            $users = $userModel->whereIn('role', ['hr', 'employee'])->where('is_deleted', 0)->findAll();
+        if (in_array($role, ['admin', 'hr'])) {
+            // Admin and HR see all staff (filtered by active branch if selected)
+            $usersQuery = $userModel->whereIn('role', ['admin', 'hr', 'branch_admin', 'department_manager', 'employee'])->where('is_deleted', 0);
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $usersQuery->where('branch_id', (int)$filterBranchId);
+            }
+            $users = $usersQuery->findAll();
+        } elseif ($role === 'branch_admin') {
+            // Branch Admin sees staff in their branch
+            $branchId = (int)$this->authService->getBranchId();
+            $users = $userModel->where('branch_id', $branchId)->where('is_deleted', 0)->findAll();
+        } elseif ($role === 'department_manager') {
+            // Department Manager sees staff in their branch & department (plus themselves)
+            $dmUser = $userModel->find($userId);
+            $dmBranchId = (int)($dmUser['branch_id'] ?? 0);
+            $dmDeptId = (int)($dmUser['department_id'] ?? 0);
+            $users = $userModel->where('is_deleted', 0)
+                ->groupStart()
+                    ->where('id', $userId)
+                    ->orGroupStart()
+                        ->where('branch_id', $dmBranchId)
+                        ->where('department_id', $dmDeptId)
+                    ->groupEnd()
+                ->groupEnd()
+                ->findAll();
         } else {
             // Employee sees only themselves
             $users = [$userModel->find($userId)];
@@ -171,12 +252,21 @@ class LeaveController extends ResourceController
         $data = $this->request->getJSON(true);
         $userModel = new UserModel();
         // Authorization check
-        if ($role == 'admin') {
-            // admin can insert for anyone
-        } elseif ($role == 'hr') {
-            $allowedUsers = $userModel->whereIn('role', ['hr', 'employee'])->findColumn('id');
-            if (!in_array($data['user_id'], $allowedUsers)) {
-                return $this->failForbidden('Forbidden: HR can only add leave for themselves and employees.');
+        if ($role === 'admin' || $role === 'hr') {
+            // Admin and Global HR can apply leave for any employee
+        } elseif ($role === 'branch_admin') {
+            $targetUser = $userModel->find($data['user_id']);
+            $branchId = (int)$this->authService->getBranchId();
+            if (!$targetUser || (int)($targetUser['branch_id'] ?? 0) !== $branchId) {
+                return $this->failForbidden('Forbidden: Branch Admin can only add leave for staff in their branch.');
+            }
+        } elseif ($role === 'department_manager') {
+            $dmUser = $userModel->find($userId);
+            $targetUser = $userModel->find($data['user_id']);
+            $dmBranchId = (int)($dmUser['branch_id'] ?? 0);
+            $dmDeptId = (int)($dmUser['department_id'] ?? 0);
+            if (!$targetUser || ($targetUser['id'] != $userId && ((int)($targetUser['branch_id'] ?? 0) !== $dmBranchId || (int)($targetUser['department_id'] ?? 0) !== $dmDeptId))) {
+                return $this->failForbidden('Forbidden: Department Manager can only add leave for staff in their department.');
             }
         } else {
             if ($data['user_id'] != $userId) {
@@ -292,11 +382,12 @@ class LeaveController extends ResourceController
                 }
             }
 
-            // Send notifications (internal and push)
+            // Send notifications (internal and push via HierarchyService)
             try {
-                $this->sendLeaveNotification($data, $leaveId);
+                $hierarchyService = new HierarchyService();
+                $hierarchyService->dispatchLeaveNotification($leaveId, (int)$data['user_id'], $data);
             } catch (\Exception $e) {
-                log_message('error', '❌ Failed to trigger leave notifications: ' . $e->getMessage());
+                log_message('error', 'Failed to trigger leave hierarchy notification: ' . $e->getMessage());
             }
 
             return $this->respond([
@@ -420,17 +511,28 @@ class LeaveController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'Leave request not found'], 404);
         }
 
-        // HR can update only employee leave requests (not other HRs)
-        if ($userRole === 'hr') {
-            $userModel = new UserModel();
-            $employee = $userModel->find($leave['user_id']); // Ensure 'user_id' exists in 'leaves' table
+        // Hierarchy access check
+        $userModel = new UserModel();
+        $targetUser = $userModel->find($leave['user_id']);
+        if (!$targetUser) {
+            return $this->respond(['status' => 'error', 'message' => 'Employee not found'], 404);
+        }
 
-            if (!$employee) {
-                return $this->respond(['status' => 'error', 'message' => 'Employee not found'], 404);
+        if ($userRole === 'department_manager') {
+            $dmUser = $userModel->find($userId);
+            $dmBranchId = (int)($dmUser['branch_id'] ?? 0);
+            $dmDeptId = (int)($dmUser['department_id'] ?? 0);
+            if ((int)($targetUser['branch_id'] ?? 0) !== $dmBranchId || (int)($targetUser['department_id'] ?? 0) !== $dmDeptId) {
+                return $this->failForbidden('Forbidden: You can only update leave requests in your department.');
             }
-
-            if ($employee['role'] !== 'employee') {
-                return $this->failForbidden('You can only update employee leave requests.');
+        } elseif ($userRole === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            if ((int)($targetUser['branch_id'] ?? 0) !== $branchId) {
+                return $this->failForbidden('Forbidden: You can only update leave requests in your branch.');
+            }
+        } elseif ($userRole === 'hr') {
+            if ($targetUser['role'] === 'admin') {
+                return $this->failForbidden('Forbidden: HR cannot update Super Admin leave requests.');
             }
         }
 
@@ -501,10 +603,16 @@ class LeaveController extends ResourceController
         try {
             $this->syncLeaveBalanceForStatusChange($leave, $status);
 
-            $leaveModel->update($leaveId, [
+            $leaveUpdateData = [
                 'status' => $status,
                 'created_by' => $userId,
-            ]);
+                'approved_by' => $userId,
+            ];
+            if ($userRole === 'department_manager') {
+                $leaveUpdateData['manager_approval_status'] = $status;
+                $leaveUpdateData['manager_id'] = $userId;
+            }
+            $leaveModel->update($leaveId, $leaveUpdateData);
 
             if ($leaveModel->errors() || $db->transStatus() === false) {
                 throw new \RuntimeException('Failed to update leave status.');
@@ -853,24 +961,27 @@ class LeaveController extends ResourceController
     public function manage_index()
     {
         $user = $this->authService->check();
-        if (!$user || !in_array($user->role, ['admin', 'hr'])) {
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'])) {
             return redirect()->to('/login');
         }
 
         $filterBranchId = $this->authService->getBranchId();
 
-        // Fetch active employees for the dropdown (branch-scoped)
+        // Fetch active employees for the dropdown (branch-scoped / department-scoped)
         $employeeQuery = $this->userModel->where('is_deleted', 0);
-        if ($user->role === 'admin') {
-            $employeeQuery->whereIn('role', ['employee', 'hr']);
+        if ($user->role === 'admin' || $user->role === 'hr') {
+            $employeeQuery->whereIn('role', ['employee', 'hr', 'branch_admin', 'department_manager']);
             if (!empty($filterBranchId)) {
                 $employeeQuery->where('branch_id', (int)$filterBranchId);
             }
-        } elseif ($user->role === 'hr') {
+        } elseif ($user->role === 'branch_admin') {
+            $employeeQuery->whereIn('role', ['employee', 'department_manager']);
+            $employeeQuery->where('branch_id', (int)$filterBranchId);
+        } elseif ($user->role === 'department_manager') {
+            $dmUser = $this->userModel->find($user->sub);
             $employeeQuery->where('role', 'employee');
-            if (!empty($filterBranchId)) {
-                $employeeQuery->where('branch_id', (int)$filterBranchId);
-            }
+            $employeeQuery->where('branch_id', (int)($dmUser['branch_id'] ?? 0));
+            $employeeQuery->where('department_id', (int)($dmUser['department_id'] ?? 0));
         }
         $employees = $employeeQuery->findAll();
 
@@ -883,7 +994,7 @@ class LeaveController extends ResourceController
     public function delete($id = null)
     {
         $user = $this->authService->check();
-        if (!$user || !in_array($user->role, ['admin', 'hr'])) {
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
             return $this->failUnauthorized();
         }
 
@@ -921,21 +1032,38 @@ class LeaveController extends ResourceController
             ->join('users creator', 'creator.id = leaves.created_by', 'left');
 
         // Role scoping
-        if (!in_array($authUser->role, ['admin', 'hr'])) {
-            $builder->where('leaves.user_id', $authUser->sub);
-        } elseif (!empty($userId)) {
-            $builder->where('leaves.user_id', $userId);
-        } else {
-            $filterBranchId = $this->request->getGet('branch_id');
-            if ($filterBranchId === null || $filterBranchId === '') {
-                $filterBranchId = $this->authService->getBranchId();
+        if (in_array($authUser->role, ['admin', 'hr'])) {
+            if (!empty($userId)) {
+                $builder->where('leaves.user_id', $userId);
             } else {
-                $filterBranchId = (int)$filterBranchId;
+                $filterBranchId = $this->request->getGet('branch_id');
+                if ($filterBranchId === null || $filterBranchId === '') {
+                    $filterBranchId = $this->authService->getBranchId();
+                } else {
+                    $filterBranchId = (int)$filterBranchId;
+                }
+                if (!empty($filterBranchId)) {
+                    $builder->join('users emp_b_u', 'emp_b_u.id = leaves.user_id', 'inner')
+                            ->where('emp_b_u.branch_id', (int)$filterBranchId);
+                }
             }
-            if (!empty($filterBranchId)) {
-                $builder->join('users emp_b_u', 'emp_b_u.id = leaves.user_id', 'inner')
-                        ->where('emp_b_u.branch_id', (int)$filterBranchId);
+        } elseif ($authUser->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            $builder->join('users emp_b_u', 'emp_b_u.id = leaves.user_id', 'inner')
+                    ->where('emp_b_u.branch_id', $branchId);
+            if (!empty($userId)) {
+                $builder->where('leaves.user_id', $userId);
             }
+        } elseif ($authUser->role === 'department_manager') {
+            $dmUser = (new UserModel())->find($authUser->sub);
+            $builder->join('users emp_b_u', 'emp_b_u.id = leaves.user_id', 'inner')
+                    ->where('emp_b_u.branch_id', (int)($dmUser['branch_id'] ?? 0))
+                    ->where('emp_b_u.department_id', (int)($dmUser['department_id'] ?? 0));
+            if (!empty($userId)) {
+                $builder->where('leaves.user_id', $userId);
+            }
+        } else {
+            $builder->where('leaves.user_id', $authUser->sub);
         }
 
         if (!empty($departmentId)) {

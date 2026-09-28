@@ -452,7 +452,7 @@ $branchesList = $branchModel->getActiveBranches();
                 </button>
             </li>
             <!-- Branch Dropdown -->
-            <?php if (!empty($branchesList) && $role === 'admin'): ?>
+            <?php if (!empty($branchesList) && in_array($role, ['admin', 'hr'])): ?>
             <?php $activeBranch = session()->get('admin_active_branch'); ?>
             <li class="nav-item d-flex align-items-center">
                 <select class="form-select shadow-none text-muted fw-semibold" id="navbarBranchSelect" style="background: #ffffff; height: 40px !important;  border: 1px solid #DFDFDF; border-radius: 6px; cursor: pointer; font-family: 'Manrope', sans-serif; font-size: 14px; padding-top: 0; padding-bottom: 0; margin: 0;">
@@ -773,27 +773,27 @@ $branchesList = $branchModel->getActiveBranches();
         loadNotifications();
         setInterval(loadNotifications, 30000);
 
-        // Initialize push notifications for admin users and employees (for checkout reminders)
-        <?php if (in_array($role, ['admin', 'employee', 'hr'])) : ?>
+        // Initialize push notifications for all authenticated roles
+        <?php if (in_array($role, ['admin', 'employee', 'hr', 'branch_admin', 'department_manager'])) : ?>
 
             // Initialize immediately on login
             initializePushNotifications().then(() => {
-                console.log('âœ… initializePushNotifications completed');
+                console.log('[Push] initializePushNotifications completed');
             }).catch(error => {
-                console.error('âŒ initializePushNotifications failed:', error);
+                console.error('[Push] initializePushNotifications failed:', error);
             });
 
             // Also initialize on visibility change (for desktop browsers)
             document.addEventListener('visibilitychange', function() {
                 if (!document.hidden) {
-                    console.log('ðŸ“± Page visible, checking subscription...');
+                    console.log('[Push] Page visible, checking subscription...');
                     initializePushNotifications().catch(console.error);
                 }
             });
 
         <?php else : ?>
             // Other users: Do NOT subscribe to push notifications
-            console.log('ðŸ‘¤ User role: <?= $role ?> - Push notifications only for admin, employee, and HR');
+            console.log('User role: <?= $role ?> - Push notifications not active');
         <?php endif; ?>
     });
 </script>
@@ -1084,7 +1084,7 @@ $branchesList = $branchModel->getActiveBranches();
                 if (result.isConfirmed) {
                     btn.disabled = true;
 
-                    // â”€â”€ Capture GPS, then POST to check-in API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                    // - Capture GPS, then POST to check-in API -
                     const doCheckIn = (lat, lng, status) => {
                         const payload = {};
                         if (lat !== null && lng !== null) {
@@ -1151,7 +1151,7 @@ $branchesList = $branchModel->getActiveBranches();
                 if (result.isConfirmed) {
                     btn.disabled = true;
 
-                    // â”€â”€ Capture GPS, then POST to check-out API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                    // - Capture GPS, then POST to check-out API -
                     const doCheckOut = (lat, lng, status) => {
                         const payload = {};
                         if (lat !== null && lng !== null) {
@@ -1497,7 +1497,7 @@ $branchesList = $branchModel->getActiveBranches();
                 video.srcObject = stream;
                 await video.play();
             } catch (error) {
-                updateStatus('âŒ Camera access denied. Please allow camera.', 'danger');
+                updateStatus('Camera access denied. Please allow camera.', 'danger');
                 return;
             }
 
@@ -1510,7 +1510,7 @@ $branchesList = $branchModel->getActiveBranches();
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
             } catch (err) {
-                updateStatus('âŒ Failed to load AI. Please refresh and try again.', 'danger');
+                updateStatus('Failed to load AI. Please refresh and try again.', 'danger');
                 return;
             }
 
@@ -1538,7 +1538,7 @@ $branchesList = $branchModel->getActiveBranches();
                 const data = await response.json();
 
                 if (data.status !== 'success' || !data.face_photo) {
-                    updateStatus('âŒ No face photo registered. Ask admin to upload your photo first.', 'danger');
+                    updateStatus('No face photo registered. Ask admin to upload your photo first.', 'danger');
                     return false;
                 }
 
@@ -1549,7 +1549,7 @@ $branchesList = $branchModel->getActiveBranches();
                     .withFaceDescriptor();
 
                 if (!detection) {
-                    updateStatus('âŒ Cannot detect face in registered photo. Ask admin to re-upload clearer photo.', 'danger');
+                    updateStatus('Cannot detect face in registered photo. Ask admin to re-upload clearer photo.', 'danger');
                     return false;
                 }
 
@@ -1558,7 +1558,7 @@ $branchesList = $branchModel->getActiveBranches();
 
             } catch (error) {
                 console.error('Error loading registered face:', error);
-                updateStatus('âŒ Error loading your face data.', 'danger');
+                updateStatus('Error loading your face data.', 'danger');
                 return false;
             }
         }
@@ -1605,7 +1605,7 @@ $branchesList = $branchModel->getActiveBranches();
                             faceVerified = true;
                             // Only update status if no error
                             if (!hasError) {
-                                updateStatus('âœ“ Face verified! (' + matchPercent + '% match) Click to check in.', 'success');
+                                updateStatus('Face verified! (' + matchPercent + '% match) Click to check in.', 'success');
                             }
                         } else {
                             document.getElementById('match-progress').style.backgroundColor = '#dc3545';
@@ -1859,7 +1859,7 @@ $branchesList = $branchModel->getActiveBranches();
         // Check-in button - only works if face is verified
         document.getElementById('capture-face-btn')?.addEventListener('click', async function() {
             if (!faceVerified) {
-                updateStatus('âŒ Face not verified. Cannot check in.', 'danger');
+                updateStatus('Face not verified. Cannot check in.', 'danger');
                 return;
             }
 
@@ -1878,9 +1878,9 @@ $branchesList = $branchModel->getActiveBranches();
                     if (userLocation.accuracy) {
                         const accuracyMeters = Math.round(userLocation.accuracy);
                         if (accuracyMeters > 500) {
-                            updateStatus(`Location accuracy: Â±${accuracyMeters}m (may be less accurate on desktop)`, 'warning');
+                            updateStatus(`Location accuracy: +/-${accuracyMeters}m (may be less accurate on desktop)`, 'warning');
                         } else {
-                            updateStatus(`Location accuracy: Â±${accuracyMeters}m`, 'info');
+                            updateStatus(`Location accuracy: +/-${accuracyMeters}m`, 'info');
                         }
                     }
                 } catch (locationError) {
@@ -1955,7 +1955,7 @@ $branchesList = $branchModel->getActiveBranches();
                 }
 
                 if (data.status === 'success') {
-                    updateStatus('âœ“ Check-in successful! Redirecting...', 'success');
+                    updateStatus('Check-in successful! Redirecting...', 'success');
                     btn.innerHTML = '<i class="mdi mdi-check-circle me-1"></i>Done';
                     stopCamera();
 
@@ -1969,7 +1969,7 @@ $branchesList = $branchModel->getActiveBranches();
 
                     if (typeof Swal !== 'undefined') {
                         Swal.fire({
-                            title: 'Success! âœ“',
+                            title: 'Success!',
                             text: data.message || 'Face verified and checked in!',
                             icon: 'success',
                             timer: 1500,
@@ -2003,18 +2003,18 @@ $branchesList = $branchModel->getActiveBranches();
 
         // Check if browser supports service workers and push notifications
         if (!('serviceWorker' in navigator)) {
-            console.error('âŒ Service Worker not supported in this browser');
+            console.error('Service Worker not supported in this browser');
             return;
         }
 
         if (!('PushManager' in window)) {
-            console.error('âŒ Push Manager not supported in this browser');
+            console.error('Push Manager not supported in this browser');
             return;
         }
 
         // Check notification permission first
         if (!('Notification' in window)) {
-            console.error('âŒ Notifications are not supported in this browser');
+            console.error('Notifications are not supported in this browser');
             return;
         }
 
@@ -2025,14 +2025,14 @@ $branchesList = $branchModel->getActiveBranches();
             try {
                 permission = await Notification.requestPermission();
             } catch (error) {
-                console.error('âŒ Error requesting notification permission:', error);
+                console.error('Error requesting notification permission:', error);
                 return;
             }
         }
 
         // If permission is denied, don't proceed
         if (permission !== 'granted') {
-            console.error('âŒ Notification permission denied. Permission:', permission);
+            console.error('Notification permission denied. Permission:', permission);
             // Show a message to user
             showNotificationPermissionMessage();
             return;
@@ -2076,13 +2076,13 @@ $branchesList = $branchModel->getActiveBranches();
                         if (subscription) {
                             hideNotificationPermissionMessage();
                         } else {
-                            console.error('âŒ Failed to create subscription');
+                            console.error('Failed to create subscription');
                         }
                     } else {
-                        console.error('âŒ Invalid public key response:', data);
+                        console.error('Invalid public key response:', data);
                     }
                 } catch (error) {
-                    console.error('âŒ Error getting public key:', error);
+                    console.error('Error getting public key:', error);
                     console.error('Error details:', error.message, error.stack);
                 }
             } else {
@@ -2154,9 +2154,9 @@ $branchesList = $branchModel->getActiveBranches();
             if (saved) {
                 return subscription;
             } else {
-                console.error('âŒâŒâŒ FAILED to save subscription to server!');
-                console.error('âŒâŒâŒ This is why database is empty!');
-                console.error('âŒ Check network tab for API errors');
+                console.error('FAILED to save subscription to server!');
+                console.error('This is why database is empty!');
+                console.error('Check network tab for API errors');
                 return null;
             }
         } catch (error) {
@@ -2232,7 +2232,7 @@ $branchesList = $branchModel->getActiveBranches();
                         const statusData = await statusResponse.json();
 
                         if (statusData.count === 0) {
-                            console.error('âŒ WARNING: Subscription was not saved to database!');
+                            console.error('WARNING: Subscription was not saved to database!');
                             console.error('Response was:', data);
                         } else {}
                     } catch (error) {
@@ -2242,7 +2242,7 @@ $branchesList = $branchModel->getActiveBranches();
 
                 return true;
             } else {
-                console.error('âŒ Failed to save subscription:', data.message);
+                console.error('Failed to save subscription:', data.message);
                 console.error('Response data:', data);
                 if (data.errors) {
                     console.error('Validation errors:', data.errors);
@@ -2340,10 +2340,10 @@ $branchesList = $branchModel->getActiveBranches();
                 icon: '/favicon.ico',
                 tag: 'test-desktop'
             });
-            console.log('âœ… Desktop notification sent');
+            console.log('Desktop notification sent');
             setTimeout(() => notif.close(), 5000);
         } else {
-            console.error('âŒ Permission not granted. Run: Notification.requestPermission()');
+            console.error('Permission not granted. Run: Notification.requestPermission()');
         }
     };
 

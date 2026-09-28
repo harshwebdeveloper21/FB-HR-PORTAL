@@ -657,7 +657,7 @@
     }
     .ann-card:hover .ann-card-footer-read { opacity: 1; }
 
-    /* Ã¢â€â‚¬Ã¢â€â‚¬ Marquee ticker Ã¢â€â‚¬Ã¢â€â‚¬ */
+    /* - Marquee ticker - */
     .ann-marquee-outer {
         overflow: hidden;          /* clip cards outside viewport */
         position: relative;
@@ -674,7 +674,7 @@
         z-index: 3;
     }
 
-    /* Ã¢â€â‚¬Ã¢â€â‚¬ Announcement Cards Row Ã¢â€â‚¬Ã¢â€â‚¬ */
+    /* - Announcement Cards Row - */
     .ann-marquee-outer {
         position: relative;
         width: 100%;
@@ -689,7 +689,7 @@
         pointer-events: none;
         z-index: 3;
     }
-    /* Scrollable flex row Ã¢â‚¬â€ width:100% so overflow clips clones naturally */
+    /* Scrollable flex row - width:100% so overflow clips clones naturally */
     .ann-marquee-track {
         display: flex;
         gap: 14px;
@@ -2952,7 +2952,7 @@
 
 <?php if ($role == 'employee' && isset($todayHoursData) && $todayHoursData && $todayHoursData['is_checked_in']) : ?>
     <script>
-        // Ã¢Å“â€¦ CLEAN Real-time hours counter Ã¢â‚¬â€ server-anchored, no timezone math
+        // - CLEAN Real-time hours counter - server-anchored, no timezone math
         (function() {
             // Server has already computed the correct elapsed seconds in IST timezone
             const elapsedAtLoad      = <?= (int)($todayHoursData['elapsed_seconds_at_load'] ?? 0) ?>;
@@ -2996,7 +2996,7 @@
             // Start ticking every second
             setInterval(tick, 1000);
 
-            console.log('Ã¢ÂÂ±Ã¯Â¸Â Timer started | elapsedAtLoad=' + elapsedAtLoad + 's | completed=' + completedSeconds + 's | standard=' + standardHoursSeconds + 's');
+            console.log('Timer started | elapsedAtLoad=' + elapsedAtLoad + 's | completed=' + completedSeconds + 's | standard=' + standardHoursSeconds + 's');
         })();
     </script>
 <?php endif; ?>

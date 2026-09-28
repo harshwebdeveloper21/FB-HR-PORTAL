@@ -1254,7 +1254,7 @@
                 </div>
 
                 <div class="alert alert-info small">
-                    âš ï¸ This action will update attendance for all dates between selected range.
+                    <i class="mdi mdi-alert-circle-outline me-1"></i> This action will update attendance for all dates between selected range.
                 </div>
             </div>
 
@@ -1314,7 +1314,7 @@
                             <span id="multi_selected_count_badge" class="badge bg-primary" style="font-size: 11px;">0 Selected</span>
                         </div>
                         <div style="width: 240px; max-width: 100%;">
-                            <input type="text" id="multi_employee_search" class="form-control form-control-sm" placeholder="ðŸ” Search employee..." oninput="filterMultiEmployees()">
+                            <input type="text" id="multi_employee_search" class="form-control form-control-sm" placeholder="Search employee..." oninput="filterMultiEmployees()">
                         </div>
                     </div>
 
@@ -1590,7 +1590,7 @@
             const isFuture = new Date(selectedDate) > new Date(todayDate);
             const isSaturdayOff = saturdayOffDates.includes(selectedDate);
 
-            // For Sunday, hard holidays, or future dates â†’ return early with banner
+            // For Sunday, hard holidays, or future dates - return early with banner
             // Note: Sunday with actual check-ins is handled below in isSundayOff block
             if (holiday || isFuture) {
                 mobileList.innerHTML = `
@@ -1631,7 +1631,7 @@
                     return;
                 }
 
-                // â”€â”€ Reuse the same fmtTime helper as regular days â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // - Reuse the same fmtTime helper as regular days -
                 function fmtTimeOff(t) {
                     if (!t || t === '-') return null;
                     const [h, m, s] = t.split(':');
@@ -1641,7 +1641,7 @@
                     return `${h12}:${m.padStart(2,'0')}:${(s||'00').padStart(2,'0')} ${ampm}`;
                 }
 
-                // â”€â”€ Same buildInlineLine helper as regular days â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // - Same buildInlineLine helper as regular days -
                 function buildInlineLineOff(prefix, time, locationName, locationStatus) {
                     const timeStr = fmtTimeOff(time);
                     if (!timeStr) {
@@ -1676,7 +1676,7 @@
                     </div>`;
                 }
 
-                // â”€â”€ Render each present employee with the SAME card design â”€â”€â”€â”€â”€â”€â”€
+                // - Render each present employee with the SAME card design -
                 presentOnOff.forEach(user => {
                     const attendance = user.attendance?.find(r => (r.date || '').substring(0, 10) === selectedDate);
                     const profileImage = user.profile_image ? `/upload/${user.profile_image}` : defaultImagePath;
@@ -1777,7 +1777,7 @@
                     statusClass = 'half-day';
                 }
 
-                // â”€â”€ Format time (HH:MM:SS â†’ h:mm:ss AM/PM) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // - Format time (HH:MM:SS - h:mm:ss AM/PM) -
                 function fmtTime(t) {
                     if (!t || t === '-') return null;
                     const [h, m, s] = t.split(':');

@@ -248,7 +248,7 @@ class AttendanceController extends ResourceController
         // If found incomplete yesterday's attendance, update it with checkout time
         if ($yesterdayAttendance) {
             // Get company rules to determine standard checkout time
-            $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first();
+            $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
             $fullDayHours = $companyRule['working_hours_per_day'] ?? 8;
 
             // Calculate standard checkout time based on check-in time + working hours
@@ -503,7 +503,7 @@ class AttendanceController extends ResourceController
         // it doesn't have access to it, we read the global rule here as fallback
         // and let the call sites override per staff.  The branch-aware path is
         // handled in checkIn/checkOut where we pass $userId explicitly.
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first();
+        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
         $isSaturdayHalfDay = $this->isSaturdayHalfDay($date, $companyRule);
 
         /* ---------------------------------------------------
@@ -1202,11 +1202,11 @@ class AttendanceController extends ResourceController
         }
 
         // 🔹 Company rules
-        $companyRule = $companyRulesModel->first();
-        $isIncludedHoliday = $companyRule['include_holidays_in_working_days'];
+        $companyRule = $companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+        $isIncludedHoliday = $companyRule['include_holidays_in_working_days'] ?? 0;
 
-        if ($companyRule && $companyRule['saturday_off_enabled'] == 1) {
-            switch ($companyRule['saturday_off_type']) {
+        if (!empty($companyRule) && ($companyRule['saturday_off_enabled'] ?? 0) == 1) {
+            switch ($companyRule['saturday_off_type'] ?? '') {
                 case 'all':
                     $saturdayOffIndexes = [1, 2, 3, 4, 5];
                     break;
@@ -1217,7 +1217,9 @@ class AttendanceController extends ResourceController
                     $saturdayOffIndexes = [1, 3, 5];
                     break;
                 case 'custom':
-                    $saturdayOffIndexes = explode(',', $companyRule['saturday_off_pattern']);
+                    $saturdayOffIndexes = !empty($companyRule['saturday_off_pattern'])
+                        ? explode(',', $companyRule['saturday_off_pattern'])
+                        : [];
                     break;
                 default:
                     $saturdayOffIndexes = [];
@@ -1311,9 +1313,9 @@ class AttendanceController extends ResourceController
             }
 
             // Company rules (used for calculateDayStatus + late-detection)
-            $companyRuleForStatus = $companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+            $companyRuleForStatus = !empty($companyRule) ? $companyRule : ($companyRulesModel->orderBy('id', 'DESC')->first() ?? []);
             $startTimeForStatus   = $companyRuleForStatus['start_time'] ?? '09:30:00';
-            $graceMinutes         = (int)($companyRuleForStatus['grace_period'] ?? 0);
+            $graceMinutes         = (int)($companyRuleForStatus['grace_period'] ?? ($companyRuleForStatus['grace_minutes'] ?? 0));
             $graceSeconds         = $graceMinutes * 60;
             // calculateDayStatus() reads 'grace_minutes'; DB column is 'grace_period' — alias it.
             $companyRuleForStatus['grace_minutes'] = $graceMinutes;
@@ -1652,7 +1654,7 @@ class AttendanceController extends ResourceController
         }
 
         // 🔹 Company info for location fallback
-        $companyRecord  = $companyLogoModel->first();
+        $companyRecord  = $companyLogoModel->first() ?? [];
         $companyAddress = $companyRecord['company_address'] ?? '';
         $companyName    = $companyRecord['company_name']    ?? '';
 
@@ -2239,7 +2241,7 @@ class AttendanceController extends ResourceController
         }
 
         // Get company rules
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first();
+        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
         $mealBreak = $companyRule['lunch_break'] ?? '00:30:00';
         $startTime = $companyRule['start_time'] ?? '09:00:00';
         $gracePeriod = (int) ($companyRule['grace_period'] ?? 0); // minutes
@@ -2467,7 +2469,7 @@ class AttendanceController extends ResourceController
         }
 
         // Company rules
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first();
+        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
         $mealBreak = $companyRule['lunch_break'] ?? '00:30:00';
         $startTime = $companyRule['start_time'] ?? '09:00:00';
         $gracePeriod = (int) ($companyRule['grace_period'] ?? 0);
@@ -2593,7 +2595,7 @@ class AttendanceController extends ResourceController
         }
 
         // Company rules for calculations
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first();
+        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
         $mealBreak = $companyRule['lunch_break'] ?? '00:30:00';
         $startTime = $companyRule['start_time'] ?? '09:00:00';
         $gracePeriod = (int) ($companyRule['grace_period'] ?? 0);

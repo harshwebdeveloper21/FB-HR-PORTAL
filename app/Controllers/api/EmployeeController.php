@@ -1645,7 +1645,7 @@ class EmployeeController extends ResourceController
 
         return $this->respond([
             'status'  => 'success',
-            'message' => 'Salary incremented successfully! New salary: â‚¹' . number_format($newSalary, 2)
+            'message' => 'Salary incremented successfully! New salary: ₹' . number_format($newSalary, 2)
         ]);
     }
 

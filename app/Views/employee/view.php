@@ -475,7 +475,7 @@
 
                 <div id="lm-loader" class="text-center py-4">
                     <div class="spinner-border" style="color:#E66136;" role="status">
-                        <span class="visually-hidden">Loadingâ€¦</span>
+                        <span class="visually-hidden">Loading...</span>
                     </div>
                     <p class="mt-2 text-muted small">Fetching monthly leave breakdown...</p>
                 </div>
@@ -587,7 +587,7 @@
             <div class="modal-body p-3">
                 <div id="ih-loader" class="text-center py-4">
                     <div class="spinner-border" style="color:#E66136;" role="status">
-                        <span class="visually-hidden">Loadingâ€¦</span>
+                        <span class="visually-hidden">Loading...</span>
                     </div>
                     <p class="mt-2 text-muted small">Fetching increment history...</p>
                 </div>
@@ -1306,7 +1306,7 @@
             $('#incrementModalLabel').html('<i class="mdi mdi-history me-1"></i> Add Increment History Record');
             $('#viewIncModalHeader').css('background', 'linear-gradient(135deg, #4b5563 0%, #374151 100%)');
             $('#view_inc_history_alert').show();
-            $('#view_inc_history_current_sal').text('â‚¹ ' + rawSal.toLocaleString('en-IN'));
+            $('#view_inc_history_current_sal').text('₹ ' + rawSal.toLocaleString('en-IN'));
             $('#view_inc_salary_label').html('Previous / Base Salary (&#8377;): <span class="text-danger">*</span>');
             $('#current_salary').val(rawSal).prop('readonly', false).css('background', '#fff');
             $('#view_inc_salary_help').show();
@@ -1317,7 +1317,7 @@
             $('#incrementModalLabel').html('<i class="mdi mdi-cash-plus me-1"></i> Add Salary Increment');
             $('#viewIncModalHeader').css('background', '#E66136');
             $('#view_inc_history_alert').hide();
-            $('#view_inc_salary_label').text('Current Salary (â‚¹):');
+            $('#view_inc_salary_label').text('Current Salary (₹):');
             $('#current_salary').val(rawSal).prop('readonly', true).css('background', '#e9ecef');
             $('#view_inc_salary_help').hide();
             $('#view_inc_last_date_group').show();

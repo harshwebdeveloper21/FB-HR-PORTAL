@@ -429,7 +429,7 @@
                                                 <a href="/payroll/profile/${payroll.id}" class="text-decoration-none text-dark">
                                                     <span class="capitalize-text fw-bold">${payroll.username}</span>
                                                 </a>
-                                                <small class="text-muted" style="font-size: 13px;">â‚¹${parseFloat(payroll.salary_amount || 0).toLocaleString()}</small>
+                                                <small class="text-muted" style="font-size: 13px;">₹${parseFloat(payroll.salary_amount || 0).toLocaleString()}</small>
                                             </div>
                                         </div>
                                         <div style="flex: 1;" class="align-self-center">
@@ -489,12 +489,12 @@
                                         </div>
                                     </td>
                                     <td class="desktop-only-col">
-                                        â‚¹${(parseFloat(payroll.salary_amount || 0) / 30).toFixed(2)}<br>
-                                        <small class="text-muted">â‚¹${((parseFloat(payroll.salary_amount || 0) / 30) / 8).toFixed(2)}/hr</small>
+                                        ₹${(parseFloat(payroll.salary_amount || 0) / 30).toFixed(2)}<br>
+                                        <small class="text-muted">₹${((parseFloat(payroll.salary_amount || 0) / 30) / 8).toFixed(2)}/hr</small>
                                     </td>
                                     <td class="desktop-only-col text-center">${payroll.tax_deduction || '0'}</td>
-                                    <td class="desktop-only-col text-center text-danger">â‚¹${parseFloat(payroll.salary_deduction || 0).toFixed(2)}</td>
-                                    <td class="desktop-only-col fw-bold">â‚¹${parseFloat(payroll.net_salary || 0).toFixed(2)}</td>
+                                    <td class="desktop-only-col text-center text-danger">₹${parseFloat(payroll.salary_deduction || 0).toFixed(2)}</td>
+                                    <td class="desktop-only-col fw-bold">₹${parseFloat(payroll.net_salary || 0).toFixed(2)}</td>
                                     <td class="capitalize-text" style="display: none;">${payroll.created_at}</td>
                                     <td class="desktop-only-col" style="display: flex; align-items: center; gap: 8px;">
                                         ${actionButtons}
@@ -668,7 +668,7 @@
         // Call the fetchPayroll function on page load
         fetchPayroll();
 
-        // Deduction breakdown popup â€“ open modal (shared for click and touchend)
+        // Deduction breakdown popup – open modal (shared for click and touchend)
         function openListDeductionModal($el) {
             const userId = $el.data('user-id');
             const month = $el.data('month-year');
@@ -678,7 +678,7 @@
             const loading = document.getElementById('listDeductionBreakdownLoading');
             const content = document.getElementById('listDeductionBreakdownContent');
             if (!modal) return;
-            document.getElementById('listDeductionBreakdownModalLabel').innerHTML = '<i class="mdi mdi-information-outline me-1"></i> Why was this amount deducted? â€“ ' + name;
+            document.getElementById('listDeductionBreakdownModalLabel').innerHTML = '<i class="mdi mdi-information-outline me-1"></i> Why was this amount deducted? – ' + name;
             loading.style.display = 'block';
             content.style.display = 'none';
             content.innerHTML = '';
@@ -712,12 +712,12 @@
                             d.leaves.dates.forEach(function (l) { html += '<li>' + (l.label || l.date) + '</li>'; });
                             html += '</ul>';
                         }
-                        html += '<span class="text-danger">Deduction: â‚¹' + (d.leaves.deduction_amount || 0).toFixed(2) + '</span></div>';
+                        html += '<span class="text-danger">Deduction: ₹' + (d.leaves.deduction_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.absent && d.absent.dates && d.absent.dates.length) {
                         html += '<div class="breakdown-section" style="border-left:3px solid #E66136;padding-left:0.75rem;margin-bottom:1rem;"><strong>Absent</strong><ul class="list-unstyled small mb-1" style="max-height:120px;overflow-y:auto;">';
                         d.absent.dates.forEach(function (a) { html += '<li>' + (a.label || a.date) + '</li>'; });
-                        html += '</ul><span class="text-danger">Deduction: â‚¹' + (d.absent.deduction_amount || 0).toFixed(2) + '</span></div>';
+                        html += '</ul><span class="text-danger">Deduction: ₹' + (d.absent.deduction_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.half_day && d.half_day.count > 0) {
                         html += '<div class="breakdown-section" style="border-left:3px solid #E66136;padding-left:0.75rem;margin-bottom:1rem;"><strong>Half-day</strong>';
@@ -725,27 +725,27 @@
                             html += '<ul class="list-unstyled small mb-1" style="max-height:120px;overflow-y:auto;">';
                             d.half_day.dates.forEach(function (h) {
                                 var baseLabel = (h.label || h.date);
-                                var worked = h.worked_text ? (' â€“ Worked: ' + h.worked_text) : '';
-                                var missing = h.missing_text ? (' â€“ Deduct: ' + h.missing_text) : '';
+                                var worked = h.worked_text ? (' – Worked: ' + h.worked_text) : '';
+                                var missing = h.missing_text ? (' – Deduct: ' + h.missing_text) : '';
                                 html += '<li>' + baseLabel + worked + missing + '</li>';
                             });
                             html += '</ul>';
                         }
-                        html += '<span class="text-danger">Deduction: â‚¹' + (d.half_day.deduction_amount || 0).toFixed(2) + '</span></div>';
+                        html += '<span class="text-danger">Deduction: ₹' + (d.half_day.deduction_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.late && d.late.list && d.late.list.length) {
                         html += '<div class="breakdown-section" style="border-left:3px solid #E66136;padding-left:0.75rem;margin-bottom:1rem;"><strong>Late arrival</strong><ul class="list-unstyled small" style="max-height:120px;overflow-y:auto;">';
-                        d.late.list.forEach(function (l) { html += '<li>' + (l.label || l.date) + ' â€“ ' + (l.late_text || l.late_minutes + ' min') + '</li>'; });
-                        html += '</ul><span class="text-danger">Deduction: â‚¹' + (d.late.deduction_amount || 0).toFixed(2) + '</span></div>';
+                        d.late.list.forEach(function (l) { html += '<li>' + (l.label || l.date) + ' – ' + (l.late_text || l.late_minutes + ' min') + '</li>'; });
+                        html += '</ul><span class="text-danger">Deduction: ₹' + (d.late.deduction_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.overtime && d.overtime.list && d.overtime.list.length) {
                         html += '<div class="breakdown-section" style="border-left:3px solid #E66136;padding-left:0.75rem;margin-bottom:1rem;"><strong class="text-success">Overtime</strong><ul class="list-unstyled small" style="max-height:120px;overflow-y:auto;">';
-                        d.overtime.list.forEach(function (o) { html += '<li>' + (o.label || o.date) + ' â€“ ' + (o.overtime_text || o.overtime_hours + 'h') + '</li>'; });
-                        html += '</ul><span class="text-success">Added to salary: â‚¹' + (d.overtime.pay_amount || 0).toFixed(2) + '</span></div>';
+                        d.overtime.list.forEach(function (o) { html += '<li>' + (o.label || o.date) + ' – ' + (o.overtime_text || o.overtime_hours + 'h') + '</li>'; });
+                        html += '</ul><span class="text-success">Added to salary: ₹' + (d.overtime.pay_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.summary) {
-                        html += '<hr><div class="fw-bold"><span>Total deduction (leaves + half-day + late):</span> <span class="text-danger">â‚¹' + (d.summary.total_deduction || 0).toFixed(2) + '</span></div>';
-                        if (d.summary.overtime_added > 0) html += '<div class="fw-bold"><span>Overtime added:</span> <span class="text-success">â‚¹' + d.summary.overtime_added.toFixed(2) + '</span></div>';
+                        html += '<hr><div class="fw-bold"><span>Total deduction (leaves + half-day + late):</span> <span class="text-danger">₹' + (d.summary.total_deduction || 0).toFixed(2) + '</span></div>';
+                        if (d.summary.overtime_added > 0) html += '<div class="fw-bold"><span>Overtime added:</span> <span class="text-success">₹' + d.summary.overtime_added.toFixed(2) + '</span></div>';
                     }
                     if (!d.leaves?.count && !d.absent?.dates?.length && !d.half_day?.count && !d.late?.list?.length && !d.overtime?.list?.length) {
                         html += '<p class="text-muted">No leaves, absent, late, or overtime in this month.</p>';
@@ -917,7 +917,7 @@
 </script>
 
 <script>
-    // â”€â”€â”€ Salary Sheet PDF (client-side, jsPDF + AutoTable) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // --- Salary Sheet PDF (client-side, jsPDF + AutoTable) ---
     function generateSalarySheetPDF() {
         if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
             alert('PDF library not loaded yet. Please wait a moment and try again.');
@@ -1069,7 +1069,7 @@
         const pageW       = doc.internal.pageSize.getWidth();
         const totalRowIdx = tableBody.length - 1;
 
-        // â”€â”€ Header Box & Banner Dimensions (Uniform Left & Right Margins: 24pt) â”€â”€â”€â”€â”€â”€
+        // --- Header Box & Banner Dimensions (Uniform Left & Right Margins: 24pt) ---
         const marginX  = 24;
         const contentW = pageW - (marginX * 2);
         const headerH  = companyAddress ? 54 : 44;
@@ -1079,7 +1079,7 @@
         doc.setLineWidth(0.5);
         doc.rect(marginX, 10, contentW, headerH, 'S');
 
-        // Logo â€“ Preserving natural aspect ratio so it is never distorted/squished
+        // Logo – Preserving natural aspect ratio so it is never distorted/squished
         let imgW = 110;
         let imgH = 38;
         if (logoBase64) {
@@ -1103,14 +1103,14 @@
             try { doc.addImage(logoBase64, logoX, logoY, imgW, imgH); } catch(e) {}
         }
 
-        // Company Name â€“ bold
+        // Company Name – bold
         const textX = logoBase64 ? (logoX + imgW + 16) : (marginX + 12);
         doc.setTextColor(...black);
         doc.setFontSize(13);
         doc.setFont('helvetica', 'bold');
         doc.text(companyName, textX, 31);
 
-        // Company Address â€“ normal, grey
+        // Company Address – normal, grey
         if (companyAddress) {
             doc.setFontSize(8.5);
             doc.setFont('helvetica', 'normal');
@@ -1118,7 +1118,7 @@
             doc.text(companyAddress, textX, 45);
         }
 
-        // Month / Sheet title row â€“ dark bar below header (matching exact marginX)
+        // Month / Sheet title row – dark bar below header (matching exact marginX)
         const titleBarY = headerH + 10 + 9;
         doc.setFillColor(...darkBg);
         doc.rect(marginX, titleBarY - 12, contentW, 18, 'F');

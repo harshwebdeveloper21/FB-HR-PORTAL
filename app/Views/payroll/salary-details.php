@@ -113,7 +113,7 @@
           </div>
 
           <div class="mb-3">
-            <label for="adjustment_amount" class="form-label fw-bold">This Month Adjustment (â‚¹)</label>
+            <label for="adjustment_amount" class="form-label fw-bold">This Month Adjustment (₹)</label>
             <input type="number" class="form-control" id="adjustment_amount" placeholder="e.g. 500 or -200" step="0.01">
             <small class="text-muted">Enter positive for addition, negative for deduction.</small>
           </div>
@@ -218,7 +218,7 @@
                                 <span class="badge bg-secondary-subtle text-secondary" style="font-size: 10px; padding: 1px 4px;">Inactive</span>
                               <?php } ?>
                             </div>
-                            <small class="text-muted" style="font-size: 13px;">â‚¹<?= number_format($emp["salary"], 0) ?></small>
+                            <small class="text-muted" style="font-size: 13px;">₹<?= number_format($emp["salary"], 0) ?></small>
                           </div>
                         </div>
                       </a>
@@ -277,8 +277,8 @@
                         <!-- <small class="text-muted" style="font-size: 9px; margin-top: 2px;">Paid / Sick</small> -->
                       </div>
                     </td>
-                    <td>â‚¹<?= number_format($emp["per_day"], 2) ?><br><small
-                        class="text-muted">â‚¹<?= number_format($emp["per_hour"] ?? ($emp["per_day"] / 8), 2) ?>/hr</small>
+                    <td>₹<?= number_format($emp["per_day"], 2) ?><br><small
+                        class="text-muted">₹<?= number_format($emp["per_hour"] ?? ($emp["per_day"] / 8), 2) ?>/hr</small>
                     </td>
                     <td>
                       <div class="d-flex align-items-center justify-content-center">
@@ -293,20 +293,20 @@
                       </div>
                       <?php if (($emp['extra_day_pay'] ?? 0) > 0): ?>
                         <div class="d-flex align-items-center justify-content-center mt-1">
-                          <small class="text-success extra-day-pay-display" style="font-size: 10px; white-space:nowrap;">â‚¹<?= number_format($emp['extra_day_pay'], 2) ?></small>
+                          <small class="text-success extra-day-pay-display" style="font-size: 10px; white-space:nowrap;">₹<?= number_format($emp['extra_day_pay'], 2) ?></small>
                         </div>
                       <?php endif; ?>
                     </td>
                     <td><?= esc($emp["tax"]) ?></td>
                     <td class="deduction-cell">
-                      <span>â‚¹<?= number_format($emp["salary_deduction"], 2) ?></span>
+                      <span>₹<?= number_format($emp["salary_deduction"], 2) ?></span>
                       <button type="button" class="btn btn-sm btn-link p-0 ms-1 btn-deduction-info"
                         title="Why is this amount deducted?" data-user-id="<?= $emp["user_id"] ?>"
                         data-month="<?= esc($month) ?>" data-name="<?= esc($empFullName) ?>">
                         <i class="mdi mdi-information-outline text-primary" style="font-size:1.1rem;"></i>
                       </button>
                     </td>
-                    <td class="net-salary-cell">â‚¹<?= number_format(
+                    <td class="net-salary-cell">₹<?= number_format(
                       $emp["net_salary"],
                       2,
                     ) ?></td>
@@ -549,9 +549,9 @@
     }
 
     const deductionSpan = row.querySelector('.deduction-cell span');
-    if (deductionSpan) deductionSpan.textContent = 'â‚¹' + salaryDeduction.toFixed(2);
+    if (deductionSpan) deductionSpan.textContent = '₹' + salaryDeduction.toFixed(2);
 
-    row.querySelector('.net-salary-cell').textContent = 'â‚¹' + netSalary.toFixed(2);
+    row.querySelector('.net-salary-cell').textContent = '₹' + netSalary.toFixed(2);
     row.querySelector('.deduction-input').value = salaryDeduction.toFixed(2);
     row.querySelector('.net-salary-input').value = netSalary.toFixed(2);
     const opInput = row.querySelector('.overtime-pay-input');
@@ -645,7 +645,7 @@
           }
 
           // Update the UI net salary cell to reflect adjustment
-          row.querySelector('.net-salary-cell').textContent = 'â‚¹' + netSalary;
+          row.querySelector('.net-salary-cell').textContent = '₹' + netSalary;
 
           Swal.fire({
             icon: 'success',
@@ -739,7 +739,7 @@
     doSavePayroll(currentSavingRow, currentSavingBtn, adjustmentAmount, adjustmentRemark);
   });
 
-  // Deduction info modal â€“ event delegation + touchend for mobile
+  // Deduction info modal – event delegation + touchend for mobile
   function openSalaryDetailsDeductionModal(btn) {
     const userId = btn.dataset.userId;
     const month = btn.dataset.month;
@@ -748,7 +748,7 @@
     const loading = document.getElementById('deductionBreakdownLoading');
     const content = document.getElementById('deductionBreakdownContent');
     if (!modal || !userId || !month) return;
-    document.getElementById('deductionBreakdownModalLabel').innerHTML = '<i class="mdi mdi-information-outline me-1"></i> Why was this amount deducted? â€“ ' + name;
+    document.getElementById('deductionBreakdownModalLabel').innerHTML = '<i class="mdi mdi-information-outline me-1"></i> Why was this amount deducted? – ' + name;
     loading.style.display = 'block';
     content.style.display = 'none';
     content.innerHTML = '';
@@ -774,15 +774,15 @@
           return;
         }
         const d = res.data;
-        let html = '<p class="text-muted small mb-3">' + d.employee_name + ' â€“ ' + d.month_label + '</p>';
+        let html = '<p class="text-muted small mb-3">' + d.employee_name + ' – ' + d.month_label + '</p>';
         if (d.leaves && (d.leaves.count > 0 || (d.leaves.dates && d.leaves.dates.length))) {
           html += '<div class="breakdown-section"><strong class="text-danger">Leaves (' + (d.leaves.count || 0) + ' day(s))</strong>';
           if (d.leaves.dates && d.leaves.dates.length) {
             html += '<ul class="breakdown-list list-unstyled small mb-1">';
-            d.leaves.dates.forEach(l => { html += '<li>' + (l.label || l.date) + (l.reason ? ' â€“ ' + l.reason : '') + '</li>'; });
+            d.leaves.dates.forEach(l => { html += '<li>' + (l.label || l.date) + (l.reason ? ' – ' + l.reason : '') + '</li>'; });
             html += '</ul>';
           }
-          html += '<span class="text-danger">Deduction: â‚¹' + (d.leaves.deduction_amount || 0).toFixed(2) + '</span></div>';
+          html += '<span class="text-danger">Deduction: ₹' + (d.leaves.deduction_amount || 0).toFixed(2) + '</span></div>';
         }
         if (d.absent && d.absent.dates && d.absent.dates.length) {
           html += '<div class="breakdown-section"><strong class="text-warning">Absent (' + d.absent.dates.length + ' day(s))</strong><ul class="breakdown-list list-unstyled small">';
@@ -795,27 +795,27 @@
             html += '<ul class="breakdown-list list-unstyled small mb-1">';
             d.half_day.dates.forEach(h => {
               const baseLabel = (h.label || h.date);
-              const worked = h.worked_text ? (' â€“ Worked: ' + h.worked_text) : '';
-              const missing = h.missing_text ? (' â€“ Deduct: ' + h.missing_text) : '';
+              const worked = h.worked_text ? (' – Worked: ' + h.worked_text) : '';
+              const missing = h.missing_text ? (' – Deduct: ' + h.missing_text) : '';
               html += '<li>' + baseLabel + worked + missing + '</li>';
             });
             html += '</ul>';
           }
-          html += '<span class="text-danger">Deduction: â‚¹' + (d.half_day.deduction_amount || 0).toFixed(2) + '</span></div>';
+          html += '<span class="text-danger">Deduction: ₹' + (d.half_day.deduction_amount || 0).toFixed(2) + '</span></div>';
         }
         if (d.late && d.late.list && d.late.list.length) {
           html += '<div class="breakdown-section"><strong>Late arrival</strong><ul class="breakdown-list list-unstyled small">';
-          d.late.list.forEach(l => { html += '<li>' + (l.label || l.date) + ' â€“ ' + (l.late_text || l.late_minutes + ' min') + '</li>'; });
-          html += '</ul><span class="text-danger">Deduction: â‚¹' + (d.late.deduction_amount || 0).toFixed(2) + '</span></div>';
+          d.late.list.forEach(l => { html += '<li>' + (l.label || l.date) + ' – ' + (l.late_text || l.late_minutes + ' min') + '</li>'; });
+          html += '</ul><span class="text-danger">Deduction: ₹' + (d.late.deduction_amount || 0).toFixed(2) + '</span></div>';
         }
         if (d.overtime && d.overtime.list && d.overtime.list.length) {
           html += '<div class="breakdown-section"><strong class="text-success">Overtime</strong><ul class="breakdown-list list-unstyled small">';
-          d.overtime.list.forEach(o => { html += '<li>' + (o.label || o.date) + ' â€“ ' + (o.overtime_text || o.overtime_hours + 'h') + '</li>'; });
-          html += '</ul><span class="text-success">Added to salary: â‚¹' + (d.overtime.pay_amount || 0).toFixed(2) + '</span></div>';
+          d.overtime.list.forEach(o => { html += '<li>' + (o.label || o.date) + ' – ' + (o.overtime_text || o.overtime_hours + 'h') + '</li>'; });
+          html += '</ul><span class="text-success">Added to salary: ₹' + (d.overtime.pay_amount || 0).toFixed(2) + '</span></div>';
         }
         if (d.summary) {
-          html += '<hr><div class="summary-row"><span>Total deduction (leaves + half-day + late):</span> <span class="text-danger">â‚¹' + (d.summary.total_deduction || 0).toFixed(2) + '</span></div>';
-          if (d.summary.overtime_added > 0) html += '<div class="summary-row"><span>Overtime added:</span> <span class="text-success">â‚¹' + d.summary.overtime_added.toFixed(2) + '</span></div>';
+          html += '<hr><div class="summary-row"><span>Total deduction (leaves + half-day + late):</span> <span class="text-danger">₹' + (d.summary.total_deduction || 0).toFixed(2) + '</span></div>';
+          if (d.summary.overtime_added > 0) html += '<div class="summary-row"><span>Overtime added:</span> <span class="text-success">₹' + d.summary.overtime_added.toFixed(2) + '</span></div>';
         }
         if (!d.leaves?.count && !d.absent?.dates?.length && !d.half_day?.count && !d.late?.list?.length && !d.overtime?.list?.length) {
           html += '<p class="text-muted">No leaves, absent, late, or overtime in this month.</p>';
@@ -848,7 +848,7 @@
     openSalaryDetailsDeductionModal(btn);
   });
 
-  // Extra Day info modal â€“ event delegation
+  // Extra Day info modal – event delegation
   function openExtraDayModal(btn) {
     const userId = btn.dataset.userId;
     const month = btn.dataset.month;
@@ -860,7 +860,7 @@
     
     if (!modalEl || !userId || !month) return;
     
-    document.getElementById('extraDayModalLabel').innerHTML = '<i class="mdi mdi-calendar-plus me-1"></i> Extra Day Details â€“ ' + name;
+    document.getElementById('extraDayModalLabel').innerHTML = '<i class="mdi mdi-calendar-plus me-1"></i> Extra Day Details – ' + name;
     loading.style.display = 'block';
     content.style.display = 'none';
     content.innerHTML = '';
@@ -890,11 +890,11 @@
       }
       
       const d = res.data;
-      let html = '<p class="text-muted small mb-3">' + d.employee_name + ' â€“ ' + d.month_label + '</p>';
+      let html = '<p class="text-muted small mb-3">' + d.employee_name + ' – ' + d.month_label + '</p>';
       
       html += '<div class="alert alert-info py-2 mb-3">';
       html += '<strong>Total Extra Days: </strong>' + (d.extra_days || 0) + '<br>';
-      html += '<strong>Extra Day Pay: </strong>â‚¹<span id="modal-total-extra-pay">' + (d.extra_day_pay || 0).toFixed(2) + '</span>';
+      html += '<strong>Extra Day Pay: </strong>₹<span id="modal-total-extra-pay">' + (d.extra_day_pay || 0).toFixed(2) + '</span>';
       html += '</div>';
       
       if (d.details && d.details.length > 0) {
@@ -982,7 +982,7 @@
         const payDisplay = row.querySelector('.extra-day-pay-display'); // the text showing amount
         
         if (payDisplay) {
-          payDisplay.textContent = 'â‚¹' + newTotal.toFixed(2);
+          payDisplay.textContent = '₹' + newTotal.toFixed(2);
         }
         
         // Add to net salary instantly

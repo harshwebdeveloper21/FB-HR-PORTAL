@@ -1614,7 +1614,7 @@
                 });
 
                 // Top banner indicating it's an off day
-                const offLabel = isSundayOff ? 'ðŸ”´ Sunday Off' : 'ðŸŸ¡ Saturday Off';
+                const offLabel = isSundayOff ? '<i class="mdi mdi-circle text-danger me-1"></i> Sunday Off' : '<i class="mdi mdi-circle text-warning me-1"></i> Saturday Off';
                 const banner = document.createElement('div');
                 banner.className = 'alert text-center fw-bold mb-3';
                 banner.style.cssText = isSundayOff

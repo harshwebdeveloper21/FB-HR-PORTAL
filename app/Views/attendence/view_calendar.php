@@ -883,7 +883,7 @@
         margin-left: auto;
     }
 
-    /* Calendar cell â€“ week-off-present item */
+    /* Calendar cell – week-off-present item */
     .employee-attendance-item.week-off-present-item {
         background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
         border-left: 3px solid #ff6b35;
@@ -1639,7 +1639,7 @@
                     const timeStr = fmtTimeOff(time);
                     if (!timeStr) {
                         return `<div class="loc-inline-line" style="color:#bbb;">
-                            <span class="loc-time">${prefix}: â€“</span>
+                            <span class="loc-time">${prefix}: –</span>
                         </div>`;
                     }
                     const isMissing = !locationName || locationName.trim() === ''
@@ -1677,8 +1677,8 @@
                     const isToday = selectedDate === todayDate;
                     const isWorking = isToday && attendance?.check_in_time && !attendance?.check_out_time;
 
-                    // Status badge â€” "Week Off Â· Present" or "Week Off Â· Working"
-                    const statusText = isWorking ? 'Week Off Â· Working' : 'Week Off Â· Present';
+                    // Status badge — "Week Off · Present" or "Week Off · Working"
+                    const statusText = isWorking ? 'Week Off · Working' : 'Week Off · Present';
                     const statusClass = 'week-off-present';
 
                     const checkInLine  = buildInlineLineOff(
@@ -1780,22 +1780,22 @@
                     return `${h12}:${m.padStart(2,'0')}:${(s||'00').padStart(2,'0')} ${ampm}`;
                 }
 
-                // â”€â”€ Build inline time + pin location row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // ── Build inline time + pin location row ─────────────────────────
                 // Rules:
-                //   time == null  â†’ show "Prefix: â€“" with NO pin/address
-                //   time != null, location exists â†’ show real GPS address
-                //   time != null, location is null/empty â†’ show default office address
+                //   time == null  → show "Prefix: –" with NO pin/address
+                //   time != null, location exists → show real GPS address
+                //   time != null, location is null/empty → show default office address
                 function buildInlineLine(prefix, time, locationName, locationStatus) {
                     const timeStr = fmtTime(time);
 
-                    // Time is null â†’ show a plain dash, NO location at all
+                    // Time is null → show a plain dash, NO location at all
                     if (!timeStr) {
                         return `<div class="loc-inline-line" style="color:#bbb;">
-                            <span class="loc-time">${prefix}: â€“</span>
+                            <span class="loc-time">${prefix}: –</span>
                         </div>`;
                     }
 
-                    // Time exists â€” decide which address to show
+                    // Time exists - decide which address to show
                     const isMissing = !locationName || locationName.trim() === ''
                         || locationStatus === 'not_captured'
                         || locationStatus === 'denied'
@@ -2012,7 +2012,7 @@
                     dayDiv.appendChild(sunLabel);
                 }
 
-                // For Saturday Off days â€“ show employees who actually came in
+                // For Saturday Off days - show employees who actually came in
                 if (saturdayOffDates.includes(dateStr) && !holiday && !isFuture) {
                     filteredUsers.forEach(user => {
                         const att = user.attendance?.find(r => (r.date || '').substring(0, 10) === dateStr);
@@ -2023,10 +2023,10 @@
                         item.className = 'employee-attendance-item attendance-cell week-off-present-item';
                         item.dataset.userId = user.user_id;
                         item.dataset.date = dateStr;
-                        item.title = `${user.employee_name} â€“ Check-in: ${att.check_in_time}`;
+                        item.title = `${user.employee_name} – Check-in: ${att.check_in_time}`;
                         item.innerHTML = `
                             <img src="${profileImage}" alt="${user.employee_name}">
-                            <span class="attendance-status week-off-present" title="Week Off â€“ Present">WO</span>
+                            <span class="attendance-status week-off-present" title="Week Off – Present">WO</span>
                         `;
                         dayDiv.appendChild(item);
                     });

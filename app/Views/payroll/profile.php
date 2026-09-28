@@ -71,7 +71,7 @@
                                 <img id="employeePhoto" class="employee-photo shadow emp-photo-profile mb-3" width="70" height="70" style="border-radius: 12px; object-fit: cover; border: 1px solid #ddd;">
                                 
                                 <h5 id="employeeName" class="mb-1 font-weight-bold" style="color: #000; font-weight: 600; font-size: 1.1rem;"></h5>
-                                <div class="text-muted small mb-3"><span id="employeeDepartment"></span> â€¢ <span id="employeeDesignation"></span></div>
+                                <div class="text-muted small mb-3"><span id="employeeDepartment"></span> • <span id="employeeDesignation"></span></div>
                                 
 
                                 <table class="table table-borderless table-sm mb-0">
@@ -293,7 +293,7 @@
                     $("#employeePhoto").attr("src", profileImg);
 
                     // Salary Details
-                    $("#salary_amount").text(`â‚¹${parseFloat(d.salary_amount || 0).toFixed(2)}`);
+                    $("#salary_amount").text(`₹${parseFloat(d.salary_amount || 0).toFixed(2)}`);
                     $("#month_year").text(d.month_year ?? 'N/A');
                     $("#total_leaves").text(d.total_leaves ?? '0');
                     $("#total_paid_leaves").text(d.total_paid_leaves ?? '0');
@@ -305,16 +305,16 @@
                     $("#working_days").text(d.working_days ?? 'N/A'); 
                     $("#worked_hours").text((d.worked_hours && d.worked_hours > 0) ? d.worked_hours + ' hours' : 'N/A');
                     $("#overtime_hours").text(d.total_overtime_hours ? d.total_overtime_hours + ' hours' : 'N/A');
-                    $("#overtime_pay").text(d.overtime_pay ? `+â‚¹${parseFloat(d.overtime_pay).toFixed(2)}` : 'N/A');
-                    $("#bonuses").text(d.bonuses ? `+â‚¹${parseFloat(d.bonuses).toFixed(2)}` : 'N/A');
+                    $("#overtime_pay").text(d.overtime_pay ? `+₹${parseFloat(d.overtime_pay).toFixed(2)}` : 'N/A');
+                    $("#bonuses").text(d.bonuses ? `+₹${parseFloat(d.bonuses).toFixed(2)}` : 'N/A');
 
                     let taxDeduction = d.tax_deduction || 0;
-                    $("#tax_deduction").text(taxDeduction ? `-â‚¹${parseFloat(taxDeduction).toFixed(2)}` : 'N/A');
-                    $("#salary_deduction").text(d.salary_deduction ? `-â‚¹${parseFloat(d.salary_deduction).toFixed(2)}` : 'N/A');
-                    // $("#tax_deduction").text(d.tax_deduction ? `-â‚¹${parseFloat(d.tax_deduction).toFixed(2)}` : 'N/A');
+                    $("#tax_deduction").text(taxDeduction ? `-₹${parseFloat(taxDeduction).toFixed(2)}` : 'N/A');
+                    $("#salary_deduction").text(d.salary_deduction ? `-₹${parseFloat(d.salary_deduction).toFixed(2)}` : 'N/A');
+                    // $("#tax_deduction").text(d.tax_deduction ? `-₹${parseFloat(d.tax_deduction).toFixed(2)}` : 'N/A');
                     $("#payment_status").text(d.payment_status ?? 'Pending');
                     $("#payment_date").text(d.payment_date ?? 'N/A');
-                    $("#net_salary").text(`â‚¹${parseFloat(d.net_salary || 0).toFixed(2)}`);
+                    $("#net_salary").text(`₹${parseFloat(d.net_salary || 0).toFixed(2)}`);
 
                     // Show deduction breakdown button and store ids for same calculation as group/single
                     if (d.user_id && d.month_year) {
@@ -337,7 +337,7 @@
             }
         });
 
-        // Deduction breakdown â€“ touchend (mobile) and click (desktop)
+        // Deduction breakdown – touchend (mobile) and click (desktop)
         var profileDeductionLastTouch = 0;
         function openProfileDeductionModal() {
             const userId = $('#profileDeductionInfoBtn').data('user-id');
@@ -381,12 +381,12 @@
                             d.leaves.dates.forEach(function(l) { html += '<li>' + (l.label || l.date) + '</li>'; });
                             html += '</ul>';
                         }
-                        html += '<span class="text-danger">Deduction: â‚¹' + (d.leaves.deduction_amount || 0).toFixed(2) + '</span></div>';
+                        html += '<span class="text-danger">Deduction: ₹' + (d.leaves.deduction_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.absent && d.absent.dates && d.absent.dates.length) {
                         html += '<div class="breakdown-section" style="border-left:3px solid #E66136;padding-left:0.75rem;margin-bottom:1rem;"><strong>Absent</strong><ul class="list-unstyled small mb-1" style="max-height:120px;overflow-y:auto;">';
                         d.absent.dates.forEach(function(a) { html += '<li>' + (a.label || a.date) + '</li>'; });
-                        html += '</ul><span class="text-danger">Deduction: â‚¹' + (d.absent.deduction_amount || 0).toFixed(2) + '</span></div>';
+                        html += '</ul><span class="text-danger">Deduction: ₹' + (d.absent.deduction_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.half_day && d.half_day.count > 0) {
                         html += '<div class="breakdown-section" style="border-left:3px solid #E66136;padding-left:0.75rem;margin-bottom:1rem;"><strong>Half-day</strong>';
@@ -395,21 +395,21 @@
                             d.half_day.dates.forEach(function(h) { html += '<li>' + (h.label || h.date) + '</li>'; });
                             html += '</ul>';
                         }
-                        html += '<span class="text-danger">Deduction: â‚¹' + (d.half_day.deduction_amount || 0).toFixed(2) + '</span></div>';
+                        html += '<span class="text-danger">Deduction: ₹' + (d.half_day.deduction_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.late && d.late.list && d.late.list.length) {
                         html += '<div class="breakdown-section" style="border-left:3px solid #E66136;padding-left:0.75rem;margin-bottom:1rem;"><strong>Late arrival</strong><ul class="list-unstyled small" style="max-height:120px;overflow-y:auto;">';
-                        d.late.list.forEach(function(l) { html += '<li>' + (l.label || l.date) + ' â€“ ' + (l.late_text || l.late_minutes + ' min') + '</li>'; });
-                        html += '</ul><span class="text-danger">Deduction: â‚¹' + (d.late.deduction_amount || 0).toFixed(2) + '</span></div>';
+                        d.late.list.forEach(function(l) { html += '<li>' + (l.label || l.date) + ' – ' + (l.late_text || l.late_minutes + ' min') + '</li>'; });
+                        html += '</ul><span class="text-danger">Deduction: ₹' + (d.late.deduction_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.overtime && d.overtime.list && d.overtime.list.length) {
                         html += '<div class="breakdown-section" style="border-left:3px solid #E66136;padding-left:0.75rem;margin-bottom:1rem;"><strong class="text-success">Overtime</strong><ul class="list-unstyled small" style="max-height:120px;overflow-y:auto;">';
-                        d.overtime.list.forEach(function(o) { html += '<li>' + (o.label || o.date) + ' â€“ ' + (o.overtime_text || o.overtime_hours + 'h') + '</li>'; });
-                        html += '</ul><span class="text-success">Added to salary: â‚¹' + (d.overtime.pay_amount || 0).toFixed(2) + '</span></div>';
+                        d.overtime.list.forEach(function(o) { html += '<li>' + (o.label || o.date) + ' – ' + (o.overtime_text || o.overtime_hours + 'h') + '</li>'; });
+                        html += '</ul><span class="text-success">Added to salary: ₹' + (d.overtime.pay_amount || 0).toFixed(2) + '</span></div>';
                     }
                     if (d.summary) {
-                        html += '<hr><div class="fw-bold"><span>Total deduction (leaves + half-day + late):</span> <span class="text-danger">â‚¹' + (d.summary.total_deduction || 0).toFixed(2) + '</span></div>';
-                        if (d.summary.overtime_added > 0) html += '<div class="fw-bold"><span>Overtime added:</span> <span class="text-success">â‚¹' + d.summary.overtime_added.toFixed(2) + '</span></div>';
+                        html += '<hr><div class="fw-bold"><span>Total deduction (leaves + half-day + late):</span> <span class="text-danger">₹' + (d.summary.total_deduction || 0).toFixed(2) + '</span></div>';
+                        if (d.summary.overtime_added > 0) html += '<div class="fw-bold"><span>Overtime added:</span> <span class="text-success">₹' + d.summary.overtime_added.toFixed(2) + '</span></div>';
                     }
                     if (!d.leaves?.count && !d.absent?.dates?.length && !d.half_day?.count && !d.late?.list?.length && !d.overtime?.list?.length) {
                         html += '<p class="text-muted">No leaves, absent, late, or overtime in this month.</p>';

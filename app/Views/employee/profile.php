@@ -904,7 +904,7 @@
                         currentEmployeeName = fullName;
                         currentEmployeeStatus = empStatus;
 
-                        setText('#user_info-salary', 'â‚¹ ' + currentEmployeeSalary.toLocaleString('en-IN'));
+                        setText('#user_info-salary', '₹ ' + currentEmployeeSalary.toLocaleString('en-IN'));
                         $('#prof-current-salary').html('&#8377; ' + currentEmployeeSalary.toLocaleString('en-IN'));
 
                         setText('#acc_number', user.acc_number);
@@ -1379,7 +1379,7 @@
                             currentEmployeeSalary = parseFloat(latest.new_salary);
                         }
                         $('#prof-current-salary').html('&#8377; ' + currentEmployeeSalary.toLocaleString('en-IN'));
-                        $('#user_info-salary').text('â‚¹ ' + currentEmployeeSalary.toLocaleString('en-IN'));
+                        $('#user_info-salary').text('₹ ' + currentEmployeeSalary.toLocaleString('en-IN'));
 
                         let rows = '';
                         res.history.forEach(function (r, idx) {
@@ -1433,7 +1433,7 @@
                 : currentEmployeeSalary;
             const incAmt = parseFloat($('#modal_inc_amount').val()) || 0;
             const newSal = baseSalary + incAmt;
-            $('#modal_inc_new_salary_preview').val('â‚¹ ' + newSal.toLocaleString('en-IN'));
+            $('#modal_inc_new_salary_preview').val('₹ ' + newSal.toLocaleString('en-IN'));
         }
 
         function setProfileIncrementModalMode(isHistoryOnly) {
@@ -1442,7 +1442,7 @@
                 $('#profileAddIncrementModalLabel').html('<i class="mdi mdi-history me-1"></i> Add Increment History Record');
                 $('#profileAddIncModalHeader').css('background', 'linear-gradient(135deg, #4b5563 0%, #374151 100%)');
                 $('#modal_inc_history_alert').show();
-                $('#modal_inc_history_current_sal').text('â‚¹ ' + currentEmployeeSalary.toLocaleString('en-IN'));
+                $('#modal_inc_history_current_sal').text('₹ ' + currentEmployeeSalary.toLocaleString('en-IN'));
                 $('#modal_inc_salary_label').html('Previous / Base Salary (&#8377;) <span class="text-danger">*</span>');
                 $('#modal_inc_current_salary').val(currentEmployeeSalary).prop('readonly', false).css('background-color', '#fff');
                 $('#modal_inc_salary_help').show();
@@ -1453,7 +1453,7 @@
                 $('#profileAddIncrementModalLabel').html('<i class="mdi mdi-cash-plus me-1"></i> Add Salary Increment');
                 $('#profileAddIncModalHeader').css('background', 'linear-gradient(135deg, #E66136 0%, #f05929 100%)');
                 $('#modal_inc_history_alert').hide();
-                $('#modal_inc_salary_label').text('Current Salary (â‚¹)');
+                $('#modal_inc_salary_label').text('Current Salary (₹)');
                 $('#modal_inc_current_salary').val(currentEmployeeSalary).prop('readonly', true).css('background-color', '#e9ecef');
                 $('#modal_inc_salary_help').hide();
                 $('#modal_inc_amount_help').text('Enter the amount to add to current salary.');

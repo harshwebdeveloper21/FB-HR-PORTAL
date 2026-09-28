@@ -225,7 +225,7 @@ $branchesList = $branchModel->getActiveBranches();
     }
 
     /* =======================
-   TABLET VIEW (768pxâ€“1024px)
+   TABLET VIEW (768px-1024px)
    ======================= */
     @media (min-width: 768px) and (max-width: 1024px) {
 

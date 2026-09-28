@@ -61964,53 +61964,49 @@ dl li {
 
 
 
-.hr-btnbg {
-
+.hr-btnbg, .btn.hr-btnbg {
   animation-delay: .8s;
-
-  background-color: #E66136;
-
-  border: 2px solid #F05929;
-
-  border-radius: 4px;
-
-  color: #fff;
-
-  display: inline-block;
-
+  background-color: #E66136 !important;
+  border: 2px solid #F05929 !important;
+  border-radius: 4px !important;
+  color: #fff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
   font-family: Poppins, sans-serif;
-
   font-size: 14px !important;
-
   font-weight: 500;
-
   letter-spacing: 0.5px;
-
-  line-height: 1;
-
-  /* padding: 10px; */
-  padding: 6px 8px;
-
+  line-height: 1 !important;
+  padding: 6px 14px !important;
   text-transform: capitalize;
-
-  transition: .3s;
-
-  height: 32.96px;
-
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  transition: all .2s ease;
+  height: 36px !important;
+  min-height: 36px !important;
+  box-shadow: none !important;
 }
 
+.hr-btnbg:hover, .hr-btnbg:focus, .hr-btnbg:active,
+.btn.hr-btnbg:hover, .btn.hr-btnbg:focus, .btn.hr-btnbg:active {
+  border: 2px solid #e66136 !important;
+  background-color: white !important;
+  color: #e66136 !important;
+  text-decoration: none !important;
+}
 
+.hr-btnbg i, .btn.hr-btnbg i {
+  color: #ffffff !important;
+  font-size: 15px !important;
+  line-height: 1 !important;
+  transition: color .2s ease;
+}
 
-.hr-btnbg:hover {
-
-  border: 2px solid #e66136;
-
-  background-color: white;
-
-  color: #e66136;
-
-
-
+.hr-btnbg:hover i, .hr-btnbg:focus i, .hr-btnbg:active i,
+.btn.hr-btnbg:hover i, .btn.hr-btnbg:focus i, .btn.hr-btnbg:active i {
+  color: #e66136 !important;
 }
 
 .hr-tablebg {

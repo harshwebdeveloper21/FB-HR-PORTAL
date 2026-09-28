@@ -7,6 +7,12 @@ $authService = new AuthService($request);
 $user = $authService->check();
 
 $role = $user ? $user->role : null;
+$isAdmin = ($role === 'admin');
+$isHr = ($role === 'hr');
+$isAdminOrHr = ($isAdmin || $isHr);
+$isBranchAdmin = ($role === 'branch_admin');
+$isDeptManager = ($role === 'department_manager');
+$isEmployee = ($role === 'employee');
 ?>
 
 <style>
@@ -26,7 +32,7 @@ $role = $user ? $user->role : null;
   <div class="d-flex justify-content-between align-items-center d-lg-none px-4 py-3" style="border-bottom: 1px solid #f3f3f3; background: #fff;">
     <img src="<?= getCompanyLogo(); ?>" alt="logo" style="max-height: 35px; width: auto; max-width: 150px; object-fit: contain;" />
     <a href="javascript:void(0)" data-bs-toggle="offcanvas" class="text-secondary text-decoration-none">
-      <i class="mdi mdi-close fs-3 text-dark  "></i>
+      <i class="mdi mdi-close fs-3 text-dark"></i>
     </a>
   </div>
   <ul class="nav">
@@ -36,39 +42,36 @@ $role = $user ? $user->role : null;
         <span class="menu-title">Dashboard</span>
       </a>
     </li>
-    <?php if ($role === 'admin' || $role === 'hr'): ?>
+
+    <!-- ── Complaints & Announcements ───────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
       <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#complaintsMenu" aria-expanded="false"
-          aria-controls="complaintsMenu">
+        <a class="nav-link" data-bs-toggle="collapse" href="#complaintsMenu" aria-expanded="false" aria-controls="complaintsMenu">
           <i class="menu-icon mdi mdi-message-alert"></i>
           <span class="menu-title">Complaints & Feedback</span>
           <i class="menu-arrow"></i>
         </a>
         <div class="collapse" id="complaintsMenu">
           <ul class="nav flex-column sub-menu">
-            <li class="nav-item"> <a class="nav-link" href="<?= base_url('complaints/admin') ?>">Manage Complaints</a>
-            </li>
+            <li class="nav-item"> <a class="nav-link" href="<?= base_url('complaints/admin') ?>">Manage Complaints</a></li>
             <li class="nav-item"> <a class="nav-link" href="<?= base_url('complaints/create') ?>">Add Complaint</a></li>
           </ul>
         </div>
       </li>
       <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#announcementsMenu" aria-expanded="false"
-          aria-controls="announcementsMenu">
+        <a class="nav-link" data-bs-toggle="collapse" href="#announcementsMenu" aria-expanded="false" aria-controls="announcementsMenu">
           <i class="menu-icon mdi mdi-bullhorn"></i>
           <span class="menu-title">Announcements</span>
           <i class="menu-arrow"></i>
         </a>
         <div class="collapse" id="announcementsMenu">
           <ul class="nav flex-column sub-menu">
-            <li class="nav-item"> <a class="nav-link" href="<?= base_url('announcements/admin') ?>">Manage
-                Announcements</a></li>
-            <li class="nav-item"> <a class="nav-link" href="<?= base_url('announcements/create') ?>">Add Announcement</a>
-            </li>
+            <li class="nav-item"> <a class="nav-link" href="<?= base_url('announcements/admin') ?>">Manage Announcements</a></li>
+            <li class="nav-item"> <a class="nav-link" href="<?= base_url('announcements/create') ?>">Add Announcement</a></li>
           </ul>
         </div>
       </li>
-    <?php elseif ($role === 'employee'): ?>
+    <?php elseif ($isDeptManager || $isEmployee): ?>
       <li class="nav-item">
         <a class="nav-link" href="<?= base_url('complaints') ?>">
           <i class="menu-icon mdi mdi-message-alert"></i>
@@ -82,8 +85,9 @@ $role = $user ? $user->role : null;
         </a>
       </li>
     <?php endif; ?>
-    <!-- <li class="nav-item nav-category">Menus</li> -->
-    <?php if ($role === 'admin' || $role === 'hr'): ?>
+
+    <!-- ── Employees Management ─────────────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#ui-basic" aria-expanded="false" aria-controls="ui-basic">
           <i class="menu-icon mdi mdi-account-multiple"></i>
@@ -97,23 +101,49 @@ $role = $user ? $user->role : null;
           </ul>
         </div>
       </li>
+    <?php elseif ($isDeptManager): ?>
       <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#form-elements" aria-expanded="false"
-          aria-controls="form-elements">
+        <a class="nav-link" href="/empview">
+          <i class="menu-icon mdi mdi-account-multiple"></i>
+          <span class="menu-title">Department Staff</span>
+        </a>
+      </li>
+    <?php endif; ?>
+
+    <!-- ── Attendance ───────────────────────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#form-elements" aria-expanded="false" aria-controls="form-elements">
           <i class="menu-icon mdi mdi-card-text-outline"></i>
           <span class="menu-title">Attendance</span>
           <i class="menu-arrow"></i>
         </a>
         <div class="collapse" id="form-elements">
           <ul class="nav flex-column sub-menu">
-            <li class="nav-item"><a class="nav-link" href="/view-calendar">Manage Attendance </a></li>
-            <li class="nav-item"><a class="nav-link" href="/attendence">Attendance </a></li>
+            <li class="nav-item"><a class="nav-link" href="/view-calendar">Manage Attendance</a></li>
+            <li class="nav-item"><a class="nav-link" href="/attendence">Attendance</a></li>
           </ul>
         </div>
       </li>
+    <?php elseif ($isDeptManager): ?>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#form-elements" aria-expanded="false" aria-controls="form-elements">
+          <i class="menu-icon mdi mdi-card-text-outline"></i>
+          <span class="menu-title">Attendance</span>
+          <i class="menu-arrow"></i>
+        </a>
+        <div class="collapse" id="form-elements">
+          <ul class="nav flex-column sub-menu">
+            <li class="nav-item"><a class="nav-link" href="/view-calendar">Dept Attendance</a></li>
+            <li class="nav-item"><a class="nav-link" href="/attendence">My Attendance</a></li>
+          </ul>
+        </div>
+      </li>
+    <?php endif; ?>
 
-      
-    <li class="nav-item">
+    <!-- ── Payroll (Admin & HR only) ────────────────────────── -->
+    <?php if ($isAdminOrHr): ?>
+      <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#tabs" aria-expanded="false" aria-controls="tabs">
           <i class="menu-icon mdi mdi-currency-inr"></i>
           <span class="menu-title">Payroll</span>
@@ -127,7 +157,10 @@ $role = $user ? $user->role : null;
           </ul>
         </div>
       </li>
+    <?php endif; ?>
 
+    <!-- ── Leaves ───────────────────────────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#cha-rts" aria-expanded="false" aria-controls="cha-rts">
           <i class="menu-icon mdi mdi-calendar"></i>
@@ -136,34 +169,50 @@ $role = $user ? $user->role : null;
         </a>
         <div class="collapse" id="cha-rts">
           <ul class="nav flex-column sub-menu">
-            <!-- <li class="nav-item"> <a class="nav-link" href="/manage-leaves">Manage Balance</a></li> -->
             <li class="nav-item"> <a class="nav-link" href="/leaveview">Manage Leaves</a></li>
             <li class="nav-item"> <a class="nav-link" href="/addleave">Add Leaves</a></li>
-              <li class="nav-item"> <a class="nav-link" href="/employee-live-request">Employee Leave Request</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/employee-live-request">Employee Leave Request</a></li>
           </ul>
         </div>
       </li>
+    <?php elseif ($isDeptManager): ?>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#cha-rts" aria-expanded="false" aria-controls="cha-rts">
+          <i class="menu-icon mdi mdi-calendar"></i>
+          <span class="menu-title">Leaves</span>
+          <i class="menu-arrow"></i>
+        </a>
+        <div class="collapse" id="cha-rts">
+          <ul class="nav flex-column sub-menu">
+            <li class="nav-item"> <a class="nav-link" href="/leaveview">Review Team Leaves</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/addleave">Apply Leave</a></li>
+          </ul>
+        </div>
+      </li>
+    <?php endif; ?>
 
+    <!-- ── Recruitment & Onboarding (Admin & HR) ────────────── -->
+    <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#tables" aria-expanded="false" aria-controls="tables">
           <i class="menu-icon mdi mdi-table"></i>
-          <span class="menu-title lh-base">Recruitment & </br> Onboarding</span>
+          <span class="menu-title lh-base">Recruitment & <br> Onboarding</span>
           <i class="menu-arrow"></i>
         </a>
         <div class="collapse" id="tables">
           <ul class="nav flex-column sub-menu">
             <li class="nav-item"> <a class="nav-link" href="/jobview">Jobs</a></li>
-
             <li class="nav-item"> <a class="nav-link" href="/candidateview">Candidates</a></li>
-
             <li class="nav-item"> <a class="nav-link" href="/addinterview">Interviews</a></li>
-
             <li class="nav-item"> <a class="nav-link" href="/onboardingview">Employees Onboarding</a></li>
-
             <li class="nav-item"> <a class="nav-link" href="/offer-templates-view">Offer Letter Templates</a></li>
           </ul>
         </div>
       </li>
+    <?php endif; ?>
+
+    <!-- ── Performance ──────────────────────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#ico-nsss" aria-expanded="false" aria-controls="ico-nsss">
           <i class="menu-icon mdi mdi-gauge"></i>
@@ -178,6 +227,10 @@ $role = $user ? $user->role : null;
           </ul>
         </div>
       </li>
+    <?php endif; ?>
+
+    <!-- ── Training ─────────────────────────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#auth" aria-expanded="false" aria-controls="auth">
           <i class="menu-icon mdi mdi-account-circle-outline"></i>
@@ -187,11 +240,14 @@ $role = $user ? $user->role : null;
         <div class="collapse" id="auth">
           <ul class="nav flex-column sub-menu">
             <li class="nav-item"> <a class="nav-link" href="/trainingview">Manage Training</a></li>
-            <li class="nav-item"> <a class="nav-link" href="/training">Add Training </a></li>
+            <li class="nav-item"> <a class="nav-link" href="/training">Add Training</a></li>
           </ul>
         </div>
       </li>
+    <?php endif; ?>
 
+    <!-- ── Task ─────────────────────────────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin || $isDeptManager): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#task" aria-expanded="false" aria-controls="task">
           <i class="menu-icon mdi mdi-book-open"></i>
@@ -206,8 +262,10 @@ $role = $user ? $user->role : null;
           </ul>
         </div>
       </li>
+    <?php endif; ?>
 
-      <?php if ($role === 'admin' || $role === 'hr'): ?>
+    <!-- ── Expense ──────────────────────────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#expense" aria-expanded="false" aria-controls="expense">
           <i class="menu-icon mdi mdi-wallet"></i>
@@ -222,33 +280,10 @@ $role = $user ? $user->role : null;
           </ul>
         </div>
       </li>
-      <?php endif; ?>
+    <?php endif; ?>
 
-      <!-- PDF Recorder - Available for all users -->
-      <!-- <li class="nav-item">
-        <a class="nav-link" href="<?= base_url('/pdf-recorder') ?>">
-          <i class="menu-icon mdi mdi-file-pdf-box"></i>
-          <span class="menu-title">PDF Statement</span>
-        </a>
-      </li> -->
-
-      <!-- <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#HRConfig" aria-expanded="false" aria-controls="HRConfig">
-          <i class="menu-icon mdi mdi-clipboard-text"></i>
-          <span class="menu-title">HR Configuration</span>
-          <i class="menu-arrow"></i>
-        </a>
-        <div class="collapse" id="HRConfig">
-          <ul class="nav flex-column sub-menu">            
-            <li class="nav-item"><a class="nav-link" href="/creates-rules">Company Rules</a></li>
-            <li class="nav-item"><a class="nav-link" href="/holidays">Holidays</a></li>
-            <li class="nav-item"><a class="nav-link" href="/locationview">Job Location</a></li>
-            <li class="nav-item"><a class="nav-link" href="/addressview">Job Addresses</a></li>
-          </ul>
-        </div>
-      </li> -->
-
-
+    <!-- ── Settings (Admin & HR) ────────────────────────────── -->
+    <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#Settings" aria-expanded="false" aria-controls="Settings">
           <i class="menu-icon mdi mdi-power-settings"></i>
@@ -259,51 +294,45 @@ $role = $user ? $user->role : null;
           <ul class="nav flex-column sub-menu">
             <li class="nav-item"> <a class="nav-link" href="/locationview">Job Location</a></li>
             <li class="nav-item"> <a class="nav-link" href="/addressview">Job Addresses</a></li>
-            <!-- <li class="nav-item"> <a class="nav-link" href="/applyjob">Apply Job</a></li> -->
             <li class="nav-item"> <a class="nav-link" href="/SMTPemail">SMTP Mail</a></li>
             <li class="nav-item"> <a class="nav-link" href="/view-rules">Company Rules View</a></li>
-            <!-- <li class="nav-item"> <a class="nav-link" href="/creates-rules">Company Rules</a></li> -->
             <li class="nav-item"> <a class="nav-link" href="/holidays">Holidays</a></li>
             <li class="nav-item"> <a class="nav-link" href="/notification-settings">Push Notifications</a></li>
             <li class="nav-item"> <a class="nav-link" href="/offer-templates-view">Templates</a></li>
           </ul>
         </div>
       </li>
-      <?php if ($role === 'admin'): ?>
-      <!-- ── Branches (Admin only) ────────────────────────── -->
+    <?php endif; ?>
+
+    <!-- ── Branches (Admin & HR) ────────────────────────────── -->
+    <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
-        <a class="nav-link" href="<?= base_url('/branches') ?>">
+        <a class="nav-link" data-bs-toggle="collapse" href="#branchesMenu" aria-expanded="false" aria-controls="branchesMenu">
           <i class="menu-icon mdi mdi-office-building"></i>
           <span class="menu-title">Branches</span>
+          <i class="menu-arrow"></i>
         </a>
+        <div class="collapse" id="branchesMenu">
+          <ul class="nav flex-column sub-menu">
+            <li class="nav-item"> <a class="nav-link" href="<?= base_url('/branches') ?>">All Branches</a></li>
+            <li class="nav-item"> <a class="nav-link" href="<?= base_url('/branch-managers') ?>">Branch Managers</a></li>
+          </ul>
+        </div>
       </li>
-      <?php endif; ?>
-      <?php if ($role === 'admin' || $role === 'hr'): ?>
+    <?php endif; ?>
 
-      <!-- ── Staff Transfer ──────────────────────────────── -->
+    <!-- ── Staff Transfer (Admin & HR) ──────────────────────── -->
+    <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
         <a class="nav-link" href="<?= base_url('/staff-transfer') ?>">
           <i class="menu-icon mdi mdi-swap-horizontal"></i>
           <span class="menu-title">Staff Transfer</span>
         </a>
       </li>
-      <?php endif; ?>
+    <?php endif; ?>
 
-      <!-- <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#eomMenu" aria-expanded="false" aria-controls="eomMenu">
-          <i class="menu-icon mdi mdi-star-circle"></i>
-          <span class="menu-title">EOM</span>
-          <i class="menu-arrow"></i>
-        </a>
-        <div class="collapse" id="eomMenu">
-          <ul class="nav flex-column sub-menu">
-            <li class="nav-item">
-              <a class="nav-link" href="/addemp-month-performance">Select EOM</a>
-            </li>
-          </ul>
-        </div>
-      </li> -->
-
+    <!-- ── EOM & Experience Letters ─────────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#eomletter" aria-expanded="false" aria-controls="eomletter">
           <i class="menu-icon mdi mdi-star-circle"></i>
@@ -321,17 +350,20 @@ $role = $user ? $user->role : null;
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#exp" aria-expanded="false" aria-controls="exp">
           <i class="menu-icon mdi mdi-file-account-outline"></i>
-          <span class="menu-title  lh-base">Exprience </br> Letter</span>
+          <span class="menu-title lh-base">Experience <br> Letter</span>
           <i class="menu-arrow"></i>
         </a>
         <div class="collapse" id="exp">
           <ul class="nav flex-column sub-menu">
-            <li class="nav-item"> <a class="nav-link" href="/exprience-templates-view">Exprience Template</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/exprience-templates-view">Experience Template</a></li>
             <li class="nav-item"> <a class="nav-link" href="/generate-letter">Generate Letter</a></li>
-            <!-- <li class="nav-item"> <a class="nav-link" href="/add-emp-exprience">Genrate Letter</a></li> -->
           </ul>
         </div>
       </li>
+    <?php endif; ?>
+
+    <!-- ── Reports ──────────────────────────────────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#report" aria-expanded="false" aria-controls="report">
           <i class="menu-icon mdi mdi-image-filter-none"></i>
@@ -343,12 +375,29 @@ $role = $user ? $user->role : null;
             <li class="nav-item"> <a class="nav-link" href="/empReport">Employee Report</a></li>
             <li class="nav-item"> <a class="nav-link" href="/leaveReport">Leave Report</a></li>
             <li class="nav-item"> <a class="nav-link" href="/salaryReport">Payrolls Report</a></li>
-            <li class="nav-item"> <a class="nav-link" href="/attendanceReport">Attendence Report</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/attendanceReport">Attendance Report</a></li>
             <li class="nav-item"> <a class="nav-link" href="/performReport">Performance Report</a></li>
           </ul>
         </div>
       </li>
+    <?php elseif ($isDeptManager): ?>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#report" aria-expanded="false" aria-controls="report">
+          <i class="menu-icon mdi mdi-image-filter-none"></i>
+          <span class="menu-title">Reports</span>
+          <i class="menu-arrow"></i>
+        </a>
+        <div class="collapse" id="report">
+          <ul class="nav flex-column sub-menu">
+            <li class="nav-item"> <a class="nav-link" href="/attendanceReport">Attendance Report</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/leaveReport">Leave Report</a></li>
+          </ul>
+        </div>
+      </li>
+    <?php endif; ?>
 
+    <!-- ── Masters & Departments ────────────────────────────── -->
+    <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#Masters" aria-expanded="false" aria-controls="Masters">
           <i class="menu-icon mdi mdi-database"></i>
@@ -361,44 +410,30 @@ $role = $user ? $user->role : null;
             <li class="nav-item"><a class="nav-link" href="/stateView">State</a></li>
             <li class="nav-item"><a class="nav-link" href="/cityview">City</a></li>
             <li class="nav-item"><a class="nav-link" href="/departmentview">Departments</a></li>
+            <li class="nav-item"><a class="nav-link" href="/department-managers">Department Managers</a></li>
             <li class="nav-item"><a class="nav-link" href="/designationview">Designations</a></li>
             <li class="nav-item"><a class="nav-link" href="/leavetypeview">Leave Types</a></li>
           </ul>
         </div>
       </li>
-      <!-- 
+    <?php elseif ($isBranchAdmin): ?>
       <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#Settings" aria-expanded="false" aria-controls="Settings">
-          <i class="menu-icon mdi mdi-cog"></i>
-          <span class="menu-title">System Settings</span>
+        <a class="nav-link" data-bs-toggle="collapse" href="#branchMasters" aria-expanded="false" aria-controls="branchMasters">
+          <i class="menu-icon mdi mdi-database"></i>
+          <span class="menu-title">Departments</span>
           <i class="menu-arrow"></i>
         </a>
-        <div class="collapse" id="Settings">
+        <div class="collapse" id="branchMasters">
           <ul class="nav flex-column sub-menu">
-            <li class="nav-item"><a class="nav-link" href="/SMTPemail">SMTP Mail</a></li>
-            <li class="nav-item"><a class="nav-link" href="/notification-settings">Push Notifications</a></li>
+            <li class="nav-item"><a class="nav-link" href="/departmentview">Branch Departments</a></li>
+            <li class="nav-item"><a class="nav-link" href="/department-managers">Department Managers</a></li>
           </ul>
         </div>
-      </li> -->
-
-      <!-- <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="/chat'" aria-expanded="false" aria-controls="chat">
-        <i class="menu-icon mdi mdi-message"></i>
-          <span class="menu-title">Chat</span>
-           <i class="menu-arrow"></i> 
-        </a>
-      </li> 
-
-       <li class="nav-item">
-        <a class="nav-link" href="<?= base_url('/chat') ?>">
-          <i class="menu-icon mdi mdi-message"></i>
-          <span class="menu-title">Chat</span>
-        </a>
-      </li>  -->
+      </li>
     <?php endif; ?>
 
-    <?php if ($role === 'employee'): ?>
-
+    <!-- ── Employee Portal (Regular Staff) ──────────────────── -->
+    <?php if ($isEmployee): ?>
       <li class="nav-item">
         <a class="nav-link" href="<?= base_url('/view-calendar') ?>">
           <i class="menu-icon mdi mdi-card-text-outline"></i>
@@ -411,54 +446,30 @@ $role = $user ? $user->role : null;
           <span class="menu-title">Leaves</span>
         </a>
       </li>
-
       <li class="nav-item">
         <a class="nav-link" href="/performanceview">
           <i class="menu-icon mdi mdi-gauge"></i>
           <span class="menu-title">Performance</span>
         </a>
       </li>
-
-      <!-- <li class="nav-item">
-        <a class="nav-link" href="/payrollview">
-          <i class="menu-icon mdi mdi-currency-inr"></i>
-          <span class="menu-title">Payroll</span>
-        </a>
-      </li>  -->
-
       <li class="nav-item">
         <a class="nav-link" href="/trainingview">
           <i class="menu-icon mdi mdi-currency-usd"></i>
           <span class="menu-title">Training</span>
         </a>
       </li>
-
       <li class="nav-item">
         <a class="nav-link" href="<?= base_url('expenses') ?>">
           <i class="menu-icon mdi mdi-wallet"></i>
           <span class="menu-title">Expense</span>
         </a>
       </li>
-
-      <!-- <li class="nav-item">
-        <a class="nav-link" href="/taskview">
-          <i class="menu-icon mdi mdi-book-open"></i>
-          <span class="menu-title">Task</span>
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" href="/all_subtask">
-          <i class="menu-icon mdi mdi-format-list-checkbox"></i>
-          <span class="menu-title">SubTask</span>
-        </a>
-      </li>  -->
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#subtasks" aria-expanded="false" aria-controls="subtasks">
           <i class="menu-icon mdi mdi-book-open"></i>
           <span class="menu-title">Task</span>
           <i class="menu-arrow"></i>
         </a>
-
         <div class="collapse" id="subtasks">
           <ul class="nav flex-column sub-menu">
             <li class="nav-item"> <a class="nav-link" href="/taskview">Task</a></li>
@@ -478,15 +489,7 @@ $role = $user ? $user->role : null;
           <span class="menu-title">Company Holidays</span>
         </a>
       </li>
-      <!-- PDF Recorder - Available for all users -->
-      <!-- <li class="nav-item">
-        <a class="nav-link" href="<?= base_url('/pdf-recorder') ?>">
-          <i class="menu-icon mdi mdi-file-pdf-box"></i>
-          <span class="menu-title">PDF Statement</span>
-        </a>
-      </li> -->
     <?php endif; ?>
-
 
   </ul>
 </nav>

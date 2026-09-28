@@ -47,14 +47,31 @@ class BranchController extends ResourceController
         return $user;
     }
 
+    private function requireAdminOrHr(): ?object
+    {
+        $user = $this->authService->check();
+        if (!$user || !in_array($user->role, ['admin', 'hr'])) {
+            return null;
+        }
+        return $user;
+    }
+
     // -- Page Views ------------------------------------------------------------
 
     public function index()
     {
-        if (!$this->requireAdmin()) {
-            return redirect()->to('/dashboard')->with('error', 'Admin access required.');
+        if (!$this->requireAdminOrHr()) {
+            return redirect()->to('/dashboard')->with('error', 'Admin or HR access required.');
         }
         return view('branches/index');
+    }
+
+    public function managersPage()
+    {
+        if (!$this->requireAdminOrHr()) {
+            return redirect()->to('/dashboard')->with('error', 'Admin or HR access required.');
+        }
+        return view('branches/managers');
     }
 
     public function create()
@@ -77,38 +94,56 @@ class BranchController extends ResourceController
         return view('branches/form', ['branch' => $branch]);
     }
 
-    public function assignHrPage($id = null)
+    public function assignManagerPage($id = null)
     {
-        if (!$this->requireAdmin()) {
+        if (!$this->requireAdminOrHr()) {
             return redirect()->to('/dashboard');
         }
         $branch = $this->branchModel->find($id);
         if (!$branch) {
             return redirect()->to('/branches')->with('error', 'Branch not found.');
         }
-        $hrUsers = $this->db->table('users u')
-            ->select('u.id, ui.firstname, ui.lastname, u.email, u.branch_id, u.can_transfer_staff')
+
+        // Current Branch Manager (branch_admin)
+        $currentManager = $this->db->table('users u')
+            ->select('u.id, ui.firstname, ui.lastname, u.email, ui.contact_number, ui.employee_id, ui.profile_image')
             ->join('user_info ui', 'ui.user_id = u.id', 'left')
-            ->where('u.role', 'hr')
+            ->where('u.branch_id', $id)
+            ->where('u.role', 'branch_admin')
             ->where('u.is_deleted', 0)
-            ->orderBy('ui.firstname')
+            ->get()->getRowArray();
+
+        // Eligible candidates to be Branch Manager (employees, dept managers, or existing branch admins)
+        $candidates = $this->db->table('users u')
+            ->select('u.id, ui.firstname, ui.lastname, u.email, u.role, u.branch_id, b.name as branch_name, ui.employee_id, ui.contact_number')
+            ->join('user_info ui', 'ui.user_id = u.id', 'left')
+            ->join('branches b', 'b.id = u.branch_id', 'left')
+            ->whereIn('u.role', ['employee', 'department_manager', 'branch_admin'])
+            ->where('u.is_deleted', 0)
+            ->orderBy('ui.firstname', 'ASC')
             ->get()->getResultArray();
 
-        return view('branches/assign_hr', [
-            'branch'  => $branch,
-            'hrUsers' => $hrUsers,
+        return view('branches/assign_manager', [
+            'branch'         => $branch,
+            'currentManager' => $currentManager,
+            'candidates'     => $candidates,
         ]);
+    }
+
+    public function assignHrPage($id = null)
+    {
+        return $this->assignManagerPage($id);
     }
 
     // -- API Endpoints ---------------------------------------------------------
 
     /**
-     * GET api/branches — list all branches (search + pagination)
+     * GET api/branches — list all branches (search + pagination) with Branch Manager info
      */
     public function list()
     {
-        if (!$this->requireAdmin()) {
-            return $this->respond(['status' => 'error', 'message' => 'Admin access required.'], 403);
+        if (!$this->requireAdminOrHr()) {
+            return $this->respond(['status' => 'error', 'message' => 'Admin or HR access required.'], 403);
         }
 
         $search  = $this->request->getGet('search') ?? '';
@@ -123,10 +158,13 @@ class BranchController extends ResourceController
         }
         $total = $totalBuilder->countAllResults();
 
-        // Fetch with stats
+        // Fetch with stats & Branch Manager info
         $builder = $this->db->table('branches b')
             ->select('b.*, 
-                (SELECT COUNT(*) FROM users WHERE branch_id = b.id AND role = "hr"       AND is_deleted = 0) AS hr_count,
+                (SELECT u.id FROM users u WHERE u.branch_id = b.id AND u.role = "branch_admin" AND u.is_deleted = 0 LIMIT 1) AS branch_admin_id,
+                (SELECT COALESCE(CONCAT(ui.firstname, " ", ui.lastname), u.username) FROM users u LEFT JOIN user_info ui ON ui.user_id = u.id WHERE u.branch_id = b.id AND u.role = "branch_admin" AND u.is_deleted = 0 LIMIT 1) AS branch_admin_name,
+                (SELECT u.email FROM users u WHERE u.branch_id = b.id AND u.role = "branch_admin" AND u.is_deleted = 0 LIMIT 1) AS branch_admin_email,
+                (SELECT COUNT(*) FROM department d WHERE d.branch_id = b.id) AS dept_count,
                 (SELECT COUNT(*) FROM users WHERE branch_id = b.id AND role = "employee" AND is_deleted = 0) AS staff_count')
             ->where('b.deleted_at IS NULL');
 
@@ -319,26 +357,30 @@ class BranchController extends ResourceController
     }
 
     /**
-     * POST api/branches/assign-hr — assign an HR user to a branch
+     * POST api/branches/assign-manager — assign a user as Branch Admin for a branch
      */
-    public function assignHr()
+    public function assignManager()
     {
-        $admin = $this->requireAdmin();
+        $admin = $this->requireAdminOrHr();
         if (!$admin) {
-            return $this->respond(['status' => 'error', 'message' => 'Admin access required.'], 403);
+            return $this->respond(['status' => 'error', 'message' => 'Admin or HR access required.'], 403);
         }
 
         $data     = $this->request->getJSON(true) ?? $this->request->getPost();
-        $hrUserId = (int)($data['user_id'] ?? 0);
+        $userId   = (int)($data['user_id'] ?? 0);
         $branchId = (int)($data['branch_id'] ?? 0);
 
-        if (!$hrUserId || !$branchId) {
+        if (!$userId || !$branchId) {
             return $this->respond(['status' => 'error', 'message' => 'user_id and branch_id are required.'], 422);
         }
 
-        $hrUser = $this->userModel->where('id', $hrUserId)->where('role', 'hr')->first();
-        if (!$hrUser) {
-            return $this->respond(['status' => 'error', 'message' => 'HR user not found.'], 404);
+        $user = $this->userModel->where('id', $userId)->where('is_deleted', 0)->first();
+        if (!$user) {
+            return $this->respond(['status' => 'error', 'message' => 'User not found.'], 404);
+        }
+
+        if (in_array($user['role'], ['admin', 'hr'])) {
+            return $this->respond(['status' => 'error', 'message' => 'Super Admin and Global HR cannot be assigned as a Branch Admin.'], 400);
         }
 
         $branch = $this->branchModel->find($branchId);
@@ -346,12 +388,55 @@ class BranchController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'Branch not found.'], 404);
         }
 
-        $oldBranchId = $hrUser['branch_id'];
-        $this->userModel->update($hrUserId, ['branch_id' => $branchId]);
-        $this->auditLog->log($admin->sub, 'hr.assign_branch', 'User', $hrUserId, 
-            ['branch_id' => $oldBranchId], ['branch_id' => $branchId]);
+        $oldRole = $user['role'];
+        $oldBranchId = $user['branch_id'];
 
-        return $this->respond(['status' => 'success', 'message' => 'HR assigned to branch successfully.']);
+        // Update target user to role 'branch_admin' and set their branch_id
+        $this->userModel->update($userId, [
+            'role'      => 'branch_admin',
+            'branch_id' => $branchId,
+        ]);
+
+        $this->auditLog->log($admin->sub, 'branch.assign_manager', 'User', $userId, 
+            ['old_role' => $oldRole, 'old_branch' => $oldBranchId], 
+            ['role' => 'branch_admin', 'branch_id' => $branchId]);
+
+        return $this->respond(['status' => 'success', 'message' => 'Branch Manager assigned successfully.']);
+    }
+
+    /**
+     * POST api/branches/assign-hr — backward compatibility
+     */
+    public function assignHr()
+    {
+        return $this->assignManager();
+    }
+
+    /**
+     * GET api/branch-managers — get all branch managers
+     */
+    public function getBranchManagers()
+    {
+        if (!$this->requireAdminOrHr()) {
+            return $this->respond(['status' => 'error', 'message' => 'Admin or HR access required.'], 403);
+        }
+
+        $branches = $this->db->table('branches b')
+            ->select('b.id as branch_id, b.name as branch_name, b.code as branch_code, b.city as branch_city, b.phone as branch_phone, b.status as branch_status,
+                      u.id as manager_id, u.email as manager_email, u.role as manager_role,
+                      ui.firstname, ui.lastname, ui.contact_number, ui.profile_image, ui.employee_id,
+                      (SELECT COUNT(*) FROM department d WHERE d.branch_id = b.id) as department_count,
+                      (SELECT COUNT(*) FROM users emp WHERE emp.branch_id = b.id AND emp.role = "employee" AND emp.is_deleted = 0) as staff_count')
+            ->join('users u', 'u.branch_id = b.id AND u.role = "branch_admin" AND u.is_deleted = 0', 'left')
+            ->join('user_info ui', 'ui.user_id = u.id', 'left')
+            ->where('b.deleted_at IS NULL')
+            ->orderBy('b.name', 'ASC')
+            ->get()->getResultArray();
+
+        return $this->respond([
+            'status' => 'success',
+            'data'   => $branches,
+        ]);
     }
 
     /**

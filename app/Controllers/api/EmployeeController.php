@@ -12,6 +12,7 @@ use App\Models\DesignationModel;
 use App\Models\DepartmentModel;
 use App\Models\NotificationModel;
 use App\Services\AuthService;
+use App\Services\HierarchyService;
 use App\Libraries\EmailService;
 use CodeIgniter\Config\Services;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -396,14 +397,25 @@ class EmployeeController extends ResourceController
         $plainPassword = isset($data['password']) ? $data['password'] : bin2hex(random_bytes(4));
         $passwordHash = password_hash($plainPassword, PASSWORD_DEFAULT);
 
+        $targetRole = $data['role'] ?? 'employee';
+        if ($targetRole === 'hr') {
+            $hierarchyService = new HierarchyService();
+            if (!$hierarchyService->canCreateHr()) {
+                return $this->failValidationErrors(['Only one HR account is allowed across all branches in the entire system.']);
+            }
+        }
+
+        $departmentId = !empty($data['department_id']) ? (int)$data['department_id'] : null;
+
         $db = \Config\Database::connect();
         $db->transStart();
 
         $userId = $this->userModel->insert([
-            'email'    => $data['email'],
-            'username' => $data['firstname'] . ' ' . $data['lastname'],
-            'password' => $passwordHash,
-            'role'     => $data['role'] ?? 'employee'
+            'email'         => $data['email'],
+            'username'      => $data['firstname'] . ' ' . $data['lastname'],
+            'password'      => $passwordHash,
+            'role'          => $targetRole,
+            'department_id' => $departmentId,
         ]);
 
         if (!$userId) {
@@ -412,22 +424,18 @@ class EmployeeController extends ResourceController
         }
 
         // ── Branch ID assignment ──────────────────────────────────────────────
-        // If the creator is HR, ALWAYS use the HR's own branch_id (never from form).
-        // If the creator is Admin, use the branch_id from form if provided.
         $creatorUser    = $this->authService->check();
         $creatorRole    = $creatorUser ? ($creatorUser->role ?? 'employee') : 'employee';
         $assignBranchId = null;
 
-        if ($creatorRole === 'hr') {
-            // Force HR's branch — cannot be overridden
-            $authService    = new \App\Services\AuthService(service('request'));
-            $assignBranchId = $authService->getBranchId();
-        } elseif ($creatorRole === 'admin' && !empty($data['branch_id'])) {
-            $assignBranchId = (int)$data['branch_id'];
+        if ($creatorRole === 'branch_admin') {
+            $assignBranchId = (new AuthService(service('request')))->getBranchId();
+        } elseif ($creatorRole === 'admin' || $creatorRole === 'hr') {
+            $assignBranchId = !empty($data['branch_id']) ? (int)$data['branch_id'] : (new AuthService(service('request')))->getBranchId();
         }
 
         if ($assignBranchId) {
-            $this->userModel->update($userId, ['branch_id' => $assignBranchId]);
+            $this->userModel->update($userId, ['branch_id' => $assignBranchId, 'department_id' => $departmentId]);
         }
 
         // Handle File Upload - Profile Image
@@ -501,7 +509,7 @@ class EmployeeController extends ResourceController
             ]);
         }
 
-        // ðŸŽ‰ Birthday Notifications
+        // - Birthday Notifications
         $today = date('m-d');
         $userInfoModel = new \App\Models\UserInfoModel();
 
@@ -686,13 +694,30 @@ class EmployeeController extends ResourceController
             $employee_id = $userInfo['employee_id'] ?? null;
         }
 
+        if ($role === 'hr') {
+            $hierarchyService = new HierarchyService();
+            if (!$hierarchyService->canCreateHr($id)) {
+                return $this->failValidationErrors(['Only one HR account is allowed across all branches in the entire system.']);
+            }
+        }
+
+        $creatorUser = $this->authService->check();
+        $creatorRole = $creatorUser ? ($creatorUser->role ?? 'employee') : 'employee';
+
+        $userUpdateData = [
+            'email'         => $data['email'],
+            'username'      => ($data['firstname'] ?? '') . ' ' . ($data['lastname'] ?? ''),
+            'role'          => $role,
+            'password'      => $hashedPassword,
+            'department_id' => !empty($department_id) ? (int)$department_id : null,
+        ];
+
+        if ($creatorRole === 'admin' && !empty($data['branch_id'])) {
+            $userUpdateData['branch_id'] = (int)$data['branch_id'];
+        }
+
         // Update the users table
-        $this->userModel->update($id, [
-            'email' => $data['email'],
-            'username' => ($data['firstname'] ?? '') . ' ' . ($data['lastname'] ?? ''),
-            'role' => $role,
-            'password' => $hashedPassword, // Update password only if provided
-        ]);
+        $this->userModel->update($id, $userUpdateData);
 
 
         // Prepare gender field (or null if not set)
@@ -783,7 +808,7 @@ class EmployeeController extends ResourceController
 
         // Role-based filtering
         if ($role === 'admin') {
-            $builder->whereIn('users.role', ['employee', 'hr']);
+            $builder->whereIn('users.role', ['employee', 'hr', 'branch_admin', 'department_manager']);
             
             // Apply global branch filter if set in session
             $filterBranchId = $this->authService->getBranchId();
@@ -791,11 +816,26 @@ class EmployeeController extends ResourceController
                 $builder->where('users.branch_id', (int)$filterBranchId);
             }
         } elseif ($role === 'hr') {
+            // Global HR: Company-wide (or filtered by active branch switcher)
+            $builder->whereIn('users.role', ['employee', 'branch_admin', 'department_manager']);
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $builder->where('users.branch_id', (int)$filterBranchId);
+            }
+        } elseif ($role === 'branch_admin') {
+            // Branch Admin: Employees and Department Managers in their branch
+            $builder->whereIn('users.role', ['employee', 'department_manager']);
+            $branchId = (int)$this->authService->getBranchId();
+            $builder->where('users.branch_id', $branchId);
+        } elseif ($role === 'department_manager') {
+            // Department Manager: Employees in their branch & department
+            $dmUser = $this->userModel->find($user->sub);
             $builder->where('users.role', 'employee');
-            // ── Branch scope: HR can ONLY see staff in their own branch ──
-            $hrBranchId = (new \App\Services\AuthService(service('request')))->getBranchId();
-            if ($hrBranchId) {
-                $builder->where('users.branch_id', $hrBranchId);
+            if (!empty($dmUser['branch_id'])) {
+                $builder->where('users.branch_id', (int)$dmUser['branch_id']);
+            }
+            if (!empty($dmUser['department_id'])) {
+                $builder->where('user_info.department_id', (int)$dmUser['department_id']);
             }
         } else {
             return $this->failForbidden('You do not have permission to view employees');
@@ -806,9 +846,15 @@ class EmployeeController extends ResourceController
             $builder->where('user_info.department_id', $departmentId);
         }
 
+        // Role filtering
+        $roleFilter = $this->request->getGet('role');
+        if (!empty($roleFilter)) {
+            $builder->where('users.role', $roleFilter);
+        }
+
         $builder->where('users.is_deleted', 0);
 
-        // Get view type â€” 'active', 'inactive', 'resigned', 'fired', 'all'
+        // Get view type - 'active', 'inactive', 'resigned', 'fired', 'all'
         $viewType = strtolower($this->request->getGet('view') ?? 'active');
 
         if ($viewType === 'resigned') {
@@ -956,7 +1002,7 @@ class EmployeeController extends ResourceController
             return $this->failNotFound('Employee not found');
         }
 
-        // â”€â”€ Start a transaction so everything succeeds or nothing changes â”€â”€
+        // - Start a transaction so everything succeeds or nothing changes -
         $db->transStart();
 
         // 1. Attendance records
@@ -1004,7 +1050,7 @@ class EmployeeController extends ResourceController
         // 15. User info (profile)
         $db->table('user_info')->where('user_id', $id)->delete();
 
-        // 16. Finally â€” delete the user account itself
+        // 16. Finally - delete the user account itself
         $db->table('users')->where('id', $id)->delete();
 
         $db->transComplete();
@@ -1660,7 +1706,7 @@ class EmployeeController extends ResourceController
             return $this->failValidationErrors('Employee ID is required.');
         }
 
-        // The profile page passes user_info.id â€” resolve it to users.id
+        // The profile page passes user_info.id - resolve it to users.id
         $userInfo = $this->userInfoModel->find($userInfoId);
         if (!$userInfo) {
             return $this->failNotFound('Employee not found.');
@@ -1722,7 +1768,7 @@ class EmployeeController extends ResourceController
             return $this->failValidationErrors('User ID is required.');
         }
 
-        // Resolve users.id â†’ user_info row
+        // Resolve users.id - user_info row
         $userInfo = $this->userInfoModel->where('user_id', $userId)->first();
         if (!$userInfo) {
             return $this->failNotFound('Employee not found.');
@@ -1952,13 +1998,42 @@ class EmployeeController extends ResourceController
             ->join('account_detail', 'account_detail.user_id = users.id', 'left');
 
         if ($role === 'admin') {
-            $builder->whereIn('users.role', ['employee', 'hr']);
+            $builder->whereIn('users.role', ['employee', 'hr', 'branch_admin', 'department_manager']);
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $builder->where('users.branch_id', (int)$filterBranchId);
+            }
+        } elseif ($role === 'hr') {
+            $builder->whereIn('users.role', ['employee', 'branch_admin', 'department_manager']);
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $builder->where('users.branch_id', (int)$filterBranchId);
+            }
+        } elseif ($role === 'branch_admin') {
+            $builder->whereIn('users.role', ['employee', 'department_manager']);
+            $branchId = (int)$this->authService->getBranchId();
+            $builder->where('users.branch_id', $branchId);
+        } elseif ($role === 'department_manager') {
+            $dmUser = $this->userModel->find($user->sub);
+            $builder->where('users.role', 'employee');
+            if (!empty($dmUser['branch_id'])) {
+                $builder->where('users.branch_id', (int)$dmUser['branch_id']);
+            }
+            if (!empty($dmUser['department_id'])) {
+                $builder->where('user_info.department_id', (int)$dmUser['department_id']);
+            }
         } else {
             $builder->where('users.role', 'employee');
+            $builder->where('users.id', $user->sub);
         }
 
         if (!empty($departmentId)) {
             $builder->where('user_info.department_id', $departmentId);
+        }
+
+        $roleFilter = $this->request->getGet('role');
+        if (!empty($roleFilter)) {
+            $builder->where('users.role', $roleFilter);
         }
 
         $builder->where('users.is_deleted', 0);

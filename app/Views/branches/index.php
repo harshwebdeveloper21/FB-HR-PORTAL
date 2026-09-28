@@ -12,9 +12,14 @@
             </h4>
             <p class="text-muted mb-0">Manage company branches, assign HR, and configure rules.</p>
           </div>
-          <a href="<?= base_url('/branches/create') ?>" class="btn hr-btnbg">
-            <i class="mdi mdi-plus me-1"></i> Add Branch
-          </a>
+          <div class="d-flex gap-2">
+            <a href="<?= base_url('/branch-managers') ?>" class="btn hr-btnbg">
+              <i class="mdi mdi-account-group me-1"></i> Branch Managers
+            </a>
+            <a href="<?= base_url('/branches/create') ?>" class="btn hr-btnbg">
+              <i class="mdi mdi-plus me-1"></i> Add Branch
+            </a>
+          </div>
         </div>
 
         <!-- Search Bar -->
@@ -36,8 +41,8 @@
                 <th>Branch Name</th>
                 <th>Code</th>
                 <th>City</th>
-                <th>Phone</th>
-                <th>HR Count</th>
+                <th>Branch Manager</th>
+                <th>Departments</th>
                 <th>Staff Count</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -85,25 +90,31 @@ function loadBranches(page = 1) {
         return;
       }
 
-      tbody.innerHTML = data.data.map((b, i) => `
+      tbody.innerHTML = data.data.map((b, i) => {
+        const managerHtml = b.branch_admin_name
+          ? `<span class="badge bg-primary text-white" title="${escHtml(b.branch_admin_email || '')}"><i class="mdi mdi-account-tie me-1"></i>${escHtml(b.branch_admin_name)}</span>`
+          : `<a href="/branches/assign-manager/${b.id}" class="badge bg-light text-muted border text-decoration-none" title="Assign a Branch Manager"><i class="mdi mdi-plus me-1"></i>Assign Manager</a>`;
+
+        return `
         <tr>
           <td>${(page - 1) * perPage + i + 1}</td>
           <td><strong>${escHtml(b.name)}</strong></td>
           <td><span class="badge bg-secondary">${escHtml(b.code)}</span></td>
           <td>${escHtml(b.city || '—')}</td>
-          <td>${escHtml(b.phone || '—')}</td>
-          <td><span class="badge bg-info text-dark">${b.hr_count}</span></td>
-          <td><span class="badge bg-primary">${b.staff_count}</span></td>
+          <td>${managerHtml}</td>
+          <td><span class="badge bg-info text-dark">${b.dept_count || 0}</span></td>
+          <td><span class="badge bg-primary">${b.staff_count || 0}</span></td>
           <td>${b.status === 'active'
                 ? '<span class="badge bg-success">Active</span>'
                 : '<span class="badge bg-secondary">Inactive</span>'}</td>
           <td>
-            <a href="/branches/edit/${b.id}" title="Edit" class="text-warning me-2"><i class="mdi mdi-pencil fs-5"></i></a>
-            <a href="/branches/assign-hr/${b.id}" title="Assign HR" class="text-primary me-2"><i class="mdi mdi-account-plus fs-5"></i></a>
+            <a href="/branches/edit/${b.id}" title="Edit Branch" class="text-warning me-2"><i class="mdi mdi-pencil fs-5"></i></a>
+            <a href="/branches/assign-manager/${b.id}" title="Assign/Change Branch Manager" class="text-primary me-2"><i class="mdi mdi-account-cog fs-5"></i></a>
             <a href="/branch-rules/edit/${b.id}" title="Rules" class="text-success me-2"><i class="mdi mdi-cog fs-5"></i></a>
             <button onclick="deleteBranch(${b.id},'${escHtml(b.name)}')" title="Delete" class="btn btn-sm btn-link text-danger p-0"><i class="mdi mdi-trash-can fs-5"></i></button>
           </td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
 
       // Pagination info
       const total   = data.total;

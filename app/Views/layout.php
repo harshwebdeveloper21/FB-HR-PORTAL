@@ -39,7 +39,7 @@
             color: #ffffff !important;
         }
 
-        .hr-btnbg, .btn-primary.hr-btnbg, button.hr-btnbg, a.hr-btnbg {
+        .hr-btnbg, .btn-primary.hr-btnbg, button.hr-btnbg, a.hr-btnbg, .btn.hr-btnbg {
             background-color: #E66136 !important;
             border: 2px solid #F05929 !important;
             border-radius: 4px !important;
@@ -48,17 +48,33 @@
             font-size: 14px !important;
             font-weight: 500 !important;
             padding: 6px 14px !important;
+            height: 36px !important;
             min-height: 36px !important;
             line-height: 1.2 !important;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 6px !important;
+            text-decoration: none !important;
+            white-space: nowrap !important;
             transition: all 0.2s ease !important;
+            box-shadow: none !important;
         }
-        .hr-btnbg:hover {
+        .hr-btnbg:hover, .hr-btnbg:focus, .hr-btnbg:active,
+        .btn.hr-btnbg:hover, .btn.hr-btnbg:focus, .btn.hr-btnbg:active {
             border: 2px solid #e66136 !important;
             background-color: #ffffff !important;
+            color: #e66136 !important;
+            text-decoration: none !important;
+        }
+        .hr-btnbg i, .btn.hr-btnbg i {
+            color: #ffffff !important;
+            font-size: 15px !important;
+            line-height: 1 !important;
+            transition: color 0.2s ease !important;
+        }
+        .hr-btnbg:hover i, .hr-btnbg:focus i, .hr-btnbg:active i,
+        .btn.hr-btnbg:hover i, .btn.hr-btnbg:focus i, .btn.hr-btnbg:active i {
             color: #e66136 !important;
         }
         .hr-btnbg:disabled, .hr-btnbg[disabled] {

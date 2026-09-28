@@ -652,7 +652,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const loadAttendance = async (month, year) => {
         try {
-            const response = await fetch(`/api/attendance/getAttendance/${month}/${year}`, { headers });
+            const branchSelect = document.getElementById('navbarBranchSelect');
+            const branchId = branchSelect ? branchSelect.value : '';
+            let url = `/api/attendance/getAttendance/${month}/${year}`;
+            if (branchId) {
+                url += `?branch_id=${encodeURIComponent(branchId)}`;
+            }
+
+            const response = await fetch(url, { headers, credentials: 'same-origin' });
             const data = await response.json();
             
             if (data.status === 'success') {

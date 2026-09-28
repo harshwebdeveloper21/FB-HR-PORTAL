@@ -921,9 +921,27 @@ class AttendanceController extends ResourceController
         // Assuming that HR has role "hr" and employees have role "employee"
         $userRole = $user->role; // "employee" or "hr"
 
-        // If HR is logged in, they can see all employees' attendance
+        // If HR or admin is logged in, filter by branch if set
         if ($userRole === 'hr' || $userRole === 'admin') {
-            $attendanceData = $this->attendanceModel->orderBy('date', 'DESC')->orderBy('id', 'DESC')->findAll(); // HR sees all attendance records
+            $branchId = $this->request->getGet('branch_id');
+            if ($branchId === null || $branchId === '') {
+                $branchId = $this->authService->getBranchId();
+            } else {
+                $branchId = (int)$branchId;
+            }
+
+            if (!empty($branchId)) {
+                $attendanceData = $this->attendanceModel
+                    ->select('attendance.*')
+                    ->join('users', 'users.id = attendance.user_id')
+                    ->where('users.branch_id', (int)$branchId)
+                    ->where('users.is_deleted', 0)
+                    ->orderBy('attendance.date', 'DESC')
+                    ->orderBy('attendance.id', 'DESC')
+                    ->findAll();
+            } else {
+                $attendanceData = $this->attendanceModel->orderBy('date', 'DESC')->orderBy('id', 'DESC')->findAll();
+            }
         } else {
             // If an employee is logged in, they can only see their own attendance records
             $attendanceData = $this->attendanceModel->where('user_id', $user->sub)->orderBy('date', 'DESC')->orderBy('id', 'DESC')->findAll();
@@ -1151,15 +1169,32 @@ class AttendanceController extends ResourceController
             return $this->failUnauthorized('Unauthorized access');
         }
 
-        // 🔹 Get users
-        if ($authUser->role === 'admin' || $authUser->role === 'hr') {
-            $users = $userModel
-                ->where('is_deleted', 0)
-                ->whereIn('role', ['employee', 'hr'])
-                ->findAll();
+        // 🔹 Branch filter (from query param, session, or HR assigned branch)
+        $branchId = $this->request->getGet('branch_id');
+        if ($branchId === null || $branchId === '') {
+            $branchId = $this->authService->getBranchId();
         } else {
-            $users = $userModel->where('id', $authUser->sub)->findAll();
+            $branchId = (int)$branchId;
         }
+
+        // 🔹 Get users
+        $userQuery = $userModel->where('is_deleted', 0);
+        if ($authUser->role === 'admin') {
+            $userQuery->whereIn('role', ['employee', 'hr']);
+            if (!empty($branchId)) {
+                $userQuery->where('branch_id', (int)$branchId);
+            }
+        } elseif ($authUser->role === 'hr') {
+            $userQuery->where('role', 'employee');
+            $hrBranchId = (new \App\Services\AuthService(service('request')))->getBranchId();
+            if (!empty($hrBranchId)) {
+                $userQuery->where('branch_id', (int)$hrBranchId);
+            }
+        } else {
+            $userQuery->where('id', $authUser->sub);
+        }
+
+        $users = $userQuery->findAll();
 
         $userIds = array_column($users, 'id');
 
@@ -1173,10 +1208,14 @@ class AttendanceController extends ResourceController
         }
 
         // 🔹 Attendance data
-        $attendanceData = $attendanceModel
-            ->where('MONTH(date)', $month)
-            ->where('YEAR(date)', $year)
-            ->findAll();
+        $attendanceData = [];
+        if (!empty($userIds)) {
+            $attendanceData = $attendanceModel
+                ->whereIn('user_id', $userIds)
+                ->where('MONTH(date)', $month)
+                ->where('YEAR(date)', $year)
+                ->findAll();
+        }
 
         // 🔹 Holidays
         $holidays = $holidayCalendarModel
@@ -1191,18 +1230,27 @@ class AttendanceController extends ResourceController
         // 🔹 Leave data
         $startOfMonthDate = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
         $endOfMonthDate = date('Y-m-t', strtotime($startOfMonthDate));
-        $leavesData = $this->leaveModel
-            ->where('status', 'approved')
-            ->where("((start_date >= '$startOfMonthDate' AND start_date <= '$endOfMonthDate') OR (end_date >= '$startOfMonthDate' AND end_date <= '$endOfMonthDate') OR (start_date <= '$startOfMonthDate' AND end_date >= '$endOfMonthDate'))")
-            ->findAll();
+        $leavesData = [];
+        if (!empty($userIds)) {
+            $leavesData = $this->leaveModel
+                ->whereIn('user_id', $userIds)
+                ->where('status', 'approved')
+                ->where("((start_date >= '$startOfMonthDate' AND start_date <= '$endOfMonthDate') OR (end_date >= '$startOfMonthDate' AND end_date <= '$endOfMonthDate') OR (start_date <= '$startOfMonthDate' AND end_date >= '$endOfMonthDate'))")
+                ->findAll();
+        }
 
         $leavesByUser = [];
         foreach ($leavesData as $leave) {
             $leavesByUser[$leave['user_id']][] = $leave;
         }
 
-        // 🔹 Company rules
-        $companyRule = $companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+        // 🔹 Company / Branch rules
+        if (!empty($branchId)) {
+            $branchRulesModel = new \App\Models\BranchRulesModel();
+            $companyRule = $branchRulesModel->getRulesForBranch((int)$branchId) ?? [];
+        } else {
+            $companyRule = $companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+        }
         $isIncludedHoliday = $companyRule['include_holidays_in_working_days'] ?? 0;
 
         if (!empty($companyRule) && ($companyRule['saturday_off_enabled'] ?? 0) == 1) {
@@ -1313,7 +1361,8 @@ class AttendanceController extends ResourceController
             }
 
             // Company rules (used for calculateDayStatus + late-detection)
-            $companyRuleForStatus = !empty($companyRule) ? $companyRule : ($companyRulesModel->orderBy('id', 'DESC')->first() ?? []);
+            $userBranchRule       = $this->getBranchRulesForUser($userId);
+            $companyRuleForStatus = !empty($userBranchRule) ? $userBranchRule : (!empty($companyRule) ? $companyRule : ($companyRulesModel->orderBy('id', 'DESC')->first() ?? []));
             $startTimeForStatus   = $companyRuleForStatus['start_time'] ?? '09:30:00';
             $graceMinutes         = (int)($companyRuleForStatus['grace_period'] ?? ($companyRuleForStatus['grace_minutes'] ?? 0));
             $graceSeconds         = $graceMinutes * 60;
@@ -1674,140 +1723,37 @@ class AttendanceController extends ResourceController
     }
 
 
-    public function view()
+    private function calculateAttendanceStats(): array
     {
         $userModel = new UserModel();
         $attendanceModel = new AttendanceModel();
-        $user = $this->authService->user(); // Get logged-in user
-
-        // Check if user is authenticated
-        if (!$user) {
-            return redirect()->to('/login')->with('error', 'Please login to access this page.');
-        }
-
-        $role = $user->role; // User role
-        $today = date('Y-m-d'); // Get today's date
-        $currentYear = date('Y'); // Get current year
-        $currentMonth = date('m'); // Get current month (numeric)
-        $totalDaysInMonth = cal_days_in_month(CAL_GREGORIAN, $currentMonth, $currentYear);
-        // Get Total Employees
-        $totalEmployees = $userModel->where('role', 'employee')->countAllResults();
-        $fullDayPresent = $attendanceModel
-            ->select('user_id')
-            ->where('status', 'present')
-            ->where('date', $today)
-            ->distinct()
-            ->countAllResults();
-
-        $halfDayPresent = $attendanceModel
-            ->select('user_id')
-            ->where('status', 'half-day')
-            ->where('date', $today)
-            ->distinct()
-            ->countAllResults();
-
-        $presentEmployees = $fullDayPresent + ($halfDayPresent * 0.5);
-
-        $absentEmployees = $userModel
-            ->where('role', 'employee')
-            ->whereNotIn('id', function ($query) use ($today) {
-                $query->select('user_id')
-                    ->from('attendance')
-                    ->where('date', $today);
-            })
-            ->countAllResults();
-        $workingDays = $attendanceModel
-            ->distinct()
-            ->select('date')
-            ->like('date', date('Y-m'))
-            ->countAllResults();
-
-        return view('attendence/view', [
-            'role' => $role,
-            'totalEmployees' => $totalEmployees,
-            'presentEmployees' => $presentEmployees,
-            'absentEmployees' => $absentEmployees,
-            'workingDays' => $workingDays,
-            'totalDaysInMonth' => $totalDaysInMonth, // Total days in current month
-        ]);
-    }
-
-    public function viewCalendar()
-    {
-        $userModel = new UserModel();
-        $attendanceModel = new AttendanceModel();
-        $user = $this->authService->user(); // Get logged-in user
-
-        // Check if user is authenticated
-        if (!$user) {
-            return redirect()->to('/login')->with('error', 'Please login to access this page.');
-        }
-
-        $role = $user->role; // User role
-        $today = date('Y-m-d'); // Get today's date
-        $currentYear = date('Y'); // Get current year
-        $currentMonth = date('m'); // Get current month (numeric)
-        $totalDaysInMonth = cal_days_in_month(CAL_GREGORIAN, $currentMonth, $currentYear);
-        // Get Total Employees
-        $totalEmployees = $userModel->where('role', 'employee')->countAllResults();
-        $fullDayPresent = $attendanceModel
-            ->select('user_id')
-            ->where('status', 'present')
-            ->where('date', $today)
-            ->distinct()
-            ->countAllResults();
-
-        $halfDayPresent = $attendanceModel
-            ->select('user_id')
-            ->where('status', 'half-day')
-            ->where('date', $today)
-            ->distinct()
-            ->countAllResults();
-
-        $presentEmployees = $fullDayPresent + ($halfDayPresent * 0.5);
-
-        $absentEmployees = $userModel
-            ->where('role', 'employee')
-            ->whereNotIn('id', function ($query) use ($today) {
-                $query->select('user_id')
-                    ->from('attendance')
-                    ->where('date', $today);
-            })
-            ->countAllResults();
-        $workingDays = $attendanceModel
-            ->distinct()
-            ->select('date')
-            ->like('date', date('Y-m'))
-            ->countAllResults();
-
-        return view('attendence/view_calendar', [
-            'role' => $role,
-            'totalEmployees' => $totalEmployees,
-            'presentEmployees' => $presentEmployees,
-            'absentEmployees' => $absentEmployees,
-            'workingDays' => $workingDays,
-            'totalDaysInMonth' => $totalDaysInMonth, // Total days in current month
-        ]);
-    }
-
-    public function getDashboardStats()
-    {
-        $userModel = new UserModel();
-        $attendanceModel = new AttendanceModel();
-        $user = $this->authService->user(); // Get logged-in user
-        $role = $user->role;
-
         $today = date('Y-m-d');
         $currentYear = date('Y');
         $currentMonth = date('m');
         $totalDaysInMonth = cal_days_in_month(CAL_GREGORIAN, $currentMonth, $currentYear);
 
-        $totalEmployees = $userModel->where('role', 'employee')->countAllResults();
+        $filterBranchId = $this->authService->getBranchId();
+
+        // Total employees in scope
+        $totalEmpBuilder = $userModel->where('role', 'employee')->where('is_deleted', 0);
+        if (!empty($filterBranchId)) {
+            $totalEmpBuilder->where('branch_id', (int)$filterBranchId);
+        }
+        $totalEmployees = $totalEmpBuilder->countAllResults();
+
+        // Scope user IDs query
+        $userScopeSubQuery = function ($query) use ($filterBranchId) {
+            $query->select('id')->from('users')->where('role', 'employee')->where('is_deleted', 0);
+            if (!empty($filterBranchId)) {
+                $query->where('branch_id', (int)$filterBranchId);
+            }
+        };
 
         $fullDayPresent = $attendanceModel
             ->select('user_id')
             ->where('status', 'present')
             ->where('date', $today)
+            ->whereIn('user_id', $userScopeSubQuery)
             ->distinct()
             ->countAllResults();
 
@@ -1815,35 +1761,85 @@ class AttendanceController extends ResourceController
             ->select('user_id')
             ->where('status', 'half-day')
             ->where('date', $today)
+            ->whereIn('user_id', $userScopeSubQuery)
             ->distinct()
             ->countAllResults();
 
         $presentEmployees = $fullDayPresent + ($halfDayPresent * 0.5);
 
-        $absentEmployees = $userModel
+        $absentEmpQuery = $userModel
             ->where('role', 'employee')
+            ->where('is_deleted', 0)
             ->whereNotIn('id', function ($query) use ($today) {
                 $query->select('user_id')
                     ->from('attendance')
                     ->where('date', $today);
-            })
-            ->countAllResults();
+            });
+        if (!empty($filterBranchId)) {
+            $absentEmpQuery->where('branch_id', (int)$filterBranchId);
+        }
+        $absentEmployees = $absentEmpQuery->countAllResults();
 
         $workingDays = $attendanceModel
             ->distinct()
             ->select('date')
             ->like('date', date('Y-m'))
+            ->whereIn('user_id', $userScopeSubQuery)
             ->countAllResults();
 
-        // Return as JSON
-        return $this->response->setJSON([
-            'role' => $role,
+        return [
             'totalEmployees' => $totalEmployees,
             'presentEmployees' => $presentEmployees,
             'absentEmployees' => $absentEmployees,
             'workingDays' => $workingDays,
-            'totalDaysInMonth' => $totalDaysInMonth
-        ]);
+            'totalDaysInMonth' => $totalDaysInMonth,
+        ];
+    }
+
+    public function view()
+    {
+        $user = $this->authService->user(); // Get logged-in user
+
+        // Check if user is authenticated
+        if (!$user) {
+            return redirect()->to('/login')->with('error', 'Please login to access this page.');
+        }
+
+        $stats = $this->calculateAttendanceStats();
+
+        return view('attendence/view', array_merge([
+            'role' => $user->role,
+        ], $stats));
+    }
+
+    public function viewCalendar()
+    {
+        $user = $this->authService->user(); // Get logged-in user
+
+        // Check if user is authenticated
+        if (!$user) {
+            return redirect()->to('/login')->with('error', 'Please login to access this page.');
+        }
+
+        $stats = $this->calculateAttendanceStats();
+
+        return view('attendence/view_calendar', array_merge([
+            'role' => $user->role,
+        ], $stats));
+    }
+
+    public function getDashboardStats()
+    {
+        $user = $this->authService->user(); // Get logged-in user
+        if (!$user) {
+            return $this->failUnauthorized('Unauthorized');
+        }
+
+        $stats = $this->calculateAttendanceStats();
+
+        return $this->response->setJSON(array_merge([
+            'role' => $user->role,
+        ], $stats));
     }
 
     public function getFacePhoto()

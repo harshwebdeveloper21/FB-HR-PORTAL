@@ -350,7 +350,14 @@
             document.getElementById('employee-attendance-body').innerHTML = 
                 '<tr><td colspan="10"><div class="d-flex justify-content-center align-items-center w-100 py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span> Loading attendance summary...</div></td></tr>';
 
-            fetch(`/api/attendance/getAttendance/${month}/${year}`, { headers })
+            const branchSelect = document.getElementById('navbarBranchSelect');
+            const branchId = branchSelect ? branchSelect.value : '';
+            let url = `/api/attendance/getAttendance/${month}/${year}`;
+            if (branchId) {
+                url += `?branch_id=${encodeURIComponent(branchId)}`;
+            }
+
+            fetch(url, { headers, credentials: 'same-origin' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {

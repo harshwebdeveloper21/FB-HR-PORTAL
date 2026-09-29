@@ -511,20 +511,16 @@ $branchesList = $branchModel->getActiveBranches();
                 <a class="nav-link nav-link-profile" id="UserDropdown" href="#" aria-expanded="false">
 
                     <!-- Check if userInfo is stored in session -->
-                    <?php if (session()->has('userInfo') && !empty(session()->get('userInfo')['profile_image'])) : ?>
-                        <img class="img-xs rounded-circle" src="<?= base_url('upload/' . session()->get('userInfo')['profile_image']) ?>" alt="Profile image">
-                    <?php else : ?>
-                        <img class="img-xs rounded-circle" src="<?= base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg') ?>" alt="Profile image">
-                    <?php endif; ?>
+                    <?php 
+                        $navProfileImg = session()->has('userInfo') ? (session()->get('userInfo')['profile_image'] ?? null) : null;
+                        $navProfileUrl = getUserProfileImage($navProfileImg);
+                        $defaultProfileUrl = getDefaultProfileImage();
+                    ?>
+                    <img class="img-xs rounded-circle" src="<?= $navProfileUrl ?>" alt="Profile image" onerror="this.onerror=null; this.src='<?= $defaultProfileUrl ?>';">
                 </a>
                 <div class="dropdown-menu dropdown-menu-end navbar-dropdown" aria-labelledby="UserDropdown">
                     <div class="dropdown-header text-center">
-                        <!-- Check if userInfo is stored in session -->
-                        <?php if (session()->has('userInfo') && !empty(session()->get('userInfo')['profile_image'])) : ?>
-                            <img class="img-fluid rounded-circle" src="<?= base_url('upload/' . session()->get('userInfo')['profile_image']) ?>" alt="Profile image" style="width: 50px; height: 50px;">
-                        <?php else : ?>
-                            <img class="img-md rounded-circle" src="<?= base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg') ?>" alt="Profile image" style="width: 50px; height: 50px;">
-                        <?php endif; ?>
+                        <img class="img-fluid rounded-circle" src="<?= $navProfileUrl ?>" alt="Profile image" style="width: 50px; height: 50px; object-fit: cover;" onerror="this.onerror=null; this.src='<?= $defaultProfileUrl ?>';">
 
                         <!-- Display username -->
 

@@ -305,7 +305,7 @@
                 </div> -->
                 <div class="text-center position-relative">
                     <label for="profile-image-input" style="cursor: pointer;">
-                        <img src="" class="img-fluid avatar-xxl rounded-circle" alt="" id="profile-image" style="width: 160px; height: 160px;">
+                        <img src="<?= getDefaultProfileImage() ?>" class="img-fluid avatar-xxl rounded-circle" alt="Profile Image" id="profile-image" style="width: 160px; height: 160px; object-fit: cover;" onerror="this.onerror=null; this.src='<?= getDefaultProfileImage() ?>';">
                         <div class="profile-image-overlay">
                             <i class="mdi mdi-camera"></i>
                         </div>
@@ -826,7 +826,7 @@
                                         <input type="file" name="profile_image" id="profile_image" class="form-control">
                                     </div>
                                     <div class="position-relative d-inline-block">
-                                        <img id="profile-image-preview" src="upload/1789966027_54c5a38ccda20f7c2bac.jpg" alt="Profile Image" class="img-fluid mb-2 rounded-circle" width="80px" height="80px">
+                                        <img id="profile-image-preview" src="<?= getDefaultProfileImage() ?>" alt="Profile Image" class="img-fluid mb-2 rounded-circle" width="80px" height="80px" style="object-fit: cover;" onerror="this.onerror=null; this.src='<?= getDefaultProfileImage() ?>';">
 
                                         <!-- Add delete button for profile preview -->
                                         <button type="button" class="btn btn-danger btn-sm rounded-circle delete-profile-btn"
@@ -1309,15 +1309,10 @@
                     }
                     // Update profile image if present
 
-                    if (data.data.profile_image) {
-                        if (data.data.profile_image == '1789966027_54c5a38ccda20f7c2bac.jpg') {
-                            $('#profile-image').attr('src', IMAGE_BASE_URL + 'upload/' + data.data.profile_image);
-                        } else {
-                            $('#profile-image').attr('src', 'upload/' + data.data.profile_image);
-                        }
+                    if (data.data.profile_image && data.data.profile_image !== '1789966027_54c5a38ccda20f7c2bac.jpg' && data.data.profile_image !== 'default_avatar.png') {
+                        $('#profile-image').attr('src', 'upload/' + data.data.profile_image);
                     } else {
-                        // console.log('else ' + IMAGE_BASE_URL);
-                        $('#profile-image').attr('src', IMAGE_BASE_URL + 'upload/1789966027_54c5a38ccda20f7c2bac.jpg');
+                        $('#profile-image').attr('src', '<?= getDefaultProfileImage() ?>');
                     }
                 } else {
                     console.error('Error: Missing profile data');
@@ -1403,10 +1398,10 @@
                         }
 
                         // Update profile image preview
-                        if (data.profile_image) {
+                        if (data.profile_image && data.profile_image !== '1789966027_54c5a38ccda20f7c2bac.jpg' && data.profile_image !== 'default_avatar.png') {
                             $('#profile-image-preview').attr('src', baseUrl + '/upload/' + data.profile_image);
                         } else {
-                            $('#profile-image-preview').attr('src', IMAGE_BASE_URL + 'upload/1789966027_54c5a38ccda20f7c2bac.jpg'); // Fallback image
+                            $('#profile-image-preview').attr('src', '<?= getDefaultProfileImage() ?>'); // Fallback image
                         }
                     }, 2000);
                     

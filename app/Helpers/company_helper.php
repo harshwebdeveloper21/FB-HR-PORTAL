@@ -50,3 +50,25 @@ if (!function_exists('getCompanyName')) {
             : 'Fablead Developers Technolab';
     }
 }
+
+if (!function_exists('getDefaultProfileImage')) {
+    function getDefaultProfileImage()
+    {
+        return base_url(env('ImagePath') . 'assets/images/default_avatar.png');
+    }
+}
+
+if (!function_exists('getUserProfileImage')) {
+    function getUserProfileImage($profileImage = null)
+    {
+        if (!empty($profileImage) && $profileImage !== '1789966027_54c5a38ccda20f7c2bac.jpg') {
+            $rootUpload = ROOTPATH . 'upload/' . $profileImage;
+            $fcUpload = defined('FCPATH') ? FCPATH . 'upload/' . $profileImage : '';
+            if (file_exists($rootUpload) || (!empty($fcUpload) && file_exists($fcUpload))) {
+                return base_url('upload/' . $profileImage);
+            }
+        }
+        return getDefaultProfileImage();
+    }
+}
+

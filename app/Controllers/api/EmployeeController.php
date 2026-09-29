@@ -909,7 +909,7 @@ class EmployeeController extends ResourceController
                     'last_working_day' => $lastWorkingDay,
                     'last_increment_date' => $row['last_increment_date'] ?? 'N/A',
                     'last_increment_amount' => (float) ($row['last_increment_amount'] ?? 0),
-                    'profile_image_url' => !empty($row['profile_image']) ? base_url('upload/' . $row['profile_image']) : base_url('public/upload/1789966027_54c5a38ccda20f7c2bac.jpg'),
+                    'profile_image_url' => getUserProfileImage($row['profile_image'] ?? null),
                 ]
             ];
         }
@@ -940,10 +940,8 @@ class EmployeeController extends ResourceController
         }
 
         // Append full image path if profile_image exists
-        if ($userInfo && !empty($userInfo['profile_image'])) {
-            $userInfo['profile_image'] = base_url('upload/' . $userInfo['profile_image']);
-        } else {
-            $userInfo['profile_image'] = base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg'); // Set a default image
+        if ($userInfo) {
+            $userInfo['profile_image'] = getUserProfileImage($userInfo['profile_image'] ?? null);
         }
 
         // Append full face photo path if exists

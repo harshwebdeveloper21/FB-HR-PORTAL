@@ -81,6 +81,7 @@ class InterviewAssessments extends BaseController
             'expected_salary'  => $this->request->getPost('expected_salary'),
             'notice_period'    => $this->request->getPost('notice_period'),
             'current_salary'   => $this->request->getPost('current_salary'),
+            'probation_period' => $this->request->getPost('probation_period'),
             'joining_date'     => $this->request->getPost('joining_date') ?: null,
             'recommendation'   => $this->request->getPost('recommendation'),
             'next_step'        => $this->request->getPost('next_step'),
@@ -147,6 +148,7 @@ class InterviewAssessments extends BaseController
             'expected_salary'  => $this->request->getPost('expected_salary'),
             'notice_period'    => $this->request->getPost('notice_period'),
             'current_salary'   => $this->request->getPost('current_salary'),
+            'probation_period' => $this->request->getPost('probation_period'),
             'joining_date'     => $this->request->getPost('joining_date') ?: null,
             'recommendation'   => $this->request->getPost('recommendation'),
             'next_step'        => $this->request->getPost('next_step'),
@@ -164,12 +166,21 @@ class InterviewAssessments extends BaseController
 
     public function show($id)
     {
-        $model = new \App\Models\InterviewAssessmentModel();
-        $assessment = $model->find($id);
+        $db = \Config\Database::connect();
+        $builder = $db->table('interview_assessments ia');
+        $builder->select('ia.*, COALESCE(c.candidate_name, i.full_name) as candidate_name');
+        $builder->join('interviews i', 'i.id = ia.interview_id', 'left');
+        $builder->join('candidate c', 'c.id = i.candidate_id', 'left');
+        $builder->where('ia.id', $id);
+        $assessment = $builder->get()->getRowArray();
+
         if (!$assessment) {
             return redirect()->to('/assessment')->with('error', 'Assessment not found.');
         }
+
         $assessment['ratings_data'] = json_decode($assessment['ratings_data'] ?? '[]', true);
+        $assessment['feedback'] = json_decode($assessment['feedback'] ?? '[]', true);
+
         return view('assessments/view', ['assessment' => $assessment]);
     }
 

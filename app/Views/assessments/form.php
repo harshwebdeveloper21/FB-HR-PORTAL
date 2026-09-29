@@ -194,6 +194,10 @@
                     <label>Available joining date</label>
                     <input type="date" class="form-control" name="joining_date" value="<?= htmlspecialchars((string)($assessment['joining_date'] ?? '')) ?>">
                 </div>
+                <div class="col-md-4 mb-3">
+                    <label>Probation period (months)</label>
+                    <input type="number" class="form-control" name="probation_period" placeholder="e.g. 6" value="<?= htmlspecialchars((string)($assessment['probation_period'] ?? '')) ?>">
+                </div>
             </div>
         </div>
 

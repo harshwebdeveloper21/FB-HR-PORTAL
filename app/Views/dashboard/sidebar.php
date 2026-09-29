@@ -208,8 +208,8 @@ $isEmployee = ($role === 'employee');
         </a>
         <div class="collapse" id="cha-rts">
           <ul class="nav flex-column sub-menu">
-            <li class="nav-item"> <a class="nav-link" href="/leaveview">Manage Leaves</a></li>
-            <li class="nav-item"> <a class="nav-link" href="/addleave">Add Leaves</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/leaveview">Review Branch Leaves</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/addleave">Apply Leave</a></li>
             <li class="nav-item"> <a class="nav-link" href="/employee-live-request">Employee Leave Request</a></li>
           </ul>
         </div>

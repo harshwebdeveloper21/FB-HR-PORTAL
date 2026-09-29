@@ -91,7 +91,11 @@ class LeaveController extends ResourceController
                 ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left')
                 ->join('users emp_u', 'leaves.user_id = emp_u.id', 'inner')
                 ->where('emp_u.is_deleted', 0)
-                ->where('emp_u.branch_id', $branchId);
+                ->where('emp_u.branch_id', $branchId)
+                ->groupStart()
+                    ->where('leaves.user_id', $authUser->sub)
+                    ->orWhereIn('emp_u.role', ['employee', 'department_manager'])
+                ->groupEnd();
 
             if ($requestedUserId) {
                 $leaveQuery->where('leaves.user_id', $requestedUserId);
@@ -101,7 +105,11 @@ class LeaveController extends ResourceController
             $userQuery = $userModel->select('user_info.*, users.username, users.role')
                 ->join('users', 'user_info.user_id = users.id')
                 ->where('users.is_deleted', 0)
-                ->where('users.branch_id', $branchId);
+                ->where('users.branch_id', $branchId)
+                ->groupStart()
+                    ->where('users.id', $authUser->sub)
+                    ->orWhereIn('users.role', ['employee', 'department_manager'])
+                ->groupEnd();
             if ($requestedUserId) {
                 $userQuery->where('users.id', $requestedUserId);
             }
@@ -124,6 +132,7 @@ class LeaveController extends ResourceController
                     ->orGroupStart()
                         ->where('emp_u.branch_id', $dmBranchId)
                         ->where('emp_u.department_id', $dmDeptId)
+                        ->where('emp_u.role', 'employee')
                     ->groupEnd()
                 ->groupEnd();
 
@@ -140,6 +149,7 @@ class LeaveController extends ResourceController
                     ->orGroupStart()
                         ->where('users.branch_id', $dmBranchId)
                         ->where('users.department_id', $dmDeptId)
+                        ->where('users.role', 'employee')
                     ->groupEnd()
                 ->groupEnd();
             if ($requestedUserId) {
@@ -174,7 +184,8 @@ class LeaveController extends ResourceController
         return $this->respond([
             'status' => 'success',
             'data' => $leaveData,
-            'role' => $authUser->role
+            'role' => $authUser->role,
+            'current_user_id' => $authUser->sub,
         ]);
     }
 
@@ -207,23 +218,12 @@ class LeaveController extends ResourceController
             }
             $users = $usersQuery->findAll();
         } elseif ($role === 'branch_admin') {
-            // Branch Admin sees staff in their branch
-            $branchId = (int)$this->authService->getBranchId();
-            $users = $userModel->where('branch_id', $branchId)->where('is_deleted', 0)->findAll();
+            // Apply Leave is always for the logged-in manager. Team leave
+            // review remains available through the separate review screen.
+            $users = [$userModel->find($userId)];
         } elseif ($role === 'department_manager') {
-            // Department Manager sees staff in their branch & department (plus themselves)
-            $dmUser = $userModel->find($userId);
-            $dmBranchId = (int)($dmUser['branch_id'] ?? 0);
-            $dmDeptId = (int)($dmUser['department_id'] ?? 0);
-            $users = $userModel->where('is_deleted', 0)
-                ->groupStart()
-                    ->where('id', $userId)
-                    ->orGroupStart()
-                        ->where('branch_id', $dmBranchId)
-                        ->where('department_id', $dmDeptId)
-                    ->groupEnd()
-                ->groupEnd()
-                ->findAll();
+            // A Department Manager is also an employee when applying leave.
+            $users = [$userModel->find($userId)];
         } else {
             // Employee sees only themselves
             $users = [$userModel->find($userId)];
@@ -516,6 +516,12 @@ class LeaveController extends ResourceController
         $targetUser = $userModel->find($leave['user_id']);
         if (!$targetUser) {
             return $this->respond(['status' => 'error', 'message' => 'Employee not found'], 404);
+        }
+
+        // Managers are employees too. Their own leave must be approved by a
+        // higher-level user, never by themselves.
+        if ((int) $leave['user_id'] === (int) $userId) {
+            return $this->failForbidden('You cannot update the status of your own leave request.');
         }
 
         if ($userRole === 'department_manager') {

@@ -623,6 +623,9 @@
                                                 $departments
                                                 as $department
                                             ): ?>
+                                                <?php if ($isEmpBranchAdmin && (int) ($department['branch_id'] ?? 0) !== (int) $empBranchId): ?>
+                                                    <?php continue; ?>
+                                                <?php endif; ?>
                                                 <option value="<?= $department["id"] ?>">
                                                     <?= $department["department_name"] ?>
                                                 </option>
@@ -770,6 +773,9 @@
                                                 <option value="department_manager" <?= $editRole === 'department_manager' ? 'selected' : '' ?>>Department Manager</option>
                                                 <option value="employee" <?= ($editRole === 'employee' || $editRole === '') ? 'selected' : '' ?>>Employee</option>
                                                 <option value="candidate" <?= $editRole === 'candidate' ? 'selected' : '' ?>>Candidate</option>
+                                            <?php elseif ($curRole === 'branch_admin'): ?>
+                                                <option value="department_manager" <?= $editRole === 'department_manager' ? 'selected' : '' ?>>Department Manager</option>
+                                                <option value="employee" <?= ($editRole === 'employee' || $editRole === '') ? 'selected' : '' ?>>Employee</option>
                                             <?php else: ?>
                                                 <option value="employee" selected>Employee</option>
                                             <?php endif; ?>

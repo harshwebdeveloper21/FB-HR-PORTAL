@@ -26,6 +26,97 @@ $branchesList = $branchModel->getActiveBranches();
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     }
 
+    /* Branch Dropdown Styling */
+    .navbar-branch-wrapper {
+        position: relative;
+        background: #ffffff;
+        border: 1px solid #DFDFDF;
+        border-radius: 6px;
+        height: 40px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        transition: all 0.2s ease-in-out;
+        overflow: hidden;
+    }
+    .navbar-branch-wrapper:hover {
+        border-color: #CBD5E1;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+    .navbar-branch-wrapper:focus-within {
+        border-color: #e66136;
+        box-shadow: 0 0 0 2px rgba(230, 97, 54, 0.2);
+    }
+    .navbar-branch-wrapper .branch-icon {
+        position: absolute;
+        left: 10px;
+        font-size: 18px;
+        color: #e66136;
+        pointer-events: none;
+        z-index: 2;
+        line-height: 1;
+    }
+    .navbar-branch-wrapper select#navbarBranchSelect {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background: transparent !important;
+        border: none !important;
+        height: 40px !important;
+        padding: 0 32px 0 34px !important;
+        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 13.5px;
+        font-weight: 600;
+        color: #2D3748;
+        cursor: pointer;
+        min-width: 145px;
+        line-height: 40px;
+        box-shadow: none !important;
+    }
+    .navbar-branch-wrapper select#navbarBranchSelect:focus {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+    .navbar-branch-wrapper select#navbarBranchSelect option {
+        background-color: #ffffff;
+        color: #2D3748;
+        padding: 8px 12px;
+        font-size: 13.5px;
+        font-weight: 500;
+    }
+    .navbar-branch-wrapper .branch-arrow {
+        position: absolute;
+        right: 9px;
+        font-size: 18px;
+        color: #64748B;
+        pointer-events: none;
+        z-index: 2;
+        transition: transform 0.2s ease, color 0.2s ease;
+        line-height: 1;
+    }
+    .navbar-branch-wrapper:focus-within .branch-arrow,
+    .navbar-branch-wrapper:hover .branch-arrow {
+        color: #e66136;
+    }
+    @media (max-width: 767px) {
+        .navbar-branch-wrapper {
+            height: 34px;
+        }
+        .navbar-branch-wrapper select#navbarBranchSelect {
+            height: 34px !important;
+            font-size: 12px;
+            min-width: 110px;
+            padding: 0 24px 0 26px !important;
+            line-height: 34px;
+        }
+        .navbar-branch-wrapper .branch-icon {
+            left: 7px;
+            font-size: 15px;
+        }
+        .navbar-branch-wrapper .branch-arrow {
+            right: 6px;
+            font-size: 15px;
+        }
+    }
+
     /* Desktop Logo Styling (>= 992px) */
     @media (min-width: 992px) {
         .navbar .navbar-brand-wrapper .navbar-brand img,
@@ -454,15 +545,19 @@ $branchesList = $branchModel->getActiveBranches();
             <!-- Branch Dropdown -->
             <?php if (!empty($branchesList) && in_array($role, ['admin', 'hr'])): ?>
             <?php $activeBranch = session()->get('admin_active_branch'); ?>
-            <li class="nav-item d-flex align-items-center">
-                <select class="form-select shadow-none text-muted fw-semibold" id="navbarBranchSelect" style="background: #ffffff; height: 40px !important;  border: 1px solid #DFDFDF; border-radius: 6px; cursor: pointer; font-family: 'Manrope', sans-serif; font-size: 14px; padding-top: 0; padding-bottom: 0; margin: 0;">
-                    <option value="">All Branches</option>
-                    <?php foreach ($branchesList as $br): ?>
-                        <option value="<?= htmlspecialchars($br['id']) ?>" <?= ($activeBranch == $br['id']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($br['name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+            <li class="nav-item d-flex align-items-center me-2">
+                <div class="navbar-branch-wrapper position-relative d-flex align-items-center">
+                    <i class="mdi mdi-office-building branch-icon"></i>
+                    <select class="form-select shadow-none" id="navbarBranchSelect" aria-label="Select Branch">
+                        <option value="">All Branches</option>
+                        <?php foreach ($branchesList as $br): ?>
+                            <option value="<?= htmlspecialchars($br['id']) ?>" <?= ($activeBranch == $br['id']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($br['name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <i class="mdi mdi-chevron-down branch-arrow"></i>
+                </div>
                 <script>
                 document.getElementById('navbarBranchSelect').addEventListener('change', function(e) {
                     const branchId = e.target.value;

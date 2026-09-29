@@ -798,6 +798,7 @@
 
     let calendar;
     let userRole = null;
+    let currentUserId = null;
     let cachedLeaveData = null;
     let currentEmployeeId = null;
     let isLoading = false;
@@ -1091,7 +1092,8 @@
         $('#updateLeaveStatus').data('event', event);
 
         // Show/hide status controls based on user role
-        if (userRole === 'employee') {
+        const isOwnLeave = String(event.extendedProps.user_id) === String(currentUserId);
+        if (userRole === 'employee' || isOwnLeave) {
             $('#leaveStatus').hide();
             let status = event.extendedProps.status || 'pending';
             // Capitalize first letter for display
@@ -1169,6 +1171,7 @@
                 if (response.status === 'success') {
                     cachedLeaveData = response.data; // Cache the data
                     userRole = response.role;
+                    currentUserId = response.current_user_id;
                     updateCalendarEvents(response.data);
                 }
             },
@@ -1255,6 +1258,7 @@
             success: function (response) {
                 if (response.status === 'success') {
                     userRole = response.role;
+                    currentUserId = response.current_user_id;
                     renderEmployeeList(response.data);
                     renderDatewiseEmployeeList(response.data);
                     renderCancelledEmployeeList(response.data);

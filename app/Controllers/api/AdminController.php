@@ -901,6 +901,7 @@ class AdminController extends ResourceController
 
             // Attendance This Week
             $attQWeek = $this->attendanceModel
+                ->select('COUNT(DISTINCT attendance.date, attendance.user_id) as cnt', false)
                 ->join('users', 'users.id = attendance.user_id')
                 ->where('users.is_deleted', 0)
                 ->where('attendance.date >=', $startOfWeek)
@@ -914,10 +915,12 @@ class AdminController extends ResourceController
             } elseif ($role === 'department_manager') {
                 $attQWeek->whereIn('users.role', ['employee', 'department_manager']);
             }
-            $attendanceCountThisWeek = $attQWeek->groupBy('attendance.date, attendance.user_id')->countAllResults();
+            $attRowWeek = $attQWeek->get()->getRow();
+            $attendanceCountThisWeek = (int)($attRowWeek->cnt ?? 0);
 
             // Attendance This Month
             $attQMonth = $this->attendanceModel
+                ->select('COUNT(DISTINCT attendance.date, attendance.user_id) as cnt', false)
                 ->join('users', 'users.id = attendance.user_id')
                 ->where('users.is_deleted', 0)
                 ->where('attendance.date >=', $startOfMonth)
@@ -931,10 +934,12 @@ class AdminController extends ResourceController
             } elseif ($role === 'department_manager') {
                 $attQMonth->whereIn('users.role', ['employee', 'department_manager']);
             }
-            $attendanceCountThisMonth = $attQMonth->groupBy('attendance.date, attendance.user_id')->countAllResults();
+            $attRowMonth = $attQMonth->get()->getRow();
+            $attendanceCountThisMonth = (int)($attRowMonth->cnt ?? 0);
 
             // Attendance This Year
             $attQYear = $this->attendanceModel
+                ->select('COUNT(DISTINCT attendance.date, attendance.user_id) as cnt', false)
                 ->join('users', 'users.id = attendance.user_id')
                 ->where('users.is_deleted', 0)
                 ->where('YEAR(attendance.date)', date('Y'));
@@ -947,7 +952,8 @@ class AdminController extends ResourceController
             } elseif ($role === 'department_manager') {
                 $attQYear->whereIn('users.role', ['employee', 'department_manager']);
             }
-            $attendanceCountThisYear = $attQYear->groupBy('attendance.date, attendance.user_id')->countAllResults();
+            $attRowYear = $attQYear->get()->getRow();
+            $attendanceCountThisYear = (int)($attRowYear->cnt ?? 0);
 
             // Tasks This Week
             $taskQWeek = $this->taskModel
@@ -1036,12 +1042,13 @@ class AdminController extends ResourceController
                 ->where('YEAR(start_date)', date('Y'))
                 ->countAllResults();
 
-            $attendanceCountThisWeek = $this->attendanceModel
+            $attRowEmpWeek = $this->attendanceModel
+                ->select('COUNT(DISTINCT date) as cnt', false)
                 ->where('user_id', $employeeId)
                 ->where('date >=', $startOfWeek)
                 ->where('date <=', $endOfWeek)
-                ->groupBy('date')
-                ->countAllResults();
+                ->get()->getRow();
+            $attendanceCountThisWeek = (int)($attRowEmpWeek->cnt ?? 0);
             $totalTasksThisWeek = $this->taskModel->where('user_id', $employeeId)
                 ->where('assigned_date >=', $startOfWeek)
                 ->where('assigned_date <=', $endOfWeek)
@@ -1053,17 +1060,19 @@ class AdminController extends ResourceController
                 ->where('((start_date >= \'' . $startOfMonth . '\' AND start_date <= \'' . $endOfMonth . '\') OR (end_date >= \'' . $startOfMonth . '\' AND end_date <= \'' . $endOfMonth . '\') OR (start_date <= \'' . $startOfMonth . '\' AND end_date >= \'' . $endOfMonth . '\'))')
                 ->countAllResults();
 
-            $attendanceCountThisMonth = $this->attendanceModel
+            $attRowEmpMonth = $this->attendanceModel
+                ->select('COUNT(DISTINCT date) as cnt', false)
                 ->where('user_id', $employeeId)
                 ->where('date >=', $startOfMonth)
                 ->where('date <=', $endOfMonth)
-                ->groupBy('date')
-                ->countAllResults();
-            $attendanceCountThisYear = $this->attendanceModel
+                ->get()->getRow();
+            $attendanceCountThisMonth = (int)($attRowEmpMonth->cnt ?? 0);
+            $attRowEmpYear = $this->attendanceModel
+                ->select('COUNT(DISTINCT date) as cnt', false)
                 ->where('user_id', $employeeId)
                 ->where('YEAR(date)', date('Y'))
-                ->groupBy('date')
-                ->countAllResults();
+                ->get()->getRow();
+            $attendanceCountThisYear = (int)($attRowEmpYear->cnt ?? 0);
             $totalTasksThisMonth = $this->taskModel
                 ->where('user_id', $employeeId)
                 ->where('assigned_date >=', $startOfMonth)

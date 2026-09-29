@@ -285,8 +285,13 @@
 
         /* Mobile styles */
         @media (max-width: 768px) {
+            .content-wrapper > .row > .col-md-12,
+            .content-wrapper > .row > .col-12,
+            .content-wrapper > .row > .col-lg-12,
+            .content-wrapper > .row > .col-lg-13,
             .col-lg-12.grid-margin.stretch-card,
-            .col-12.grid-margin.stretch-card {
+            .col-12.grid-margin.stretch-card,
+            .col-12.grid-margin {
                 padding: 0 !important;
             }
 

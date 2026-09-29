@@ -847,7 +847,9 @@ class EmployeeController extends ResourceController
             $builder->where('users.branch_id', $branchId);
         } elseif ($role === 'department_manager') {
             // Department Manager: Employees in their branch & department
-            $dmUser = $this->userModel->find($user->sub);
+            // Use raw DB query to avoid interfering with the main $builder's state
+            $db = \Config\Database::connect();
+            $dmUser = $db->table('users')->where('id', $user->sub)->get()->getRowArray();
             $builder->where('users.role', 'employee');
             if (!empty($dmUser['branch_id'])) {
                 $builder->where('users.branch_id', (int)$dmUser['branch_id']);

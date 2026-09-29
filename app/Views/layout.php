@@ -14,6 +14,21 @@
         .modal { z-index: 9999 !important; }
         @media (max-width: 768px) {
             .modal .modal-dialog { max-height: 90vh; overflow-y: auto; }
+
+            /* Mobile view: padding 0 for stretch-card container and transparent card background */
+            .col-lg-12.grid-margin.stretch-card,
+            .col-12.grid-margin.stretch-card {
+                padding: 0 !important;
+            }
+
+            .col-lg-12.grid-margin.stretch-card > .card,
+            .col-lg-12.grid-margin.stretch-card .card,
+            .col-12.grid-margin.stretch-card > .card,
+            .col-12.grid-margin.stretch-card .card {
+                background: transparent !important;
+                background-color: transparent !important;
+                --bs-card-bg: transparent !important;
+            }
         }
         /* Global Uniform Button Styling */
         .btn-secondary, .modal-footer .btn-secondary, .btn-light-secondary {

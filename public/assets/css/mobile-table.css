@@ -284,7 +284,21 @@
         }
 
         /* Mobile styles */
-        @media (max-width: 767px) {
+        @media (max-width: 768px) {
+            .col-lg-12.grid-margin.stretch-card,
+            .col-12.grid-margin.stretch-card {
+                padding: 0 !important;
+            }
+
+            .col-lg-12.grid-margin.stretch-card > .card,
+            .col-lg-12.grid-margin.stretch-card .card,
+            .col-12.grid-margin.stretch-card > .card,
+            .col-12.grid-margin.stretch-card .card {
+                background: transparent !important;
+                background-color: transparent !important;
+                --bs-card-bg: transparent !important;
+            }
+
             .expand-toggle {
                 display: flex !important;
             }

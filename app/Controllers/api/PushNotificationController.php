@@ -55,12 +55,12 @@ class PushNotificationController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
 
-        // Allow admins and employees to subscribe (employees need it for checkout reminders)
-        if (!in_array($user->role, ['admin', 'employee', 'hr'])) {
-            log_message('warning', 'Push subscription denied - User ID: ' . $user->sub . ', Role: ' . $user->role . ' (Only admins, employees, and HR can subscribe)');
+        // Allow admins, employees, HR, branch admins, and department managers to subscribe
+        if (!in_array($user->role, ['admin', 'employee', 'hr', 'branch_admin', 'department_manager'])) {
+            log_message('warning', 'Push subscription denied - User ID: ' . $user->sub . ', Role: ' . $user->role . ' (Unauthorized role for push notifications)');
             return $this->respond([
                 'status' => 'error',
-                'message' => 'Only admins, employees, and HR can subscribe to push notifications'
+                'message' => 'Only admins, employees, branch admins, and HR can subscribe to push notifications'
             ], 403);
         }
 
@@ -94,29 +94,18 @@ class PushNotificationController extends ResourceController
         $existing = $this->pushSubscriptionModel->where('endpoint', $endpoint)->first();
         
         if ($existing) {
-            // Check if existing subscription belongs to a non-admin user
-            $userModel = new \App\Models\UserModel();
-            $existingUser = $userModel->find($existing['user_id']);
+            // Update existing subscription
+            log_message('info', 'Updating existing subscription ID: ' . $existing['id']);
+            $this->pushSubscriptionModel->update($existing['id'], [
+                'user_id' => $user->sub,
+                'keys' => $keys
+            ]);
             
-             if ($existingUser && !in_array($existingUser['role'], ['admin', 'hr'])) {
-                // Delete non-admin subscription
-                log_message('warning', 'Deleting non-admin subscription ID: ' . $existing['id'] . ' (User: ' . $existingUser['username'] . ', Role: ' . $existingUser['role'] . ')');
-                $this->pushSubscriptionModel->delete($existing['id']);
-                // Continue to create new subscription below
-            } else {
-                // Update existing admin subscription
-                log_message('info', 'Updating existing subscription ID: ' . $existing['id']);
-                $this->pushSubscriptionModel->update($existing['id'], [
-                    'user_id' => $user->sub,
-                    'keys' => $keys
-                ]);
-                
-                log_message('info', 'Subscription updated successfully');
-                return $this->respond([
-                    'status' => 'success',
-                    'message' => 'Subscription updated successfully'
-                ]);
-            }
+            log_message('info', 'Subscription updated successfully');
+            return $this->respond([
+                'status' => 'success',
+                'message' => 'Subscription updated successfully'
+            ]);
         }
 
         // Create new subscription

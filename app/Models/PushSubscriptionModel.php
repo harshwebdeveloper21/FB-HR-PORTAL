@@ -26,7 +26,7 @@ class PushSubscriptionModel extends Model
     public function getAdminSubscriptions()
     {
         $userModel = new UserModel();
-        $admins = $userModel->whereIn('role', ['admin', 'hr'])->findAll();
+        $admins = $userModel->whereIn('role', ['admin', 'hr', 'branch_admin'])->findAll();
         $adminIds = array_column($admins, 'id');
         
         if (empty($adminIds)) {
@@ -42,7 +42,7 @@ class PushSubscriptionModel extends Model
     public function getEmployeeSubscriptions()
     {
         $userModel = new UserModel();
-        $employees = $userModel->whereIn('role', ['employee', 'hr'])->findAll();
+        $employees = $userModel->whereIn('role', ['employee', 'hr', 'branch_admin', 'department_manager'])->findAll();
         $employeeIds = array_column($employees, 'id');
         
         if (empty($employeeIds)) {

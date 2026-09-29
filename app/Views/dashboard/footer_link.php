@@ -266,9 +266,17 @@ $(document).ready(function() {
 
                 if ((status === 401 || status === 403) && !isLoginPage()) {
                     var url = getRequestUrl(resource) || '';
+
+                    // Background notifications and push subscription APIs must NEVER trigger auth redirect
+                    if (url.indexOf('/api/push') !== -1 || url.indexOf('/notifications') !== -1) {
+                        return response;
+                    }
+
                     var looksLikeApi = url.indexOf('/api/') !== -1 || url.indexOf('/auth') !== -1 || url.indexOf('/logout') !== -1;
 
-                    if (status === 401 || looksLikeApi) {
+                    // Only 401 indicates expired or invalid session token.
+                    // 403 indicates permission denied for a specific action/role, not an expired session.
+                    if (status === 401) {
                         clearAuthAndRedirect('fetch_http_' + status);
                     }
                 }

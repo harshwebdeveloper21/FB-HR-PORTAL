@@ -410,17 +410,17 @@
             padding: 12px;
         }
 
-        .d-md-flex.justify-content-between {
+        .card-body .d-md-flex.justify-content-between {
             flex-direction: column;
             align-items: flex-start !important;
             gap: 10px;
         }
 
-        .d-md-flex.justify-content-between .card-title {
+        .card-body .d-md-flex.justify-content-between .card-title {
             font-size: 18px !important;
         }
 
-        .d-md-flex.justify-content-between a {
+        .card-body .d-md-flex.justify-content-between a {
             width: 100%;
         }
 

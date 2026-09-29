@@ -924,7 +924,7 @@ $branchesList = $branchModel->getActiveBranches();
                     const checkInBtn = document.getElementById('check-in-btn');
                     const checkOutBtn = document.getElementById('check-out-btn');
 
-                    if (data.role === 'hr' || data.role === 'employee') {
+                    if (['hr', 'branch_admin', 'department_manager', 'employee'].includes(data.role)) {
                         if (data.data === 'not_checked_in') {
                             // User has NOT checked in - open mandatory face check-in modal
                             checkInBtn.style.display = 'none';

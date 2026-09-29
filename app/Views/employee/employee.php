@@ -722,10 +722,24 @@
                                         </div>
                                         <select class="form-select" id="role" name="role">
                                             <option value="">Select Role</option>
-                                            <option value="admin">Admin</option>
-                                            <option value="hr">HR</option>
-                                            <option value="employee" selected>Employee</option>
-                                            <option value="candidate">Candidate</option>
+                                            <?php
+                                                $curRole = $currentUserRole ?? 'employee';
+                                                $editRole = isset($user) ? ($user['role'] ?? 'employee') : '';
+                                            ?>
+                                            <?php if ($curRole === 'admin'): ?>
+                                                <option value="admin" <?= $editRole === 'admin' ? 'selected' : '' ?>>Admin</option>
+                                                <option value="hr" <?= $editRole === 'hr' ? 'selected' : '' ?>>HR</option>
+                                                <option value="branch_admin" <?= $editRole === 'branch_admin' ? 'selected' : '' ?>>Branch Manager</option>
+                                                <option value="department_manager" <?= $editRole === 'department_manager' ? 'selected' : '' ?>>Department Manager</option>
+                                                <option value="employee" <?= ($editRole === 'employee' || $editRole === '') ? 'selected' : '' ?>>Employee</option>
+                                                <option value="candidate" <?= $editRole === 'candidate' ? 'selected' : '' ?>>Candidate</option>
+                                            <?php elseif ($curRole === 'hr'): ?>
+                                                <option value="department_manager" <?= $editRole === 'department_manager' ? 'selected' : '' ?>>Department Manager</option>
+                                                <option value="employee" <?= ($editRole === 'employee' || $editRole === '') ? 'selected' : '' ?>>Employee</option>
+                                                <option value="candidate" <?= $editRole === 'candidate' ? 'selected' : '' ?>>Candidate</option>
+                                            <?php else: ?>
+                                                <option value="employee" selected>Employee</option>
+                                            <?php endif; ?>
                                         </select>
                                     </div>
                                     <div class="error" id="role-Error"></div>

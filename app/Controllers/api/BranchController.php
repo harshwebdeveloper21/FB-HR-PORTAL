@@ -396,6 +396,9 @@ class BranchController extends ResourceController
             'role'      => 'branch_admin',
             'branch_id' => $branchId,
         ]);
+        $this->userInfoModel->where('user_id', $userId)->set([
+            'role' => 'branch_admin',
+        ])->update();
 
         $this->auditLog->log($admin->sub, 'branch.assign_manager', 'User', $userId, 
             ['old_role' => $oldRole, 'old_branch' => $oldBranchId], 

@@ -112,7 +112,7 @@ class JobController extends ResourceController
             'salary_range' => 'required|max_length[20]',
             // 'post_date'    => 'required|valid_date',
             'close_date'   => 'required|valid_date|check_close_date[post_date]', // Custom rule
-            'gender'       => 'required|in_list[male,female,other]' // Validate gender
+            'gender'       => 'required|in_list[male,female,both]' // Validate gender
         ];
 
         $validationMessages = [
@@ -168,7 +168,7 @@ class JobController extends ResourceController
             ],
             'gender' => [
                 'required' => 'gender field is required.',
-                'in_list'  => 'gender field is required.',
+                'in_list'  => 'The gender must be either "male", "female", or "both".',
             ]
         ];
 
@@ -336,7 +336,7 @@ class JobController extends ResourceController
             'job_type'     => 'required|in_list[full,part]',
             'experience'   => 'required|integer',
             'close_date'   => 'required|valid_date',
-            'gender'       => 'required|in_list[male,female,other]', // ✅ Add gender validation
+            'gender'       => 'required|in_list[male,female,both]', // ✅ Add gender validation
         ];
 
         $validationMessages = [
@@ -367,7 +367,7 @@ class JobController extends ResourceController
             ],
             'gender' => [
                 'required' => 'The gender field is required.',
-                'in_list'  => 'The gender must be either "male", "female", or "other".',
+                'in_list'  => 'The gender must be either "male", "female", or "both".',
             ],
         ];
 

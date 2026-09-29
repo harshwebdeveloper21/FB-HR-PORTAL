@@ -113,7 +113,7 @@ class ProfileController extends ResourceController
             'logo_img' => !empty($company['logo_img']) ? $company['logo_img'] : 'upload/fab_logo.jpg', // Default fallback
             'pdf_logo' => !empty($company['pdf_logo']) ? $company['pdf_logo'] : '',
             'favicon_icon' => !empty($company['favicon_icon']) ? $company['favicon_icon'] : '',
-            'profile_image' => !empty($userInfo['profile_image']) ? $userInfo['profile_image'] : '1789966027_54c5a38ccda20f7c2bac.jpg',
+            'profile_image' => (!empty($userInfo['profile_image']) && $userInfo['profile_image'] !== '1789966027_54c5a38ccda20f7c2bac.jpg' && (file_exists(ROOTPATH . 'upload/' . $userInfo['profile_image']) || (defined('FCPATH') && file_exists(FCPATH . 'upload/' . $userInfo['profile_image'])))) ? $userInfo['profile_image'] : 'default_avatar.png',
             'company_address' => !empty($company['company_address']) ? $company['company_address'] : 'N/A', // Added
             'company_phone' => !empty($company['company_phone']) ? $company['company_phone'] : 'N/A', // Added
             'company_email' => !empty($company['company_email']) ? $company['company_email'] : 'N/A', // Added

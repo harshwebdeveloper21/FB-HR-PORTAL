@@ -829,7 +829,7 @@
 
                                     <div class="row g-3">
 
-                                        <?php if ($role == 'admin' || $role == 'hr') : ?>
+                                        <?php if (in_array($role, ['admin', 'hr', 'branch_admin', 'department_manager'])) : ?>
 
                                             <!-- Total Employees Section visible only to Admin and HR -->
 
@@ -952,7 +952,7 @@
 
                                     <div class="row g-3">
 
-                                        <?php if ($role == 'admin' || $role == 'hr') : ?>
+                                        <?php if (in_array($role, ['admin', 'hr', 'branch_admin', 'department_manager'])) : ?>
 
                                             <!-- Total Employees Section visible only to Admin and HR -->
 
@@ -1069,7 +1069,7 @@
 
                                     <div class="row g-3">
 
-                                        <?php if ($role == 'admin' || $role == 'hr') : ?>
+                                        <?php if (in_array($role, ['admin', 'hr', 'branch_admin', 'department_manager'])) : ?>
 
                                             <!-- Total Employees Section visible only to Admin and HR -->
 
@@ -1184,7 +1184,7 @@
 
 
 
-                        <?php if ($role == 'admin' || $role == 'hr') : ?>
+                        <?php if (in_array($role, ['admin', 'hr', 'branch_admin', 'department_manager'])) : ?>
 
                             <div class="col-xl-4 col-lg-6 d-flex flex-column grid-margin sm-grid-margin stretch-card">
 
@@ -1286,13 +1286,13 @@
                                             <?php if (!empty($complaintsData)) : ?>
                                                 <?php foreach ($complaintsData as $complaint) : ?>
                                                     <?php 
-                                                        $profileImg = !empty($complaint['profile_image']) ? base_url('upload/' . $complaint['profile_image']) : base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg');
+                                                        $profileImg = getUserProfileImage($complaint['profile_image'] ?? null);
                                                         $statusLower = strtolower($complaint['status'] ?? 'pending');
                                                         $statusClass = $statusLower === 'resolved' ? 'bg-success text-white' : ($statusLower === 'pending' ? 'bg-warning text-dark' : 'bg-secondary text-white');
                                                         $typeLower = strtolower($complaint['type'] ?? 'complaint');
                                                     ?>
                                                     <div class="d-flex align-items-start gap-2 py-2 border-bottom">
-                                                        <img src="<?= $profileImg ?>" alt="Profile" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
+                                                        <img src="<?= $profileImg ?>" alt="Profile" onerror="this.onerror=null;this.src='<?= getDefaultProfileImage() ?>';" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
                                                         <div style="flex: 1; min-width: 0;">
                                                             <div class="d-flex justify-content-between align-items-center mb-1">
                                                                 <div class="fw-semibold text-dark text-truncate" style="font-size: 13px; text-transform: capitalize;" title="<?= esc($complaint['subject']) ?>">
@@ -1334,7 +1334,7 @@
                                             <?php if (!empty($tasksData)) : ?>
                                                 <?php foreach ($tasksData as $task) : ?>
                                                     <div class="border rounded p-3 mb-2 attendance-item d-flex align-items-center">
-                                                        <img src="/upload/<?= $task['profile_image'] ?: '1789966027_54c5a38ccda20f7c2bac.jpg' ?>" alt="Profile" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px;">
+                                                        <img src="<?= getUserProfileImage($task['profile_image'] ?? null) ?>" alt="Profile" onerror="this.onerror=null;this.src='<?= getDefaultProfileImage() ?>';" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px;">
                                                         <div>
                                                             <div class="fw-bold" style="text-transform: capitalize; text-align: left;"><?= $task['task_title'] ?></div>
                                                             <div class="small text-muted mb-1">
@@ -1397,7 +1397,7 @@
                                             <?php if (!empty($upcomingTrainings)) : ?>
                                                 <?php foreach ($upcomingTrainings as $training) : ?>
                                                     <div class="border rounded p-3 mb-2 attendance-item d-flex align-items-center">
-                                                        <img src="/upload/<?= $training['profile_image'] ?: '1789966027_54c5a38ccda20f7c2bac.jpg' ?>" alt="Profile" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px;">
+                                                        <img src="<?= getUserProfileImage($training['profile_image'] ?? null) ?>" alt="Profile" onerror="this.onerror=null;this.src='<?= getDefaultProfileImage() ?>';" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px;">
                                                         <div>
                                                             <div class="fw-bold" style="text-transform: capitalize; text-align: left;"><?= $training['training_title'] ?> - <?= $training['username'] ?></div>
                                                             <div class="small text-muted mb-1">
@@ -1427,7 +1427,7 @@
                                             <?php if (!empty($employeeOfTheMonthData)) : ?>
                                                 <?php foreach ($employeeOfTheMonthData as $eom) : ?>
                                                     <div class="border rounded p-3 mb-2 attendance-item d-flex align-items-center">
-                                                        <img src="/upload/<?= $eom['profile_image'] ?: '1789966027_54c5a38ccda20f7c2bac.jpg' ?>" alt="Profile" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px;">
+                                                        <img src="<?= getUserProfileImage($eom['profile_image'] ?? null) ?>" alt="Profile" onerror="this.onerror=null;this.src='<?= getDefaultProfileImage() ?>';" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px;">
                                                         <div>
                                                             <div class="fw-bold" style="text-transform: capitalize; text-align: left;"><?= $eom['user_name'] ?></div>
                                                             <div class="small text-muted mb-1"><?= $eom['month_year'] ?></div>
@@ -1455,7 +1455,7 @@
                                             <?php if (!empty($performanceOverviewData)) : ?>
                                                 <?php foreach ($performanceOverviewData as $perf) : ?>
                                                     <div class="border rounded p-3 mb-2 attendance-item d-flex align-items-center">
-                                                        <img src="/upload/<?= $perf['profile_image'] ?: '1789966027_54c5a38ccda20f7c2bac.jpg' ?>" alt="Profile" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px;">
+                                                        <img src="<?= getUserProfileImage($perf['profile_image'] ?? null) ?>" alt="Profile" onerror="this.onerror=null;this.src='<?= getDefaultProfileImage() ?>';" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px;">
                                                         <div>
                                                             <div class="fw-bold" style="text-transform: capitalize; text-align: left;"><?= $perf['username'] ?></div>
                                                             <div class="small text-muted mb-1">
@@ -1513,7 +1513,7 @@
 
                         <?php endif; ?>
 
-                        <?php if ($role != 'admin' && $role != 'hr') : ?>
+                        <?php if ($role == 'employee') : ?>
 
                             <div class="col-xl-4 col-lg-6 col-sm-6 d-flex flex-column grid-margin sm-grid-margin stretch-card">
                                 <div class="card card-rounded shadow-sm">
@@ -1782,10 +1782,9 @@
                                                                     <td class="py-1">
                                                                         <a href="<?= base_url(env('ImagePath') . 'employee/profile/' . $employee['id']) ?>" class="text-decoration-none text-dark">
                                                                             <div class="d-flex align-items-center">
-                                                                                <img src="<?= !empty($employee['profile_image'])
-                                                                                                ? base_url('upload/' . $employee['profile_image'])
-                                                                                                : base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg') ?>"
-                                                                                    alt="image" width="40" height="40" class="rounded-circle me-2" />
+                                                                                <img src="<?= getUserProfileImage($employee['profile_image'] ?? null) ?>"
+                                                                                                    onerror="this.onerror=null;this.src='<?= getDefaultProfileImage() ?>';"
+                                                                                                    alt="image" width="40" height="40" class="rounded-circle me-2" />
 
                                                                                 <span class="capitalize-text"><?= esc($employee['firstname'] . ' ' . $employee['lastname']) ?></span>
                                                                             </div>
@@ -1975,10 +1974,9 @@
                                                                         <a href="<?= base_url('candidate/display/' . $candidate['id']) ?>" class="text-decoration-none text-dark">
                                                                             <div class="d-flex align-items-center">
 
-                                                                                <img src="<?= !empty($employee['profile_image'])
-                                                                                                ? base_url('upload/' . $employee['profile_image'])
-                                                                                                : base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg') ?>"
-                                                                                    alt="image" width="40" height="40" class="rounded-circle me-2" />
+                                                                                <img src="<?= getUserProfileImage($candidate['profile_image'] ?? null) ?>"
+                                                                                                    onerror="this.onerror=null;this.src='<?= getDefaultProfileImage() ?>';"
+                                                                                                    alt="image" width="40" height="40" class="rounded-circle me-2" />
 
                                                                                 <span class="capitalize-text"><?= esc($candidate['candidate_name']) ?></span>
                                                                             </div>
@@ -2071,11 +2069,11 @@
                 var todayLeaves = response.totalLeavesToday || [];
                 $('#leaveCount').text(todayLeaves.length);
                 var leaveHTML = '';
-                var baseImagePath = "<?= base_url(env('ImagePath')) ?>";
+                var defaultAvatarUrl = "<?= getDefaultProfileImage() ?>";
                 if (todayLeaves.length > 0) {
                     todayLeaves.forEach(function(leave) {
                         var fullName = leave.username;
-                        var profileImage = leave.profile_image ? `upload/${leave.profile_image}` : `${baseImagePath}upload/1789966027_54c5a38ccda20f7c2bac.jpg`;
+                        var profileImage = leave.profile_image ? (leave.profile_image.startsWith('http') ? leave.profile_image : `upload/${leave.profile_image}`) : defaultAvatarUrl;
 
                         var isAbsent = (leave.type === 'absent');
                         var badgeOrIcon = isAbsent
@@ -2092,7 +2090,7 @@
                            <a href="${targetLink}" class="text-decoration-none text-dark"> 
                             <div class="wrapper d-flex align-items-center justify-content-between py-2 border-bottom">
                                 <div class="d-flex align-items-center">
-                                    <img class="img-sm rounded" src="${profileImage}" alt="profile" style="width:40px;height:40px;object-fit:cover;">
+                                    <img class="img-sm rounded" src="${profileImage}" onerror="this.onerror=null;this.src='${defaultAvatarUrl}';" alt="profile" style="width:40px;height:40px;object-fit:cover;">
                                     <div class="wrapper ms-3">
                                         <p class="mb-1 fw-bold capitalize-text">${fullName}</p>
                                         ${subtitle}
@@ -2116,14 +2114,13 @@
                 $('#attendanceCount').text(todayAttendance.length);
 
                 var attendanceHTML = '';
-                var baseImagePath = "<?= base_url(env('ImagePath')) ?>";
 
                 if (todayAttendance.length > 0) {
                     todayAttendance.forEach(function(att) {
                         var fullName = att.username;
                         var profileImage = att.profile_image 
-                            ? `upload/${att.profile_image}` 
-                            : `${baseImagePath}upload/1789966027_54c5a38ccda20f7c2bac.jpg`;
+                            ? (att.profile_image.startsWith('http') ? att.profile_image : `upload/${att.profile_image}`) 
+                            : defaultAvatarUrl;
                         
                         // Generate unique ID for this employee's timer
                         var timerId = 'timer-' + att.username.replace(/\s+/g, '-');
@@ -2149,7 +2146,7 @@
                         attendanceHTML += `
                             <div class="wrapper d-flex align-items-center justify-content-between py-2 border-bottom">
                                 <div class="d-flex flex-grow-1">
-                                    <img class="img-sm rounded" src="${profileImage}" alt="profile">
+                                    <img class="img-sm rounded" src="${profileImage}" onerror="this.onerror=null;this.src='${defaultAvatarUrl}';" alt="profile" style="width:40px;height:40px;object-fit:cover;">
                                     <div class="wrapper ms-3 flex-grow-1">
                                         <p class="mb-1 fw-bold capitalize-text">${fullName}</p>
                                         <small class="text-muted mb-0">
@@ -2191,20 +2188,19 @@
 
 
                 var birthdayHTML = '';
-                var baseImagePath = "<?= base_url(env('ImagePath')) ?>";
                 if (birthdayUsers.length > 0) {
 
                     birthdayUsers.forEach(function(user) {
                         var fullName = `${user.firstname} ${user.lastname}`;
                         var dob = new Date(user.date_of_birth);
                         var dobFormatted = dob.toLocaleDateString('en-GB'); // dd/mm/yyyy
-                        var profileImage = user.profile_image ? `upload/${user.profile_image}` : `${baseImagePath}upload/1789966027_54c5a38ccda20f7c2bac.jpg`;
+                        var profileImage = user.profile_image ? (user.profile_image.startsWith('http') ? user.profile_image : `upload/${user.profile_image}`) : defaultAvatarUrl;
                         birthdayHTML += `
                         <div class="wrapper d-flex align-items-center justify-content-between py-2 border-bottom">
 
                             <div class="d-flex">
                                 <a href="javascript:void(0);" class="text-decoration-none text-dark"> 
-                                    <img class="img-sm rounded" src="${profileImage}" alt="profile">
+                                    <img class="img-sm rounded" src="${profileImage}" onerror="this.onerror=null;this.src='${defaultAvatarUrl}';" alt="profile" style="width:40px;height:40px;object-fit:cover;">
                                 </a>
                                 <div class="wrapper ms-3">
                                     <p class="ms-1 mb-1 fw-bold capitalize-text">${fullName}</p>
@@ -2396,7 +2392,7 @@
                 var complaintsHTML = '';
                 if (latestComplaints.length > 0) {
                     latestComplaints.forEach(function(item) {
-                        var profileImage = item.profile_image ? `upload/${item.profile_image}` : `${baseImagePath}upload/1789966027_54c5a38ccda20f7c2bac.jpg`;
+                        var profileImage = item.profile_image ? (item.profile_image.startsWith('http') ? item.profile_image : `upload/${item.profile_image}`) : defaultAvatarUrl;
                         var typeLabel = (item.type && item.type.toLowerCase() === 'complaint') 
                             ? '<span class="badge bg-danger text-white" style="font-size: 9px; padding: 2px 6px;">COMPLAINT</span>' 
                             : '<span class="badge bg-info text-white" style="font-size: 9px; padding: 2px 6px;">FEEDBACK</span>';
@@ -2406,7 +2402,7 @@
                         
                         complaintsHTML += `
                             <div class="d-flex align-items-start gap-2 py-2 border-bottom">
-                                <img src="${profileImage}" alt="profile" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
+                                <img src="${profileImage}" onerror="this.onerror=null;this.src='${defaultAvatarUrl}';" alt="profile" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
                                 <div style="flex: 1; min-width: 0;">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
                                         <div class="fw-semibold text-dark text-truncate" style="font-size: 13px; text-transform: capitalize;" title="${item.subject || ''}">

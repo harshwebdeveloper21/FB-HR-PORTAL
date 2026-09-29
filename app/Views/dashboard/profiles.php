@@ -153,7 +153,7 @@
                 <div class="row align-items-center">
                     <div class="col-md-3">
                         <div class="text-center border-end">
-                            <img src="" class="img-fluid avatar-xxl rounded-circle" alt="" id="profile-image" style="width: 160px; height: 160px;">
+                            <img src="<?= getDefaultProfileImage() ?>" class="img-fluid avatar-xxl rounded-circle" alt="Profile Image" id="profile-image" style="width: 160px; height: 160px; object-fit: cover;" onerror="this.onerror=null; this.src='<?= getDefaultProfileImage() ?>';">
                             <!-- <h4 class="font-size-20 mt-3 mb-2" style="color: #E66136;" id="profile-name">Jansh Wells</h4> -->
                             <!-- <h5 class="text-muted font-size-13 mb-0 mt-2" id="profile-role">Web Designer</h5> -->
                         </div>
@@ -545,7 +545,7 @@
                                         <input type="file" name="profile_image" id="profile_image" class="form-control">
                                     </div>
                                     <div class="">
-                                        <img id="profile-image-preview" src="upload/1789966027_54c5a38ccda20f7c2bac.jpg" alt="Profile Image" class="img-fluid mb-2" width="80px" height="80px">
+                                        <img id="profile-image-preview" src="<?= getDefaultProfileImage() ?>" alt="Profile Image" class="img-fluid mb-2 rounded-circle" width="80px" height="80px" style="object-fit: cover;" onerror="this.onerror=null; this.src='<?= getDefaultProfileImage() ?>';">
                                     </div>
                                     <?php if ($role === 'admin') : ?>
 
@@ -884,10 +884,10 @@
                     }
 
                     // Update profile image if present
-                    if (data.data.profile_image) {
+                    if (data.data.profile_image && data.data.profile_image !== '1789966027_54c5a38ccda20f7c2bac.jpg' && data.data.profile_image !== 'default_avatar.png') {
                         $('#profile-image').attr('src', 'upload/' + data.data.profile_image);
                     } else {
-                        $('#profile-image').attr('src', 'upload/1789966027_54c5a38ccda20f7c2bac.jpg');
+                        $('#profile-image').attr('src', '<?= getDefaultProfileImage() ?>');
                     }
                 } else {
                     console.error('Error: Missing profile data');
@@ -939,10 +939,10 @@
                     }
 
                     // Update profile image preview
-                    if (data.profile_image) {
+                    if (data.profile_image && data.profile_image !== '1789966027_54c5a38ccda20f7c2bac.jpg' && data.profile_image !== 'default_avatar.png') {
                         $('#profile-image-preview').attr('src', baseUrl + '/upload/' + data.profile_image);
                     } else {
-                        $('#profile-image-preview').attr('src', baseUrl + '/upload/1789966027_54c5a38ccda20f7c2bac.jpg'); // Fallback image
+                        $('#profile-image-preview').attr('src', '<?= getDefaultProfileImage() ?>'); // Fallback image
                     }
                 } else {
                     console.error('Error fetching profile data');

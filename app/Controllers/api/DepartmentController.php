@@ -410,8 +410,18 @@ class DepartmentController extends ResourceController
     }
    public function addDepartment()
 {
+    $authService = \Config\Services::auth($this->request);
+    $user = $authService->check();
+
+    if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'Unauthorized access.'
+        ]);
+    }
+
     $departmentModel = new \App\Models\DepartmentModel();
-    $departmentName = trim($this->request->getPost('department_name'));
+    $departmentName  = trim($this->request->getPost('department_name'));
 
     if (empty($departmentName)) {
         return $this->response->setJSON([
@@ -420,28 +430,44 @@ class DepartmentController extends ResourceController
         ]);
     }
 
-    // Case-insensitive duplicate check
-    $existing = $departmentModel
-        ->where('LOWER(department_name)', strtolower($departmentName))
-        ->first();
+    // Resolve branch_id
+    if ($user->role === 'branch_admin') {
+        $branchId = (int)$authService->getBranchId();
+    } else {
+        $branchId = !empty($this->request->getPost('branch_id'))
+            ? (int)$this->request->getPost('branch_id')
+            : null;
+    }
+
+    // Scope duplicate check per branch
+    $dupQuery = $departmentModel->where('LOWER(department_name)', strtolower($departmentName));
+    if (!empty($branchId)) {
+        $dupQuery->where('branch_id', $branchId);
+    }
+    $existing = $dupQuery->first();
 
     if ($existing) {
         return $this->response->setJSON([
             'success' => false,
-            'message' => 'This department already exists.'
+            'message' => 'This department already exists' . ($branchId ? ' in this branch.' : '.')
         ]);
     }
 
     // Insert new department
-    $data = ['department_name' => $departmentName];
-    $departmentId = $departmentModel->insert($data);
+    $insertData = ['department_name' => ucwords(strtolower($departmentName))];
+    if (!empty($branchId)) {
+        $insertData['branch_id'] = $branchId;
+    }
+
+    $departmentId = $departmentModel->insert($insertData);
 
     if ($departmentId) {
         return $this->response->setJSON([
-            'success' => true,
+            'success'    => true,
             'department' => [
-                'id' => $departmentId,
-                'department_name' => $departmentName
+                'id'              => $departmentId,
+                'department_name' => $insertData['department_name'],
+                'branch_id'       => $branchId ?? null,
             ]
         ]);
     } else {

@@ -78,6 +78,7 @@ class EmployeeController extends ResourceController
                 'user' => $user,
                 'userInfo' => $userInfo,
                 'currentUserRole' => $currentUser ? $currentUser->role : 'employee',
+                'currentUserBranchId' => $this->authService->getBranchId(),
             ]);
         } else {
             $currentUser = $this->authService->check();
@@ -89,6 +90,7 @@ class EmployeeController extends ResourceController
                 'designations' => $designations,
                 'branches' => $branches,
                 'currentUserRole' => $currentUser ? $currentUser->role : 'employee',
+                'currentUserBranchId' => $this->authService->getBranchId(),
             ]);
         }
     }
@@ -727,6 +729,11 @@ class EmployeeController extends ResourceController
 
         if (in_array($creatorRole, ['admin', 'hr']) && !empty($data['branch_id'])) {
             $userUpdateData['branch_id'] = (int)$data['branch_id'];
+        } elseif ($creatorRole === 'branch_admin') {
+            $baBranchId = (new AuthService(service('request')))->getBranchId();
+            if ($baBranchId) {
+                $userUpdateData['branch_id'] = $baBranchId;
+            }
         }
 
         // Update the users table

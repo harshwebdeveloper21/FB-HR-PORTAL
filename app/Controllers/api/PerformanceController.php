@@ -142,7 +142,7 @@ class PerformanceController extends ResourceController
         }
 
         // Role-based access control
-        if ($user->role !== 'admin' && $user->role !== 'hr') {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'])) {
             return $this->failForbidden('Forbidden: You do not have permission to create performance records');
         }
 
@@ -318,7 +318,7 @@ class PerformanceController extends ResourceController
         }
 
         // Role-based access control
-        if ($user->role !== 'admin' && $user->role !== 'hr') {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'])) {
             return $this->failForbidden('Forbidden: You do not have permission to update performance records');
         }
 
@@ -424,22 +424,68 @@ class PerformanceController extends ResourceController
         }
 
         $this->performanceModel
-            ->select('performance.*, performance.created_at, users.username as employee_name, designation.designation_name,user_info.profile_image')
+            ->select('performance.*, performance.created_at, users.username as employee_name, designation.designation_name, user_info.profile_image')
             ->join('users', 'users.id = performance.user_id')
-             ->join('user_info', 'user_info.user_id = performance.user_id')
-            ->join('designation', 'designation.id = performance.designation_id');
+            ->join('user_info', 'user_info.user_id = performance.user_id', 'left')
+            ->join('designation', 'designation.id = performance.designation_id', 'left');
 
 
         // Role-based filtering
         if ($user->role === 'admin') {
-            // Admin can see all records (no filter)
-            $records = $this->performanceModel->orderBy('created_at', 'DESC')->findAll();
+            // Admin can see all records (or filtered by active branch switcher)
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $this->performanceModel->where('users.branch_id', (int)$filterBranchId);
+            }
+            $records = $this->performanceModel->orderBy('performance.created_at', 'DESC')->findAll();
         } elseif ($user->role === 'hr') {
-            // HR can only see employee records (exclude admin & HR)
-            $records = $this->performanceModel->where('users.role', 'employee')->orderBy('created_at', 'DESC')->findAll();
+            // HR can see employee & department_manager records
+            $this->performanceModel->whereIn('users.role', ['employee', 'department_manager']);
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $this->performanceModel->where('users.branch_id', (int)$filterBranchId);
+            }
+            $records = $this->performanceModel->orderBy('performance.created_at', 'DESC')->findAll();
+        } elseif ($user->role === 'branch_admin') {
+            // Branch admin: employees & department_managers in their branch
+            $this->performanceModel->whereIn('users.role', ['employee', 'department_manager']);
+            $branchId = (int)$this->authService->getBranchId();
+            if (!empty($branchId)) {
+                $this->performanceModel->where('users.branch_id', $branchId);
+            }
+            $records = $this->performanceModel->orderBy('performance.created_at', 'DESC')->findAll();
+        } elseif ($user->role === 'department_manager') {
+            // Department manager: employees in their department and their own records
+            $userModel = new \App\Models\UserModel();
+            $dmUser = $userModel->find($user->sub);
+            $deptId = !empty($dmUser['department_id']) ? (int)$dmUser['department_id'] : null;
+            if (!$deptId) {
+                $db = \Config\Database::connect();
+                $deptRow = $db->table('department')->where('manager_id', $user->sub)->get()->getRowArray();
+                if ($deptRow) {
+                    $deptId = (int)$deptRow['id'];
+                }
+            }
+
+            if (!empty($deptId)) {
+                $this->performanceModel->groupStart()
+                    ->where('users.department_id', $deptId)
+                    ->orWhere('user_info.department_id', $deptId)
+                    ->orWhere('performance.user_id', $user->sub)
+                    ->groupEnd();
+                if (!empty($dmUser['branch_id'])) {
+                    $this->performanceModel->groupStart()
+                        ->where('users.branch_id', (int)$dmUser['branch_id'])
+                        ->orWhere('performance.user_id', $user->sub)
+                        ->groupEnd();
+                }
+            } else {
+                $this->performanceModel->where('performance.user_id', $user->sub);
+            }
+            $records = $this->performanceModel->orderBy('performance.created_at', 'DESC')->findAll();
         } elseif ($user->role === 'employee') {
             // Employee can only see their own records
-            $records = $this->performanceModel->where('performance.user_id', $user->sub)->orderBy('created_at', 'DESC')->findAll();
+            $records = $this->performanceModel->where('performance.user_id', $user->sub)->orderBy('performance.created_at', 'DESC')->findAll();
         } else {
             return $this->failForbidden('Forbidden: Unauthorized role');
         }
@@ -467,7 +513,7 @@ class PerformanceController extends ResourceController
     }
 
 
-    // Delete performance record (Admin or HR can delete)
+    // Delete performance record (Admin, HR, Branch Admin, Department Manager can delete)
     public function delete($id = null)
     {
         $user = $this->authService->check();
@@ -476,7 +522,7 @@ class PerformanceController extends ResourceController
         }
 
         // Check user role for deletion permission
-        if ($user->role !== 'admin' && $user->role !== 'hr') {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'])) {
             return $this->failForbidden('Forbidden: You do not have permission to delete performance records');
         }
 
@@ -486,29 +532,66 @@ class PerformanceController extends ResourceController
 
         return $this->respond(['status' => 'error', 'message' => 'Failed to delete performance record'], 500);
     }
-    public function creates()
+    public function creates($id = null)
     {
         $userModel = new \App\Models\UserModel();
         $designationModel = new \App\Models\DesignationModel();
-
         $departmentModel = new \App\Models\DepartmentModel();
 
-        // Fetch the current logged-in user's role
-        $role = session()->get('role'); // Assuming role is stored in the session
+        // Fetch the current logged-in user's role and user ID
+        $user = $this->authService->user();
+        $role = $user->role ?? session()->get('role');
+        $userId = $user->sub ?? (session()->get('userInfo')['user_id'] ?? session()->get('id'));
 
-        // Fetch employees with role 'employee'
-        $employees = $userModel->where('role', 'employee')->findAll();
-
-        // If the user is an admin, fetch both HR and employee
         if ($role === 'admin') {
-            $reviewers = $userModel->whereIn('role', ['admin', 'hr'])->findAll();
+            $employees = $userModel->where('role', 'employee')->findAll();
+            $reviewers = $userModel->whereIn('role', ['admin', 'hr', 'branch_admin', 'department_manager'])->findAll();
         } elseif ($role === 'hr') {
-            // If the user is HR, fetch only employees
-            $reviewers = $userModel->whereIn('role', ['hr'])->findAll(); // Display only employee names for HR
+            $employees = $userModel->whereIn('role', ['employee', 'department_manager'])->findAll();
+            $reviewers = $userModel->whereIn('role', ['admin', 'hr', 'department_manager'])->findAll();
+        } elseif ($role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            $empQuery = $userModel->whereIn('role', ['employee', 'department_manager']);
+            if (!empty($branchId)) {
+                $empQuery->where('branch_id', $branchId);
+            }
+            $employees = $empQuery->findAll();
+
+            $revQuery = $userModel->whereIn('role', ['branch_admin', 'department_manager', 'hr', 'admin']);
+            if (!empty($branchId)) {
+                $revQuery->groupStart()->where('branch_id', $branchId)->orWhere('role', 'admin')->groupEnd();
+            }
+            $reviewers = $revQuery->findAll();
+        } elseif ($role === 'department_manager') {
+            $dmUser = $userModel->find($userId);
+            $deptId = !empty($dmUser['department_id']) ? (int)$dmUser['department_id'] : null;
+            if (!$deptId) {
+                $db = \Config\Database::connect();
+                $deptRow = $db->table('department')->where('manager_id', $userId)->get()->getRowArray();
+                if ($deptRow) {
+                    $deptId = (int)$deptRow['id'];
+                }
+            }
+
+            $empQuery = $userModel->where('role', 'employee');
+            if (!empty($deptId)) {
+                $empQuery->where('department_id', $deptId);
+            }
+            if (!empty($dmUser['branch_id'])) {
+                $empQuery->where('branch_id', (int)$dmUser['branch_id']);
+            }
+            $employees = $empQuery->findAll();
+
+            $revQuery = $userModel->whereIn('role', ['department_manager', 'hr', 'admin']);
+            if (!empty($dmUser['branch_id'])) {
+                $revQuery->groupStart()->where('branch_id', (int)$dmUser['branch_id'])->orWhere('role', 'admin')->groupEnd();
+            }
+            $reviewers = $revQuery->findAll();
         } else {
-            // If the user is neither admin nor HR, we can set an empty array or handle as necessary
+            $employees = [];
             $reviewers = [];
         }
+
         $departments = $departmentModel->findAll();
         // Fetch all designations dynamically
         $designations = $designationModel->getDesignationsWithDepartment();
@@ -629,12 +712,59 @@ class PerformanceController extends ResourceController
         $builder = $this->performanceModel->builder();
         $builder->select('performance.*, user_info.firstname, user_info.lastname, department.department_name, designation.designation_name, reviewer.firstname as reviewer_first, reviewer.lastname as reviewer_last')
             ->join('user_info', 'user_info.user_id = performance.user_id', 'left')
+            ->join('users', 'users.id = performance.user_id', 'left')
             ->join('department', 'department.id = user_info.department_id', 'left')
             ->join('designation', 'designation.id = performance.designation_id', 'left')
             ->join('user_info as reviewer', 'reviewer.user_id = performance.reviewer_id', 'left');
 
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if ($user->role === 'admin') {
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $builder->where('users.branch_id', (int)$filterBranchId);
+            }
+        } elseif ($user->role === 'hr') {
+            $builder->whereIn('users.role', ['employee', 'department_manager']);
+            $filterBranchId = $this->authService->getBranchId();
+            if (!empty($filterBranchId)) {
+                $builder->where('users.branch_id', (int)$filterBranchId);
+            }
+        } elseif ($user->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            $builder->whereIn('users.role', ['employee', 'department_manager']);
+            if (!empty($branchId)) {
+                $builder->where('users.branch_id', $branchId);
+            }
+        } elseif ($user->role === 'department_manager') {
+            $userModel = new \App\Models\UserModel();
+            $dmUser = $userModel->find($user->sub);
+            $dmDeptId = !empty($dmUser['department_id']) ? (int)$dmUser['department_id'] : null;
+            if (!$dmDeptId) {
+                $db = \Config\Database::connect();
+                $deptRow = $db->table('department')->where('manager_id', $user->sub)->get()->getRowArray();
+                if ($deptRow) {
+                    $dmDeptId = (int)$deptRow['id'];
+                }
+            }
+
+            if (!empty($dmDeptId)) {
+                $builder->groupStart()
+                    ->where('users.department_id', $dmDeptId)
+                    ->orWhere('user_info.department_id', $dmDeptId)
+                    ->orWhere('performance.user_id', $user->sub)
+                    ->groupEnd();
+                if (!empty($dmUser['branch_id'])) {
+                    $builder->groupStart()
+                        ->where('users.branch_id', (int)$dmUser['branch_id'])
+                        ->orWhere('performance.user_id', $user->sub)
+                        ->groupEnd();
+                }
+            } else {
+                $builder->where('performance.user_id', $user->sub);
+            }
+        } elseif ($user->role === 'employee') {
             $builder->where('performance.user_id', $user->sub);
+        } else {
+            return $this->response->setStatusCode(403)->setJSON(['message' => 'Forbidden']);
         }
 
         if (!empty($departmentId)) {

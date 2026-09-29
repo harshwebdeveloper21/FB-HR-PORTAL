@@ -26,12 +26,42 @@ $isEmployee = ($role === 'employee');
   .navbar-toggler .mdi:before {
     font-size: larger;
   }
+  .sidebar-mobile-header,
+  #sidebar .sidebar-mobile-header,
+  .sidebar .sidebar-mobile-header.d-flex {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .sidebar-mobile-header a,
+  #sidebar .sidebar-mobile-header a {
+    width: auto !important;
+    max-width: none !important;
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .sidebar-mobile-header img,
+  #sidebar .sidebar-mobile-header img {
+    max-height: 35px !important;
+    width: auto !important;
+    max-width: 150px !important;
+    object-fit: contain !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+  }
 }
 </style>
 <nav class="sidebar sidebar-offcanvas" id="sidebar">
-  <div class="d-flex justify-content-between align-items-center d-lg-none px-4 py-3" style="border-bottom: 1px solid #f3f3f3; background: #fff;">
-    <img src="<?= getCompanyLogo(); ?>" alt="logo" style="max-height: 35px; width: auto; max-width: 150px; object-fit: contain;" />
-    <a href="javascript:void(0)" data-bs-toggle="offcanvas" class="text-secondary text-decoration-none">
+  <div class="sidebar-mobile-header d-flex justify-content-between align-items-center d-lg-none px-4 py-3" style="border-bottom: 1px solid #f3f3f3; background: #fff; display: flex !important; flex-direction: row !important; justify-content: space-between !important; align-items: center !important; width: 100% !important;">
+    <img src="<?= getCompanyLogo(); ?>" alt="logo" style="max-height: 35px; width: auto; max-width: 150px; object-fit: contain; margin: 0 !important; flex: 0 0 auto !important;" />
+    <a href="javascript:void(0)" data-bs-toggle="offcanvas" class="text-secondary text-decoration-none" style="width: auto !important; margin: 0 !important; padding: 0 !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; flex: 0 0 auto !important;">
       <i class="mdi mdi-close fs-3 text-dark"></i>
     </a>
   </div>

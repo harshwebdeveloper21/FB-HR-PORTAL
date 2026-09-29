@@ -375,7 +375,9 @@ button.fc-prev-button.fc-button.fc-button-primary {
 
 }
  
-  .d-flex.justify-content-between {
+  .card-body > .d-flex.justify-content-between,
+  .header-controls.d-flex.justify-content-between,
+  .content-wrapper .card-body .d-flex.justify-content-between {
     flex-direction: column;
     /* Stack items vertically on smaller screens */
     gap: 10px;

@@ -193,6 +193,7 @@ class AttendanceController extends ResourceController
         $userInfoModel = new \App\Models\UserInfoModel();
         $userInfo = $userInfoModel->where('user_id', $user->sub)->first();
         $hasFacePhoto = !empty($userInfo['face_photo']);
+        $isRemote = !empty($userInfo['working_location']) && strtolower(trim($userInfo['working_location'])) === 'remote';
 
         // Check today's attendance record for the authenticated user
         $attendanceRecord = $this->attendanceModel
@@ -204,6 +205,7 @@ class AttendanceController extends ResourceController
             'status' => 'success',
             'role' => $userData['role'], // Include user role
             'has_face_photo' => $hasFacePhoto, // Include face photo status
+            'is_remote' => $isRemote,
         ];
         if (!$attendanceRecord) {
             $response['data'] = 'not_checked_in';
@@ -225,7 +227,7 @@ class AttendanceController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
 
-        if (!in_array($user->role, ['hr', 'employee'])) {
+        if (!in_array($user->role, ['hr', 'branch_admin', 'department_manager', 'employee'])) {
             return $this->respond(['status' => 'error', 'message' => 'Access denied for this role'], 403);
         }
 
@@ -726,7 +728,7 @@ class AttendanceController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
 
-        if (!in_array($user->role, ['hr', 'employee'])) {
+        if (!in_array($user->role, ['hr', 'branch_admin', 'department_manager', 'employee'])) {
             return $this->respond(['status' => 'error', 'message' => 'Access denied for this role'], 403);
         }
 
@@ -929,6 +931,32 @@ class AttendanceController extends ResourceController
             } else {
                 $attendanceData = $this->attendanceModel->orderBy('date', 'DESC')->orderBy('id', 'DESC')->findAll();
             }
+        } elseif ($userRole === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            $attendanceData = $this->attendanceModel
+                ->select('attendance.*')
+                ->join('users', 'users.id = attendance.user_id')
+                ->where('users.branch_id', $branchId)
+                ->where('users.is_deleted', 0)
+                ->orderBy('attendance.date', 'DESC')
+                ->orderBy('attendance.id', 'DESC')
+                ->findAll();
+        } elseif ($userRole === 'department_manager') {
+            $currUser = $this->hierarchyService->getUserDetails((int)$user->sub);
+            $mgrDeptId = (int)($currUser['department_id'] ?: $currUser['ui_department_id'] ?: 0);
+            $query = $this->attendanceModel
+                ->select('attendance.*')
+                ->join('users', 'users.id = attendance.user_id')
+                ->where('users.is_deleted', 0);
+            if ($mgrDeptId) {
+                $query->groupStart()
+                    ->where('users.department_id', $mgrDeptId)
+                    ->orWhere('users.id', $user->sub)
+                    ->groupEnd();
+            } else {
+                $query->where('users.id', $user->sub);
+            }
+            $attendanceData = $query->orderBy('attendance.date', 'DESC')->orderBy('attendance.id', 'DESC')->findAll();
         } else {
             // If an employee is logged in, they can only see their own attendance records
             $attendanceData = $this->attendanceModel->where('user_id', $user->sub)->orderBy('date', 'DESC')->orderBy('id', 'DESC')->findAll();
@@ -1172,13 +1200,16 @@ class AttendanceController extends ResourceController
                 $userQuery->where('branch_id', (int)$branchId);
             }
         } elseif ($authUser->role === 'branch_admin') {
-            $userQuery->whereIn('role', ['department_manager', 'employee']);
+            $userQuery->whereIn('role', ['branch_admin', 'department_manager', 'employee']);
             $assignedBranch = $this->authService->getBranchId();
             if ($assignedBranch) {
                 $userQuery->where('branch_id', $assignedBranch);
             }
         } elseif ($authUser->role === 'department_manager') {
-            $userQuery->where('role', 'employee');
+            $userQuery->groupStart()
+                ->where('role', 'employee')
+                ->orWhere('id', $authUser->sub)
+                ->groupEnd();
             $assignedBranch = $this->authService->getBranchId();
             if ($assignedBranch) {
                 $userQuery->where('branch_id', $assignedBranch);
@@ -1733,7 +1764,7 @@ class AttendanceController extends ResourceController
         $filterBranchId = $this->authService->getBranchId();
 
         // Total employees in scope
-        $totalEmpBuilder = $userModel->where('role', 'employee')->where('is_deleted', 0);
+        $totalEmpBuilder = $userModel->whereIn('role', ['employee', 'hr', 'branch_admin', 'department_manager'])->where('is_deleted', 0);
         if (!empty($filterBranchId)) {
             $totalEmpBuilder->where('branch_id', (int)$filterBranchId);
         }
@@ -1741,7 +1772,7 @@ class AttendanceController extends ResourceController
 
         // Scope user IDs query
         $userScopeSubQuery = function ($query) use ($filterBranchId) {
-            $query->select('id')->from('users')->where('role', 'employee')->where('is_deleted', 0);
+            $query->select('id')->from('users')->whereIn('role', ['employee', 'hr', 'branch_admin', 'department_manager'])->where('is_deleted', 0);
             if (!empty($filterBranchId)) {
                 $query->where('branch_id', (int)$filterBranchId);
             }
@@ -1766,7 +1797,7 @@ class AttendanceController extends ResourceController
         $presentEmployees = $fullDayPresent + ($halfDayPresent * 0.5);
 
         $absentEmpQuery = $userModel
-            ->where('role', 'employee')
+            ->whereIn('role', ['employee', 'hr', 'branch_admin', 'department_manager'])
             ->where('is_deleted', 0)
             ->whereNotIn('id', function ($query) use ($today) {
                 $query->select('user_id')
@@ -1873,7 +1904,7 @@ class AttendanceController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
 
-        if (!in_array($user->role, ['hr', 'employee'])) {
+        if (!in_array($user->role, ['hr', 'branch_admin', 'department_manager', 'employee'])) {
             return $this->respond(['status' => 'error', 'message' => 'Access denied for this role'], 403);
         }
 

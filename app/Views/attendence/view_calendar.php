@@ -625,21 +625,21 @@
             padding: 10px;
         }
 
-        /* Title and buttons container - stack vertically */
-        .d-flex.justify-content-between.align-items-center {
+        /* Title and buttons container - stack vertically within the page card only */
+        .card-body .d-flex.justify-content-between.align-items-center {
             flex-direction: column;
             align-items: flex-start !important;
             gap: 10px;
         }
 
         /* Buttons container - keep side by side */
-        .d-flex.justify-content-between.align-items-center>div {
+        .card-body .d-flex.justify-content-between.align-items-center>div {
             width: 100%;
             display: flex;
             gap: 10px;
         }
 
-        .d-flex.justify-content-between.align-items-center .btn {
+        .card-body .d-flex.justify-content-between.align-items-center .btn {
             flex: 1;
             margin-bottom: 0;
             font-size: 13px;
@@ -647,7 +647,7 @@
             font-weight: 500;
         }
 
-        .d-flex.justify-content-between.align-items-center .btn.me-2 {
+        .card-body .d-flex.justify-content-between.align-items-center .btn.me-2 {
             margin-right: 0 !important;
         }
 

@@ -304,6 +304,42 @@
                 --bs-card-bg: transparent !important;
             }
 
+            /* Sidebar mobile header: keep logo and close button inline horizontally */
+            .sidebar .sidebar-mobile-header,
+            #sidebar .sidebar-mobile-header,
+            #sidebar > div:first-child {
+                display: flex !important;
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            .sidebar .sidebar-mobile-header a,
+            #sidebar .sidebar-mobile-header a,
+            #sidebar > div:first-child a {
+                width: auto !important;
+                max-width: none !important;
+                flex: 0 0 auto !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            .sidebar .sidebar-mobile-header img,
+            #sidebar .sidebar-mobile-header img,
+            #sidebar > div:first-child img {
+                max-height: 35px !important;
+                width: auto !important;
+                max-width: 150px !important;
+                object-fit: contain !important;
+                flex: 0 0 auto !important;
+                margin: 0 !important;
+            }
+
             .expand-toggle {
                 display: flex !important;
             }

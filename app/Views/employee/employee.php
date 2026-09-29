@@ -241,7 +241,7 @@
                     <input type="hidden" name="<?= csrf_token() ?>" value="<?= csrf_hash() ?>" id="csrfToken">
                     <!-- Step 1: Personal Information -->
                     <div class="form-step step active" id="step1">
-                        <input type="hidden" id="id" name="id" value="" />
+                        <input type="hidden" id="id" name="id" value="<?= !empty($user['id']) ? esc($user['id']) : '' ?>" />
 
                         <h5>Personal Information</h5>
                         <div class="row">
@@ -782,8 +782,6 @@
                                 style="display: none;">Previous</button>
                             <button type="submit" class="btn hr-btnbg submit-form interviewsmbtn" id="submitForm"
                                 style="display: none;">Submit</button>
-                            <button type="button" class="btn hr-btnbg interviewsmbtn" id="updateForm"
-                                style="display: none;">Update</button>
                         </div>
                     </div>
                 </form>
@@ -856,26 +854,16 @@
     function showStep(step) {
         $('.step').removeClass('active');
         $('#step' + step).addClass('active');
-        $('#next1, #next2, #prev2, #prev3, #submitForm, #updateForm').hide(); // Hide all buttons initially
+        $('#next1, #next2, #prev2, #prev3, #submitForm').hide(); // Hide all buttons initially
 
         if (step === 1) {
-            $('#updateForm').hide(); // Hide update button in Step 1
             $('#next1').show();
-
         } else if (step === 2) {
             $('#prev2').show();
             $('#next2').show();
-            $('#updateForm').hide(); // Hide update button in Step 2
         } else if (step === 3) {
             $('#prev3').show();
-            // Only show the update button if we are in edit mode (i.e. if there's an existing user ID)
-            if ($('#id').val()) {
-                $('#updateForm').show(); // Show the Update button in Step 3 for edit
-                $('#submitForm').hide(); // Hide the Submit button in edit mode
-            } else {
-                $('#submitForm').show(); // Show the Submit button if it's a new employee
-                $('#updateForm').hide(); // Hide the Update button for new employee
-            }
+            $('#submitForm').show();
         }
     }
 
@@ -1040,88 +1028,147 @@
             let myform = document.getElementById("multistepForm");
 
             if (myform) {
-                // Ã°Å¸â€˜â€° Remove EMP# prefix before FormData is created
+                // Remove EMP# prefix before FormData is created
                 let rawEmpId = $('#employee_id').val();
                 if (rawEmpId.startsWith('EMP#')) {
                     $('#employee_id_display').val($('#employee_id').val()); // Optional redundancy
-
                 }
                 let fd = new FormData(myform);
                 let csrfTokenName = '<?= csrf_token() ?>';
                 let csrfTokenValue = $('#csrfToken').val();
                 fd.append(csrfTokenName, csrfTokenValue);
+
+                const userId = $('#id').val();
+
                 validateStep(3, function (isValid) {
                     if (isValid) {
                         $('#loader').show();
 
-                        $.ajax({
-                            url: '<?= base_url("api/emp/create") ?>',
-                            type: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            },
-                            data: fd,
-                            contentType: false,
-                            processData: false,
-                            success: function (response) {
-                                $('#loader').hide();
+                        if (userId) {
+                            // Update existing employee
+                            $.ajax({
+                                url: `<?= base_url("api/employee/update/") ?>${userId}`,
+                                type: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                data: fd,
+                                contentType: false,
+                                processData: false,
+                                success: function (response) {
+                                    $('#loader').hide();
 
-                                if (response.message) {
+                                    if (response.message) {
+                                        Swal.fire({
+                                            icon: 'success',
+                                            title: 'Updated Successfully!',
+                                            text: response.message,
+                                            confirmButtonText: 'OK',
+                                            buttonsStyling: false,
+                                            customClass: {
+                                                confirmButton: 'hr-btnbg',
+                                            }
+                                        }).then(() => {
+                                            window.location.href = "/empview"; // Redirect after success
+                                        });
+                                    } else {
+                                        Swal.fire({
+                                            icon: 'error',
+                                            title: 'Update Failed!',
+                                            text: response.message || 'Error updating employee details.',
+                                            confirmButtonText: 'OK',
+                                            buttonsStyling: false,
+                                            customClass: {
+                                                confirmButton: 'hr-btnbg',
+                                            }
+                                        });
+                                    }
+                                },
+                                error: function (xhr) {
+                                    $('#loader').hide();
+                                    let errorMsg = 'An error occurred during the update.';
+                                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                                        errorMsg = xhr.responseJSON.message;
+                                    }
                                     Swal.fire({
-                                        icon: 'success',
-                                        title: 'Success!',
-                                        text: response.message,
+                                        icon: 'error',
+                                        title: 'Error!',
+                                        text: errorMsg,
                                         confirmButtonText: 'OK',
                                         buttonsStyling: false,
                                         customClass: {
                                             confirmButton: 'hr-btnbg',
-
                                         }
-                                    }).then(() => {
-                                        window.location.href = "/empview"; // Redirect after success
                                     });
-                                } else {
-                                    if (response.errors) {
-                                        $('.error').text('');
-                                        for (let field in response.errors) {
-                                            $('#' + field + '_error').text(response.errors[field]).show();
-                                            $('#' + field).addClass('has-error');
+                                }
+                            });
+                        } else {
+                            // Create new employee
+                            $.ajax({
+                                url: '<?= base_url("api/emp/create") ?>',
+                                type: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                data: fd,
+                                contentType: false,
+                                processData: false,
+                                success: function (response) {
+                                    $('#loader').hide();
+
+                                    if (response.message) {
+                                        Swal.fire({
+                                            icon: 'success',
+                                            title: 'Success!',
+                                            text: response.message,
+                                            confirmButtonText: 'OK',
+                                            buttonsStyling: false,
+                                            customClass: {
+                                                confirmButton: 'hr-btnbg',
+                                            }
+                                        }).then(() => {
+                                            window.location.href = "/empview"; // Redirect after success
+                                        });
+                                    } else {
+                                        if (response.errors) {
+                                            $('.error').text('');
+                                            for (let field in response.errors) {
+                                                $('#' + field + '_error').text(response.errors[field]).show();
+                                                $('#' + field).addClass('has-error');
+                                            }
                                         }
                                     }
+                                },
+                                error: function (xhr) {
+                                    $('#loader').hide();
+
+                                    let response = xhr.responseJSON;
+                                    if (response && response.messages) {
+                                        Swal.fire({
+                                            icon: 'error',
+                                            title: 'Error!',
+                                            text: response.messages, // Display server error message
+                                            confirmButtonText: 'OK',
+                                            buttonsStyling: false,
+                                            customClass: {
+                                                confirmButton: 'hr-btnbg',
+                                            }
+                                        });
+                                    } else {
+                                        Swal.fire({
+                                            icon: 'error',
+                                            title: 'Error!',
+                                            text: 'An error occurred during submission.',
+                                            confirmButtonText: 'OK',
+                                            buttonsStyling: false,
+                                            customClass: {
+                                                confirmButton: 'hr-btnbg',
+                                            }
+                                        });
+                                    }
                                 }
-                            },
-                            error: function (xhr) {
-                                $('#loader').hide();
-
-                                let response = xhr.responseJSON;
-                                if (response && response.messages) {
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'Error!',
-                                        text: response.messages, // Display server error message
-                                        confirmButtonText: 'OK',
-                                        buttonsStyling: false,
-                                        customClass: {
-                                            confirmButton: 'hr-btnbg',
-
-                                        }
-                                    });
-                                } else {
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'Error!',
-                                        text: 'An error occurred during submission.',
-                                        confirmButtonText: 'OK',
-                                        buttonsStyling: false,
-                                        customClass: {
-                                            confirmButton: 'hr-btnbg',
-
-                                        }
-                                    });
-                                }
-                            }
-
-                        });
+                            });
+                        }
                     }
                 });
             } else {
@@ -1265,79 +1312,6 @@
         }
     });
 
-    $(document).ready(function () {
-        $('#updateForm').click(function (e) {
-            e.preventDefault();
-            const userId = $('#id').val();
-
-            validateStep(3, function (isValid) {
-                if (isValid) {
-                    let formData = new FormData($('#multistepForm')[0]);
-                    let csrfTokenName = '<?= csrf_token() ?>';
-                    let csrfTokenValue = $('#csrfToken').val();
-                    formData.append(csrfTokenName, csrfTokenValue);
-                    $('#loader').show();
-
-                    $.ajax({
-                        url: `<?= base_url("api/employee/update/") ?>${userId}`,
-                        type: 'POST', // Change to PUT if API expects PUT method
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        },
-                        data: formData,
-                        contentType: false,
-                        processData: false,
-                        success: function (response) {
-                            $('#loader').hide();
-
-                            if (response.message) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Updated Successfully!',
-                                    text: response.message,
-                                    confirmButtonText: 'OK',
-                                    buttonsStyling: false,
-                                    customClass: {
-                                        confirmButton: 'hr-btnbg',
-
-                                    }
-                                }).then(() => {
-                                    window.location.href = "/empview"; // Redirect after success
-                                });
-                            } else {
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Update Failed!',
-                                    text: response.message || 'Error updating employee details.',
-                                    confirmButtonText: 'OK',
-                                    buttonsStyling: false,
-                                    customClass: {
-                                        confirmButton: 'hr-btnbg',
-
-                                    }
-                                });
-                            }
-                        },
-                        error: function () {
-                            $('#loader').hide();
-
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error!',
-                                text: 'An error occurred during the update.',
-                                confirmButtonText: 'OK',
-                                buttonsStyling: false,
-                                customClass: {
-                                    confirmButton: 'hr-btnbg',
-
-                                }
-                            });
-                        }
-                    });
-                }
-            });
-        });
-    });
 
     $(document).ready(function () {
         $("#countryForm").submit(function (e) {

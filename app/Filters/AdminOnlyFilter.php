@@ -8,8 +8,8 @@ use CodeIgniter\Filters\FilterInterface;
 use App\Services\AuthService;
 
 /**
- * AdminOnlyFilter — blocks access for non-admin users.
- * Applied to routes that only admins should reach (e.g. branch CRUD,
+ * AdminOnlyFilter - blocks access for non-admin and non-HR users.
+ * Applied to routes that only global admins and HR should reach (e.g. branch CRUD,
  * HR transfer permission toggle).
  */
 class AdminOnlyFilter implements FilterInterface
@@ -29,11 +29,11 @@ class AdminOnlyFilter implements FilterInterface
             return redirect()->to('/login')->with('error', 'Login required.');
         }
 
-        if ($user->role !== 'admin') {
+        if ($user->role !== 'admin' && $user->role !== 'hr') {
             if ($request->isAJAX() || str_starts_with($request->getUri()->getPath(), 'api/')) {
                 return \Config\Services::response()
                     ->setStatusCode(403)
-                    ->setJSON(['status' => 'error', 'message' => 'Admin access required.']);
+                    ->setJSON(['status' => 'error', 'message' => 'Admin or HR access required.']);
             }
             return redirect()->to('/dashboard')->with('error', 'You do not have permission to access this page.');
         }

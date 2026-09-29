@@ -819,9 +819,9 @@ class EmployeeController extends ResourceController
 
         // Build query with join
         $builder = $this->userModel
-            ->select('users.*, user_info.employee_id, user_info.status, user_info.status_reason, user_info.last_working_day, user_info.firstname, user_info.lastname, user_info.profile_image, user_info.joining_date, user_info.id as user_info_id, user_info.salary, user_info.last_increment_date, user_info.last_increment_amount, department.department_name, COALESCE(NULLIF(user_info.department_id, 0), users.department_id) as department_id, employee_leaves.paid_leave, employee_leaves.casual_leave')
+            ->select('users.*, user_info.employee_id, user_info.status, user_info.status_reason, user_info.last_working_day, user_info.firstname, user_info.lastname, user_info.profile_image, user_info.joining_date, user_info.id as user_info_id, user_info.salary, user_info.last_increment_date, user_info.last_increment_amount, department.department_name, users.department_id, employee_leaves.paid_leave, employee_leaves.casual_leave')
             ->join('user_info', 'user_info.user_id = users.id')
-            ->join('department', 'department.id = COALESCE(NULLIF(user_info.department_id, 0), users.department_id)', 'left')
+            ->join('department', 'department.id = users.department_id', 'left')
             ->join('employee_leaves', 'employee_leaves.employee_id = users.id', 'left');
 
         // Role-based filtering
@@ -853,7 +853,7 @@ class EmployeeController extends ResourceController
                 $builder->where('users.branch_id', (int)$dmUser['branch_id']);
             }
             if (!empty($dmUser['department_id'])) {
-                $builder->where('COALESCE(NULLIF(user_info.department_id, 0), users.department_id) =', (int)$dmUser['department_id']);
+                $builder->where('users.department_id', (int)$dmUser['department_id']);
             }
         } else {
             return $this->failForbidden('You do not have permission to view employees');
@@ -861,7 +861,7 @@ class EmployeeController extends ResourceController
 
         // Department filtering
         if (!empty($departmentId)) {
-            $builder->where('COALESCE(NULLIF(user_info.department_id, 0), users.department_id) =', (int)$departmentId);
+            $builder->where('users.department_id', (int)$departmentId);
         }
 
         // Role filtering

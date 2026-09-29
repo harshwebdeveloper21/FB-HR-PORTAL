@@ -15,20 +15,25 @@
         @media (max-width: 768px) {
             .modal .modal-dialog { max-height: 90vh; overflow-y: auto; }
 
-            /* Mobile view: padding 0 for stretch-card container and transparent card background */
+            /* Mobile view: padding 0 for main column containers (col-md-12, col-12, col-lg-12, stretch-card) */
+            .content-wrapper > .row > .col-md-12,
+            .content-wrapper > .row > .col-12,
+            .content-wrapper > .row > .col-lg-12,
+            .content-wrapper > .row > .col-lg-13,
             .col-lg-12.grid-margin.stretch-card,
-            .col-12.grid-margin.stretch-card {
+            .col-12.grid-margin.stretch-card,
+            .col-12.grid-margin {
                 padding: 0 !important;
             }
 
-            .col-lg-12.grid-margin.stretch-card > .card,
+            /* .col-lg-12.grid-margin.stretch-card > .card,
             .col-lg-12.grid-margin.stretch-card .card,
             .col-12.grid-margin.stretch-card > .card,
             .col-12.grid-margin.stretch-card .card {
                 background: transparent !important;
                 background-color: transparent !important;
                 --bs-card-bg: transparent !important;
-            }
+            } */
         }
         /* Global Uniform Button Styling */
         .btn-secondary, .modal-footer .btn-secondary, .btn-light-secondary {

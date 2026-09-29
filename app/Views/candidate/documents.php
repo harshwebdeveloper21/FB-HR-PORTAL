@@ -40,209 +40,278 @@
 </style>
 
 <div class="content-wrapper doc-wizard">
-    <div class="wizard-header">
-        <div>
-            <h2>My Documents</h2>
-            <p class="text-muted">Upload your salary slips, experience letter and other required documents.</p>
-        </div>
-        <div class="progress-container">
-            <div class="progress-text">
-                <span>2 of 6 required</span>
-                <span>33%</span>
-            </div>
-            <div class="progress-bar-custom">
-                <div class="progress-bar-fill" style="width: 33%;"></div>
+    <?php if (!isset($selectedCandidate)): ?>
+<style>
+    /* DataTable mobile styles */
+    @media (max-width: 767px) {
+        .dataTables_length, .dataTables_filter { font-size: 12px !important; float: left !important; }
+        div.dataTables_wrapper div.dataTables_filter input { width: 212px !important; height: 29px !important; }
+    }
+</style>
+<div class="row">
+    <div class="col-lg-12 grid-margin stretch-card">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
+                    <h4 class="card-title mb-0">Candidate Documents</h4>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn hr-btnbg text-nowrap" data-bs-toggle="modal" data-bs-target="#addDocumentModal">
+                            <i class="mdi mdi-plus iconfontsize"></i> Add Document
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped w-100" id="candidates-Table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Candidate Name</th>
+                                <th>Email</th>
+                                <th>Phone Number</th>
+                                <th style="width: 150px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (isset($candidates) && is_array($candidates)): ?>
+                                <?php foreach($candidates as $c): ?>
+                                    <tr>
+                                        <td class="capitalize-text fw-bold"><?= esc($c['candidate_name']) ?></td>
+                                        <td><?= esc($c['email']) ?></td>
+                                        <td><?= esc($c['phone_number'] ?? 'N/A') ?></td>
+                                        <td>
+                                            <a href="/candidate-documents/<?= $c['id'] ?>" class="btn btn-sm text-white" style="background-color: rgb(230, 97, 54); border-color: rgb(230, 97, 54);"><i class="mdi mdi-eye"></i> View / Upload</a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
+</div>
 
-    <div class="wizard-tabs">
-        <div class="wizard-tab active" data-step="1">Salary slips <span class="tab-badge">2/3</span></div>
-        <div class="wizard-tab" data-step="2">Previous company <span class="tab-badge">0/1</span></div>
-        <div class="wizard-tab" data-step="3">ID and education <span class="tab-badge">0/2</span></div>
+<!-- Add Document Modal -->
+<div class="modal fade" id="addDocumentModal" tabindex="-1" aria-labelledby="addDocumentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addDocumentModalLabel">Select Candidate to Add Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group mb-3">
+                    <label for="candidate_id_select_modal" class="form-label fw-bold">Select Employee / Candidate <span class="text-danger">*</span></label>
+                    <select id="candidate_id_select_modal" class="form-select" onchange="if(this.value) window.location.href='/candidate-documents/'+this.value;">
+                        <option value="">-- Select --</option>
+                        <?php if (isset($candidates) && is_array($candidates)): ?>
+                            <?php foreach($candidates as $c): ?>
+                                <option value="<?= $c['id'] ?>"><?= esc($c['candidate_name']) ?> (<?= esc($c['email']) ?>)</option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
     </div>
+</div>
 
-    <form method="POST" action="/candidate-documents/upload" enctype="multipart/form-data">
-        <?= csrf_field() ?>
-        
+<!-- Initialize DataTable -->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        if ($.fn.DataTable) {
+            $('#candidates-Table').DataTable({
+                language: {
+                    search: "",
+                    searchPlaceholder: "Search"
+                }
+            });
+        }
+    });
+</script>
+    <?php else: ?>
+        <div class="mb-3">
+            <a href="/candidate-documents" class="btn btn-sm btn-outline-secondary">&larr; Back to Selection</a>
+        </div>
+        <div class="wizard-header">
+            <div>
+                <h2>Documents for <?= esc($selectedCandidate['candidate_name']) ?></h2>
+                <p class="text-muted">Upload salary slips, experience letter and other required documents.</p>
+            </div>
+            <?php
+            $requiredDocs = ['salary_1', 'salary_2', 'salary_3', 'experience_letter', 'id_proof', 'edu_cert'];
+            $uploadedRequiredCount = 0;
+            if (isset($docsMap)) {
+                foreach ($requiredDocs as $reqDoc) {
+                    if (isset($docsMap[$reqDoc]) && in_array($docsMap[$reqDoc]['status'], ['pending', 'approved'])) {
+                        $uploadedRequiredCount++;
+                    }
+                }
+            }
+            $totalRequired = count($requiredDocs);
+            $progressPercent = $totalRequired > 0 ? round(($uploadedRequiredCount / $totalRequired) * 100) : 0;
+            ?>
+            <div class="progress-container">
+                <div class="progress-text">
+                    <span><?= $uploadedRequiredCount ?> of <?= $totalRequired ?> required</span>
+                    <span><?= $progressPercent ?>%</span>
+                </div>
+                <div class="progress-bar-custom">
+                    <div class="progress-bar-fill" style="width: <?= $progressPercent ?>%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <?php
+        $salaryCount = 0;
+        foreach (['salary_1', 'salary_2', 'salary_3'] as $k) {
+            if (isset($docsMap[$k]) && in_array($docsMap[$k]['status'], ['pending', 'approved'])) {
+                $salaryCount++;
+            }
+        }
+        $prevCompCount = 0;
+        foreach (['experience_letter'] as $k) { // relieving letter is not required, but if they want to count required only or total? Let's count required. The badge says 0/1.
+            if (isset($docsMap[$k]) && in_array($docsMap[$k]['status'], ['pending', 'approved'])) {
+                $prevCompCount++;
+            }
+        }
+        $idEduCount = 0;
+        foreach (['id_proof', 'edu_cert'] as $k) {
+            if (isset($docsMap[$k]) && in_array($docsMap[$k]['status'], ['pending', 'approved'])) {
+                $idEduCount++;
+            }
+        }
+        ?>
+        <div class="wizard-tabs">
+            <div class="wizard-tab active" data-step="1">Salary slips <span class="tab-badge"><?= $salaryCount ?>/3</span></div>
+            <div class="wizard-tab" data-step="2">Previous company <span class="tab-badge"><?= $prevCompCount ?>/1</span></div>
+            <div class="wizard-tab" data-step="3">ID and education <span class="tab-badge"><?= $idEduCount ?>/2</span></div>
+        </div>
+
+        <form id="docsUploadForm" method="POST" action="/candidate-documents/upload" enctype="multipart/form-data">
+            <?= csrf_field() ?>
+            <input type="hidden" name="candidate_id" value="<?= esc($selectedCandidate['id']) ?>">
+            
+            <?php
+            if (!function_exists('renderDocItem')) {
+                function renderDocItem($docKey, $title, $subtitle, $isRequired, $docsMap) {
+                    $isUploaded = isset($docsMap[$docKey]) && !empty($docsMap[$docKey]['file_name']);
+                    $status = $isUploaded ? $docsMap[$docKey]['status'] : 'not-uploaded';
+                    $fileName = $isUploaded ? $docsMap[$docKey]['file_name'] : '';
+                    $filePath = $isUploaded ? '/' . $docsMap[$docKey]['file_path'] : '';
+                    $ext = $isUploaded ? strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) : '';
+                    
+                    $statusText = 'Not uploaded';
+                    $statusClass = 'status-not-uploaded';
+                    if ($status === 'pending' || $status === 'approved') {
+                        $statusText = 'Approved';
+                        $statusClass = 'status-approved';
+                    } elseif ($status === 'rejected') {
+                        $statusText = 'Rejected';
+                        $statusClass = 'status-rejected';
+                    }
+
+                    $requiredHtml = $isRequired ? '<span class="text-danger">*</span>' : '';
+                    $dNone = $isUploaded ? '' : 'd-none';
+                    $dFlex = $isUploaded ? 'd-flex align-items-center' : '';
+                    $btnClass = $isUploaded ? 'btn-replace' : 'btn-upload px-3 py-2 fw-bold';
+                    $btnText = $isUploaded ? 'Replace' : 'Upload';
+                    $removeDisplay = $isUploaded ? '' : 'display:none;';
+
+                    // Preview logic
+                    $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'webp']);
+                    $previewStyle = $isUploaded ? 'display:flex; justify-content:center; align-items:center;' : 'display:none;';
+                    $imgStyle = $isImage ? 'display:block;' : 'display:none;';
+                    $imgSrc = $isImage ? $filePath : '';
+                    
+                    $fileHtml = '';
+                    if ($isUploaded && !$isImage) {
+                        $fileHtml = '<div class="file-preview-icon text-center"><i class="mdi mdi-file-document-outline" style="font-size: 30px; color: #6c757d;"></i><br><a href="'.$filePath.'" target="_blank" class="text-decoration-none" style="font-size: 11px;">View</a></div>';
+                    }
+
+                    echo '
+                    <div class="doc-item">
+                        <div class="doc-info">
+                            <h5>'.$title.' '.$requiredHtml.'</h5>
+                            <p>'.$subtitle.'</p>
+                            <div class="status-container '.$dFlex.'">
+                                <span class="status-badge '.$statusClass.'">'.$statusText.'</span>
+                                <span class="file-name '.$dNone.'">'.esc($fileName).'</span>
+                            </div>
+                        </div>
+                        <div class="preview-container mx-3" style="'.$previewStyle.'">
+                            <img src="'.$imgSrc.'" alt="Preview" class="zoomable-image" style="'.$imgStyle.' cursor: pointer;" title="Click to zoom">
+                            '.$fileHtml.'
+                        </div>
+                        <div class="doc-actions">
+                            <input type="file" name="'.$docKey.'" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
+                            <button type="button" class="btn btn-sm upload-btn '.$btnClass.'">'.$btnText.'</button>
+                            <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn" style="'.$removeDisplay.'">Remove</button>
+                        </div>
+                    </div>';
+                }
+            }
+            ?>
+            
         <!-- Step 1: Salary slips -->
         <div class="wizard-card active" id="step-1">
             <p class="text-muted" style="font-size: 13px;">Allowed: PDF, JPG, PNG. Maximum 5 MB per file. HR will review each document.</p>
             
-            <div class="doc-item">
-                <div class="doc-info">
-                    <h5>Salary slip, Month 1 <span class="text-danger">*</span></h5>
-                    <p>August 2026</p>
-                    <div class="d-flex align-items-center status-container">
-                        <span class="status-badge status-approved">Approved</span>
-                        <span class="file-name">salary_aug.pdf</span>
-                    </div>
-                </div>
-                <div class="preview-container mx-3">
-                    <img src="" alt="Preview">
-                </div>
-                <div class="doc-actions">
-                    <input type="file" name="salary_1" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                    <button type="button" class="btn btn-sm btn-replace upload-btn">Replace</button>
-                    <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn" style="display:none;">Remove</button>
-                </div>
-            </div>
-
-            <div class="doc-item">
-                <div class="doc-info">
-                    <h5>Salary slip, Month 2 <span class="text-danger">*</span></h5>
-                    <p>July 2026</p>
-                    <div class="d-flex align-items-center status-container">
-                        <span class="status-badge status-rejected">Rejected</span>
-                        <span class="file-name">salary_jul.jpg</span>
-                    </div>
-                    <div class="reject-reason">Image is blurry. Please upload a clear copy.</div>
-                </div>
-                <div class="preview-container mx-3">
-                    <img src="" alt="Preview">
-                </div>
-                <div class="doc-actions">
-                    <input type="file" name="salary_2" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                    <button type="button" class="btn btn-sm btn-replace upload-btn">Replace</button>
-                    <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn">Remove</button>
-                </div>
-            </div>
-
-            <div class="doc-item" style="border-bottom: none;">
-                <div class="doc-info">
-                    <h5>Salary slip, Month 3 <span class="text-danger">*</span></h5>
-                    <p>June 2026</p>
-                    <div class="status-container">
-                        <span class="status-badge status-not-uploaded">Not uploaded</span>
-                        <span class="file-name d-none"></span>
-                    </div>
-                </div>
-                <div class="preview-container mx-3">
-                    <img src="" alt="Preview">
-                </div>
-                <div class="doc-actions">
-                    <input type="file" name="salary_3" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                    <button type="button" class="btn btn-sm btn-upload px-3 py-2 fw-bold upload-btn">Upload</button>
-                    <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn" style="display:none;">Remove</button>
-                </div>
-            </div>
+            <?php 
+            renderDocItem('salary_1', 'Salary slip, Month 1', 'August 2026', true, $docsMap); 
+            renderDocItem('salary_2', 'Salary slip, Month 2', 'July 2026', true, $docsMap); 
+            renderDocItem('salary_3', 'Salary slip, Month 3', 'June 2026', true, $docsMap); 
+            ?>
         </div>
 
         <!-- Step 2: Previous company -->
         <div class="wizard-card" id="step-2">
             <p class="text-muted" style="font-size: 13px;">Allowed: PDF, JPG, PNG. Maximum 5 MB per file. HR will review each document.</p>
             
-            <div class="doc-item">
-                <div class="doc-info">
-                    <h5>Experience letter <span class="text-danger">*</span></h5>
-                    <p>From your previous company</p>
-                    <div class="status-container">
-                        <span class="status-badge status-not-uploaded">Not uploaded</span>
-                        <span class="file-name d-none"></span>
-                    </div>
-                </div>
-                <div class="preview-container mx-3">
-                    <img src="" alt="Preview">
-                </div>
-                <div class="doc-actions">
-                    <input type="file" name="experience_letter" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                    <button type="button" class="btn btn-sm btn-upload px-3 py-2 fw-bold upload-btn">Upload</button>
-                    <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn" style="display:none;">Remove</button>
-                </div>
-            </div>
-
-            <div class="doc-item" style="border-bottom: none;">
-                <div class="doc-info">
-                    <h5>Relieving letter</h5>
-                    <p>If you have one</p>
-                    <div class="status-container">
-                        <span class="status-badge status-not-uploaded">Not uploaded</span>
-                        <span class="file-name d-none"></span>
-                    </div>
-                </div>
-                <div class="preview-container mx-3">
-                    <img src="" alt="Preview">
-                </div>
-                <div class="doc-actions">
-                    <input type="file" name="relieving_letter" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                    <button type="button" class="btn btn-sm btn-upload px-3 py-2 fw-bold upload-btn">Upload</button>
-                    <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn" style="display:none;">Remove</button>
-                </div>
-            </div>
+            <?php 
+            renderDocItem('experience_letter', 'Experience letter', 'From your previous company', true, $docsMap); 
+            renderDocItem('relieving_letter', 'Relieving letter', 'If you have one', false, $docsMap); 
+            ?>
         </div>
 
         <!-- Step 3: ID and education -->
         <div class="wizard-card" id="step-3">
             <p class="text-muted" style="font-size: 13px;">Allowed: PDF, JPG, PNG. Maximum 5 MB per file. HR will review each document.</p>
             
-            <div class="doc-item">
-                <div class="doc-info">
-                    <h5>ID proof <span class="text-danger">*</span></h5>
-                    <p>Aadhaar or PAN</p>
-                    <div class="status-container">
-                        <span class="status-badge status-not-uploaded">Not uploaded</span>
-                        <span class="file-name d-none"></span>
-                    </div>
-                </div>
-                <div class="preview-container mx-3">
-                    <img src="" alt="Preview">
-                </div>
-                <div class="doc-actions">
-                    <input type="file" name="id_proof" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                    <button type="button" class="btn btn-sm btn-upload px-3 py-2 fw-bold upload-btn">Upload</button>
-                    <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn" style="display:none;">Remove</button>
-                </div>
-            </div>
-
-            <div class="doc-item">
-                <div class="doc-info">
-                    <h5>Educational certificates <span class="text-danger">*</span></h5>
-                    <p>Highest qualification</p>
-                    <div class="status-container">
-                        <span class="status-badge status-not-uploaded">Not uploaded</span>
-                        <span class="file-name d-none"></span>
-                    </div>
-                </div>
-                <div class="preview-container mx-3">
-                    <img src="" alt="Preview">
-                </div>
-                <div class="doc-actions">
-                    <input type="file" name="edu_cert" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                    <button type="button" class="btn btn-sm btn-upload px-3 py-2 fw-bold upload-btn">Upload</button>
-                    <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn" style="display:none;">Remove</button>
-                </div>
-            </div>
-
-            <div class="doc-item" style="border-bottom: none;">
-                <div class="doc-info">
-                    <h5>Other documents</h5>
-                    <p>Any other related document</p>
-                    <div class="status-container">
-                        <span class="status-badge status-not-uploaded">Not uploaded</span>
-                        <span class="file-name d-none"></span>
-                    </div>
-                </div>
-                <div class="preview-container mx-3">
-                    <img src="" alt="Preview">
-                </div>
-                <div class="doc-actions">
-                    <input type="file" name="other_doc" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                    <button type="button" class="btn btn-sm btn-upload px-3 py-2 fw-bold upload-btn">Upload</button>
-                    <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn" style="display:none;">Remove</button>
-                </div>
-            </div>
+            <?php 
+            renderDocItem('id_proof', 'ID proof', 'Aadhaar or PAN', true, $docsMap); 
+            renderDocItem('edu_cert', 'Educational certificates', 'Highest qualification', true, $docsMap); 
+            renderDocItem('other_doc', 'Other documents', 'Any other related document', false, $docsMap); 
+            ?>
         </div>
 
         <!-- Footer Buttons -->
-        <div class="d-flex justify-content-between footer-buttons mt-4">
-            <button type="button" class="btn btn-outline-secondary">Save draft</button>
+        <div class="d-flex justify-content-end footer-buttons mt-4">
             <div>
-                <button type="button" class="btn btn-outline-secondary me-2" id="prevBtn" onclick="nextPrev(-1)" style="display:none;">Previous</button>
+                <button type="button" class="btn btn-secondary me-2 text-white" id="prevBtn" onclick="nextPrev(-1)" style="display:none;">Previous</button>
                 <button type="button" class="btn btn-primary-custom" id="nextBtn" onclick="nextPrev(1)">Next</button>
             </div>
         </div>
 
     </form>
+    <?php endif; ?>
+</div>
+
+<!-- Image Zoom Modal -->
+<div class="modal fade" id="imageZoomModal" tabindex="-1" aria-labelledby="imageZoomModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content" style="background: transparent; border: none; box-shadow: none;">
+      <div class="modal-header border-0" style="padding: 0; position: absolute; right: 0; z-index: 1055;">
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="background-color: rgba(0,0,0,0.5); border-radius: 50%; padding: 10px; margin: 10px;"></button>
+      </div>
+      <div class="modal-body text-center p-0">
+        <img id="zoomedImage" src="" alt="Zoomed Document" class="img-fluid rounded shadow" style="max-height: 90vh;">
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -278,7 +347,7 @@ function showTab(n) {
 function nextPrev(n) {
     if (n == 1 && currentTab == totalTabs) {
         // Submit form
-        $('form').submit();
+        $('#docsUploadForm').submit();
         return false;
     }
     currentTab = currentTab + n;
@@ -318,12 +387,22 @@ $('.file-input').change(function() {
         if (file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                previewImg.attr('src', e.target.result);
+                previewImg.attr('src', e.target.result).show();
+                previewImg.addClass('zoomable-image').css('cursor', 'pointer').attr('title', 'Click to zoom');
+                previewContainer.find('.file-preview-icon').hide();
                 previewContainer.show();
             }
             reader.readAsDataURL(file);
         } else {
-            previewContainer.hide();
+            previewImg.hide();
+            // Show a generic document icon for non-image files dynamically selected
+            let iconHtml = previewContainer.find('.file-preview-icon');
+            if (iconHtml.length === 0) {
+                previewContainer.append('<div class="file-preview-icon text-center"><i class="mdi mdi-file-document-outline" style="font-size: 30px; color: #6c757d;"></i><br><span style="font-size: 11px;">Selected</span></div>');
+            } else {
+                iconHtml.show();
+            }
+            previewContainer.show();
         }
     }
 });
@@ -350,6 +429,15 @@ $('.remove-btn').click(function() {
     removeBtn.hide();
     previewContainer.hide();
     if (rejectReason.length) rejectReason.show(); // Show if it existed originally, but maybe better to keep it hidden on clear.
+});
+
+// Image Zoom Handler
+$(document).on('click', '.zoomable-image', function() {
+    const imgSrc = $(this).attr('src');
+    if (imgSrc) {
+        $('#zoomedImage').attr('src', imgSrc);
+        $('#imageZoomModal').modal('show');
+    }
 });
 </script>
 <?= $this->endSection() ?>

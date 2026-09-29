@@ -89,7 +89,7 @@ class CandidateDocumentsController extends BaseController
                     $db->table('candidate_documents')->where('id', $existing['id'])->update([
                         'file_name'   => $file->getClientName(),
                         'file_path'   => 'uploads/candidate_docs/' . $candidateId . '/' . $newName,
-                        'status'      => 'pending',
+                        'status'      => 'approved',
                         'updated_at'  => date('Y-m-d H:i:s'),
                     ]);
                 } else {
@@ -98,7 +98,7 @@ class CandidateDocumentsController extends BaseController
                         'doc_key'      => $key,
                         'file_name'    => $file->getClientName(),
                         'file_path'    => 'uploads/candidate_docs/' . $candidateId . '/' . $newName,
-                        'status'       => 'pending',
+                        'status'       => 'approved',
                         'created_at'   => date('Y-m-d H:i:s'),
                         'updated_at'   => date('Y-m-d H:i:s'),
                     ]);

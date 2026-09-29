@@ -197,12 +197,40 @@
             </div>
             <div class="modal-body">
                 <form id="departmentForm">
-                    <div class="mb-3">
-                        <label for="country_name" class="form-label">Department Name</label>
+                    <?php
+                        $curUserRole = $currentUserRole ?? session()->get('role') ?? 'employee';
+                        $isAdminOrHr = in_array($curUserRole, ['admin', 'hr']);
+                        $isBranchAdminRole = ($curUserRole === 'branch_admin');
+                        $userBranchId = $currentUserBranchId ?? session()->get('branch_id') ?? '';
+                    ?>
 
+                    <?php if ($isAdminOrHr): ?>
+                    <!-- Branch selector for Admin / HR -->
+                    <div class="mb-3">
+                        <label class="form-label">Branch <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="mdi mdi-calendar fs-5"></i></span>
+                                <span class="input-group-text"><i class="mdi mdi-office-building fs-5"></i></span>
+                            </div>
+                            <select class="form-select" name="branch_id" id="dept_modal_branch_id">
+                                <option value="">Select Branch</option>
+                                <?php foreach ($branches as $branch): ?>
+                                    <option value="<?= $branch['id'] ?>"><?= esc($branch['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="text-danger mt-1" id="dept_branch_error"></div>
+                    </div>
+                    <?php elseif ($isBranchAdminRole): ?>
+                    <!-- Hidden branch_id for branch manager -->
+                    <input type="hidden" name="branch_id" id="dept_modal_branch_id" value="<?= esc($userBranchId) ?>">
+                    <?php endif; ?>
+
+                    <div class="mb-3">
+                        <label for="department_name" class="form-label">Department Name <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text"><i class="mdi mdi-domain fs-5"></i></span>
                             </div>
                             <input type="text" class="form-control" name="department_name" id="department_name"
                                 placeholder="Enter Department Name" />
@@ -519,14 +547,17 @@
                                     <div class="error" id="contact_number-Error"></div>
                                 </div>
                             </div>
-                            <?php if (session()->get('role') === 'admin'): ?>
-                                <?php 
-                                    $branchModel = new \App\Models\BranchModel();
-                                    $branchesList = $branchModel->findAll();
-                                ?>
+                            <?php 
+                                $empUserRole = $currentUserRole ?? session()->get('role') ?? 'employee';
+                                $isEmpAdminOrHr = in_array($empUserRole, ['admin', 'hr']);
+                                $isEmpBranchAdmin = ($empUserRole === 'branch_admin');
+                                $empBranchId = $currentUserBranchId ?? session()->get('branch_id') ?? '';
+                                $branchesList = !empty($branches) ? $branches : (new \App\Models\BranchModel())->where('status', 'active')->orderBy('name', 'ASC')->findAll();
+                            ?>
+                            <?php if ($isEmpAdminOrHr): ?>
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label>Branch</label>
+                                        <label>Branch <span class="text-danger">*</span></label>
                                         <div class="input-group">
                                             <div class="input-group-prepend">
                                                 <span class="input-group-text"><i class="mdi mdi-source-branch fs-5"></i></span>
@@ -541,6 +572,8 @@
                                         <div class="error" id="branch_id-Error"></div>
                                     </div>
                                 </div>
+                            <?php elseif ($isEmpBranchAdmin): ?>
+                                <input type="hidden" name="branch_id" id="branch_id" value="<?= htmlspecialchars($empBranchId) ?>">
                             <?php endif; ?>
                         </div>
                         <div class="form-group text-end">
@@ -1548,24 +1581,39 @@
                         });
                     }
                 }
-
-
             });
         });
     });
 
     $(document).ready(function () {
+        $('#adddepartementModal').on('show.bs.modal', function () {
+            let mainBranch = $('#branch_id').val();
+            if (mainBranch && $('#dept_modal_branch_id').is('select')) {
+                $('#dept_modal_branch_id').val(mainBranch);
+            }
+        });
+
         $("#departmentForm").submit(function (e) {
             e.preventDefault();
 
             $('#department_name_error').text('');
+            $('#dept_branch_error').text('');
 
             let departmentName = $("#department_name").val().trim();
+            let branchId = $("#dept_modal_branch_id").length ? $("#dept_modal_branch_id").val() : null;
 
             if (departmentName === "") {
                 $('#department_name_error').text('Department Name is required.');
                 return;
             }
+
+            // For admin/hr: branch is required
+            <?php if (in_array($currentUserRole ?? session()->get('role') ?? '', ['admin', 'hr'])): ?>
+            if (!branchId) {
+                $('#dept_branch_error').text('Please select a branch.');
+                return;
+            }
+            <?php endif; ?>
 
             let formData = $(this).serialize();
 
@@ -1576,13 +1624,24 @@
                 dataType: "json",
                 success: function (response) {
                     $('#department_name_error').text('');
+                    $('#dept_branch_error').text('');
 
                     if (response.success) {
                         let newOption = `<option value="${response.department.id}" selected>${response.department.department_name}</option>`;
                         $("#department_id").append(newOption);
-                        $("#department_id_modal").append(newOption);
+                        // Remove previous selected and select new
+                        $("#department_id option").removeAttr("selected");
+                        $("#department_id").val(response.department.id);
 
-                        $("#departmentForm")[0].reset();
+                        // Also update edit modal department dropdown if present
+                        if ($("#department_id_modal").length) {
+                            $("#department_id_modal").append(newOption);
+                        }
+
+                        $("#department_name").val('');
+                        if ($('#dept_modal_branch_id').is('select')) {
+                            $('#dept_modal_branch_id').val('');
+                        }
                         $("#adddepartementModal").modal("hide");
 
                         Swal.fire({
@@ -1593,7 +1652,6 @@
                             timer: 2000
                         });
                     } else {
-                        // Ã¢Ââ€” Show SweetAlert for errors like duplicate
                         Swal.fire({
                             icon: "error",
                             title: "Error!",

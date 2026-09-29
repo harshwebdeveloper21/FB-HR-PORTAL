@@ -376,8 +376,8 @@
                                                 </div>
                                                 <div class="form-check mx-4">
                                                     <input class="form-check-input" type="radio" name="gender"
-                                                        id="other" value="other">
-                                                    <label class="form-check-label" for="other">Other</label>
+                                                        id="both" value="both">
+                                                    <label class="form-check-label" for="both">Both</label>
                                                 </div>
                                             </div>
                                         </div>
@@ -400,9 +400,15 @@
                                 <label>Salary Range</label>
                                 <div class="input-group mb-3">
                                     <div class="w-100 salary-range-container">
-                                        <div class="d-flex justify-content-between">
-                                            <span>Min: <span id="salaryMinValue">1000</span></span>
-                                            <span>Max: <span id="salaryMaxValue">100000</span></span>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div class="d-flex align-items-center">
+                                                <span class="me-2">Min:</span> 
+                                                <input type="number" id="salaryMinValue" class="form-control form-control-sm" value="1000" style="width: 80px;" min="0">
+                                            </div>
+                                            <div class="d-flex align-items-center">
+                                                <span class="me-2">Max:</span> 
+                                                <input type="number" id="salaryMaxValue" class="form-control form-control-sm" value="100000" style="width: 80px;" min="0">
+                                            </div>
                                         </div>
 
                                         <!-- Salary Range Slider -->
@@ -515,7 +521,10 @@
 
             inputs.each(function () {
                 let input = $(this);
-                let fieldName = input.attr("name").replace(/_/g, " "); // Convert underscores to spaces for readability
+                let nameAttr = input.attr("name");
+                if (!nameAttr) return true; // Skip inputs without a name attribute
+                
+                let fieldName = nameAttr.replace(/_/g, " "); // Convert underscores to spaces for readability
                 let label = input.closest(".col-md-6").find("label").first().text().trim(); // Get the label text
 
                 // Skip validation for the description field
@@ -779,8 +788,19 @@
         salarySlider.noUiSlider.on("update", function (values) {
             const minVal = values[0];
             const maxVal = values[1];
+            document.getElementById("salaryMinValue").value = minVal;
+            document.getElementById("salaryMaxValue").value = maxVal;
             document.getElementById("salary_range").textContent = `${minVal} - ${maxVal}`;
             document.getElementById("salary_range_hidden").value = `${minVal}-${maxVal}`;
+        });
+
+        // Update slider when input changes
+        document.getElementById("salaryMinValue").addEventListener('change', function () {
+            salarySlider.noUiSlider.set([this.value, null]);
+        });
+        
+        document.getElementById("salaryMaxValue").addEventListener('change', function () {
+            salarySlider.noUiSlider.set([null, this.value]);
         });
     }
 

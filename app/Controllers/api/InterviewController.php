@@ -41,14 +41,25 @@ class InterviewController extends ResourceController
 
         // Validate input data
         $validationRules = [
-            'candidate_id' => 'required', // Ensure candidate_id exists
-            // 'description'  => 'required|string',
-            // 'status'       => 'required|string',
-            'schedule_date'  => 'required|valid_date|after_created_at[created_by]', // Custom rule
+            'interviewer_id' => 'required',
+            'full_name'      => 'required',
+            'email'          => 'required|valid_email',
+            'mobile_number'  => 'required',
+            'schedule_date'  => 'permit_empty|valid_date', // Adjusted to not strictly require schedule_date since it's on step 6
         ];
         $validationMessages = [
-            'candidate_id' => [
-                'required' => 'Candidate is required.',
+            'interviewer_id' => [
+                'required' => 'Interviewer is required.',
+            ],
+            'full_name' => [
+                'required' => 'Full name is required.',
+            ],
+            'email' => [
+                'required' => 'Email is required.',
+                'valid_email' => 'Please provide a valid email.',
+            ],
+            'mobile_number' => [
+                'required' => 'Phone number is required.',
             ],
             // 'description' => [
             //     'required' => 'Description is required.',
@@ -81,71 +92,79 @@ class InterviewController extends ResourceController
         }
         $userInfoModel = new \App\Models\UserInfoModel();
         $candidateModel = new \App\Models\CandidateModel();
-        // Fetch job_id from candidate table based on selected candidate_id
-        $candidate = $candidateModel->select('id,job_id,email')->where('id', $data['candidate_id'])->first();
+        
+        $candidateName = $data['full_name'] ?? 'Unknown Candidate';
 
-        if (!$candidate) {
-            return $this->respond([
-                'status'  => 'error',
-                'message' => 'Invalid Candidate ID'
-            ], 400);
-        }
-        $existingInterview = $this->interviewModel->where('candidate_id', $data['candidate_id'])
-            ->where('job_id', $candidate['job_id'])
-            ->whereIn('status', ['scheduled', 'completed']) // Check both statuses
-            ->first();
+        // If candidate_id is provided, do the linked checks
+        if (!empty($data['candidate_id'])) {
+            // Fetch job_id from candidate table based on selected candidate_id
+            $candidate = $candidateModel->select('id,job_id,email,candidate_name')->where('id', $data['candidate_id'])->first();
 
-        if ($existingInterview) {
-            return $this->respond([
-                'status'  => 'error',
-                'message' => 'This candidate is already scheduled for an interview.'
-            ], 400);
-        }
-        $userInfo = $userInfoModel->where('email', $candidate['email'])->first();
-        if (!$userInfo) {
-            return $this->respond([
-                'status'  => 'error',
-                'message' => 'No matching user found in userinfo table'
-            ], 400);
+            if (!$candidate) {
+                return $this->respond([
+                    'status'  => 'error',
+                    'message' => 'Invalid Candidate ID'
+                ], 400);
+            }
+            $existingInterview = $this->interviewModel->where('candidate_id', $data['candidate_id'])
+                ->where('job_id', $candidate['job_id'])
+                ->whereIn('status', ['scheduled', 'completed']) // Check both statuses
+                ->first();
+
+            if ($existingInterview) {
+                return $this->respond([
+                    'status'  => 'error',
+                    'message' => 'This candidate is already scheduled for an interview.'
+                ], 400);
+            }
+            $userInfo = $userInfoModel->where('email', $candidate['email'])->first();
+            if (!$userInfo) {
+                return $this->respond([
+                    'status'  => 'error',
+                    'message' => 'No matching user found in userinfo table'
+                ], 400);
+            }
+
+            $data['job_id'] = $candidate['job_id']; // Automatically set job_id
+            $candidateName = $candidate['candidate_name'];
         }
 
-        $data['job_id'] = $candidate['job_id']; // Automatically set job_id
         $data['created_by'] = $user->sub;
 
         // Insert the interview entry
         if ($this->interviewModel->insert($data)) {
 
-            $updated = $userInfoModel
-                ->where('id', $userInfo['id']) // Match the userinfo ID
-                ->set(['status' => 'scheduled'])
-                ->update();
+            if (!empty($data['candidate_id']) && isset($userInfo)) {
+                $updated = $userInfoModel
+                    ->where('id', $userInfo['id']) // Match the userinfo ID
+                    ->set(['status' => 'scheduled'])
+                    ->update();
 
-            if (!$updated) {
-                return $this->respond([
-                    'status'  => 'error',
-                    'message' => 'Failed to update userinfo status to scheduled'
-                ], ResponseInterface::HTTP_INTERNAL_SERVER_ERROR);
+                if (!$updated) {
+                    return $this->respond([
+                        'status'  => 'error',
+                        'message' => 'Failed to update userinfo status to scheduled'
+                    ], ResponseInterface::HTTP_INTERNAL_SERVER_ERROR);
+                }
             }
+
             $notificationModel = new \App\Models\NotificationModel();
             $userModel = new \App\Models\UserModel();
-            $candidateModel = new \App\Models\CandidateModel();
 
             $sender = $userModel->find($user->sub);
 
             // Get Admin and HR users
             $recipients = $userModel->whereIn('role', ['admin', 'hr'])->findAll();
-            $candidate = $candidateModel->select('candidate_name')->find($data['candidate_id']);
 
-            $candidateName = $candidate ? $candidate['candidate_name'] : 'Unknown Candidate';
             foreach ($recipients as $recipient) {
                 $notificationModel->insert([
                     'sender_id'    => $user->sub,
                     'recipient_id' => $recipient['id'],
                     'data'         => json_encode([
-                        'message'  => 'New interview scheduled for candidate ID: ' . $data['candidate_id'],
+                        'message'  => 'New interview scheduled for candidate: ' . $candidateName,
                         'type'     => 'interview',
                         'username' => $sender['username'],
-                        'candidate_id'  => $data['candidate_id'],
+                        'candidate_id'  => $data['candidate_id'] ?? null,
                         'candidate_name' => $candidateName
                     ]),
                     'is_read' => 0
@@ -179,9 +198,9 @@ class InterviewController extends ResourceController
             return $this->failForbidden('Forbidden: You do not have access to this resource');
         }
         // Retrieve onboarding entries
-        $interviews = $this->interviewModel->select('interviews.id, jobs.job_title, interviews.status , interviews.schedule_date , candidate.candidate_name')
-            ->join('candidate', 'interviews.candidate_id = candidate.id')
-            ->join('jobs', 'interviews.job_id = jobs.id')
+        $interviews = $this->interviewModel->select('interviews.id, COALESCE(jobs.job_title, interviews.position_applied_for) as job_title, interviews.status , interviews.schedule_date , COALESCE(candidate.candidate_name, interviews.full_name) as candidate_name')
+            ->join('candidate', 'interviews.candidate_id = candidate.id', 'left')
+            ->join('jobs', 'interviews.job_id = jobs.id', 'left')
             ->orderBy('interviews.created_at', 'DESC')
             ->findAll();
         return $this->respond(['status' => 'success', 'data' => $interviews]);
@@ -199,12 +218,12 @@ class InterviewController extends ResourceController
         interviews.id, 
         interviews.schedule_date, 
         interviews.status AS interview_status, 
-        candidate.candidate_name,
-        jobs.job_title,
+        COALESCE(candidate.candidate_name, interviews.full_name) as candidate_name,
+        COALESCE(jobs.job_title, interviews.position_applied_for) as job_title,
         interviews.description
     ')
-            ->join('candidate', 'interviews.candidate_id = candidate.id')
-            ->join('jobs', 'interviews.job_id = jobs.id');
+            ->join('candidate', 'interviews.candidate_id = candidate.id', 'left')
+            ->join('jobs', 'interviews.job_id = jobs.id', 'left');
 
         // If an ID is provided, filter by ID; otherwise, get all jobs
         if ($id !== null) {
@@ -321,10 +340,23 @@ class InterviewController extends ResourceController
     public function creates($id = null)
     {
         $candidateModel = new CandidateModel();
-        $candidates = $candidateModel->findAll();;
+        $candidates = $candidateModel->findAll();
+        
+        $userModel = new UserModel();
+        $interviewers = $userModel->whereIn('role', ['admin', 'hr', 'employee'])->findAll();
 
+        $jobModel = new \App\Models\JobModel();
+        $jobs = $jobModel->findAll();
 
-        return view('interview/interviews', ['candidates' => $candidates]);
+        $departmentModel = new \App\Models\DepartmentModel();
+        $departments = $departmentModel->findAll();
+
+        return view('interview/interviews', [
+            'candidates' => $candidates,
+            'interviewers' => $interviewers,
+            'jobs' => $jobs,
+            'departments' => $departments
+        ]);
     }
 
 

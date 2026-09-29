@@ -38,9 +38,18 @@ class CandidateController extends ResourceController
     public function create($id = null)
     {
         $jobModel = new JobModel();
-        $jobs = $jobModel->findAll();
+        $departmentModel = new \App\Models\DepartmentModel();
+        $locationModel = new \App\Models\JoblocationModel();
 
-        return view('candidate/candidate', ['jobs' => $jobs]);
+        $jobs = $jobModel->findAll();
+        $departments = $departmentModel->findAll();
+        $locations = $locationModel->findAll();
+
+        return view('candidate/candidate', [
+            'jobs' => $jobs,
+            'departments' => $departments,
+            'locations' => $locations
+        ]);
     }
 
     public function display()

@@ -242,7 +242,9 @@ $isEmployee = ($role === 'employee');
           <ul class="nav flex-column sub-menu">
             <li class="nav-item"> <a class="nav-link" href="/jobview">Jobs</a></li>
             <li class="nav-item"> <a class="nav-link" href="/candidateview">Candidates</a></li>
-            <li class="nav-item"> <a class="nav-link" href="/addinterview">Interviews</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/addinterview">Interviews Information</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/assessment">Interviews Assessments</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/candidate-documents">Candidate Documents</a></li>
             <li class="nav-item"> <a class="nav-link" href="/onboardingview">Employees Onboarding</a></li>
             <li class="nav-item"> <a class="nav-link" href="/offer-templates-view">Offer Letter Templates</a></li>
           </ul>

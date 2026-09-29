@@ -37,8 +37,7 @@
 
             /* Sidebar mobile header: keep logo and close button inline horizontally */
             .sidebar .sidebar-mobile-header,
-            #sidebar .sidebar-mobile-header,
-            #sidebar > div:first-child {
+            #sidebar .sidebar-mobile-header {
                 display: flex !important;
                 flex-direction: row !important;
                 justify-content: space-between !important;
@@ -48,8 +47,7 @@
             }
 
             .sidebar .sidebar-mobile-header a,
-            #sidebar .sidebar-mobile-header a,
-            #sidebar > div:first-child a {
+            #sidebar .sidebar-mobile-header a {
                 width: auto !important;
                 max-width: none !important;
                 flex: 0 0 auto !important;
@@ -61,14 +59,19 @@
             }
 
             .sidebar .sidebar-mobile-header img,
-            #sidebar .sidebar-mobile-header img,
-            #sidebar > div:first-child img {
+            #sidebar .sidebar-mobile-header img {
                 max-height: 35px !important;
                 width: auto !important;
                 max-width: 150px !important;
                 object-fit: contain !important;
                 flex: 0 0 auto !important;
                 margin: 0 !important;
+            }
+        }
+        @media (min-width: 992px) {
+            .sidebar-mobile-header,
+            #sidebar .sidebar-mobile-header {
+                display: none !important;
             }
         }
         /* Global Uniform Button Styling */

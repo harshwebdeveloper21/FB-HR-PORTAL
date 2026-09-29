@@ -104,6 +104,11 @@ class DepartmentController extends ResourceController
                 $managerUpdate['branch_id'] = $branchId;
             }
             $userModel->update($managerId, $managerUpdate);
+
+            $this->userInfoModel->where('user_id', $managerId)->set([
+                'role'          => 'department_manager',
+                'department_id' => $departmentId,
+            ])->update();
         }
 
         return $this->respondCreated([
@@ -164,6 +169,11 @@ class DepartmentController extends ResourceController
                     $mgrUpdate['branch_id'] = $targetBranch;
                 }
                 $userModel->update($newManagerId, $mgrUpdate);
+
+                $this->userInfoModel->where('user_id', $newManagerId)->set([
+                    'role'          => 'department_manager',
+                    'department_id' => $id,
+                ])->update();
             }
         }
 

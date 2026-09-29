@@ -227,6 +227,20 @@ $isEmployee = ($role === 'employee');
           </ul>
         </div>
       </li>
+    <?php elseif ($isDeptManager): ?>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#ico-nsss" aria-expanded="false" aria-controls="ico-nsss">
+          <i class="menu-icon mdi mdi-gauge"></i>
+          <span class="menu-title">Performance</span>
+          <i class="menu-arrow"></i>
+        </a>
+        <div class="collapse" id="ico-nsss">
+          <ul class="nav flex-column sub-menu">
+            <li class="nav-item"> <a class="nav-link" href="/performanceview">Team Performance</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/performance">Add Review</a></li>
+          </ul>
+        </div>
+      </li>
     <?php endif; ?>
 
     <!-- ── Training ─────────────────────────────────────────── -->
@@ -240,6 +254,20 @@ $isEmployee = ($role === 'employee');
         <div class="collapse" id="auth">
           <ul class="nav flex-column sub-menu">
             <li class="nav-item"> <a class="nav-link" href="/trainingview">Manage Training</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/training">Add Training</a></li>
+          </ul>
+        </div>
+      </li>
+    <?php elseif ($isDeptManager): ?>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#auth" aria-expanded="false" aria-controls="auth">
+          <i class="menu-icon mdi mdi-account-circle-outline"></i>
+          <span class="menu-title">Training</span>
+          <i class="menu-arrow"></i>
+        </a>
+        <div class="collapse" id="auth">
+          <ul class="nav flex-column sub-menu">
+            <li class="nav-item"> <a class="nav-link" href="/trainingview">Team Training</a></li>
             <li class="nav-item"> <a class="nav-link" href="/training">Add Training</a></li>
           </ul>
         </div>

@@ -52,12 +52,14 @@ class EmployeeController extends ResourceController
 
     public function creates($id = null)
     {
-        // Fetch cities, countries, departments, and designations
+        // Fetch cities, countries, departments, designations, and branches
         $cities = $this->cityModel->findAll();
         $countries = $this->countryModel->findAll();
         $state = $this->stateModel->findAll();
-        $departments = $this->departmentModel->findAll();
+        $departments = $this->departmentModel->orderBy('department_name', 'ASC')->findAll();
         $designations = $this->designationModel->findAll();
+        $branchModel = new \App\Models\BranchModel();
+        $branches = $branchModel->where('status', 'active')->orderBy('name', 'ASC')->findAll();
 
         // If $id is provided, it's for an existing employee, fetch their data
         if ($id) {
@@ -65,22 +67,28 @@ class EmployeeController extends ResourceController
             $user = $this->userModel->find($id);
             $userInfo = $this->userInfoModel->where('user_id', $id)->first();
 
+            $currentUser = $this->authService->check();
             return view('employee/employee', [
                 'cities' => $cities,
                 'countries' => $countries,
                 'state' => $state,
                 'departments' => $departments,
                 'designations' => $designations,
+                'branches' => $branches,
                 'user' => $user,
                 'userInfo' => $userInfo,
+                'currentUserRole' => $currentUser ? $currentUser->role : 'employee',
             ]);
         } else {
+            $currentUser = $this->authService->check();
             return view('employee/employee', [
                 'cities' => $cities,
                 'countries' => $countries,
                 'state' => $state,
                 'departments' => $departments,
                 'designations' => $designations,
+                'branches' => $branches,
+                'currentUserRole' => $currentUser ? $currentUser->role : 'employee',
             ]);
         }
     }
@@ -438,6 +446,11 @@ class EmployeeController extends ResourceController
             $this->userModel->update($userId, ['branch_id' => $assignBranchId, 'department_id' => $departmentId]);
         }
 
+        // If newly created user is a department manager, link them as manager in department table
+        if ($targetRole === 'department_manager' && !empty($departmentId)) {
+            $this->departmentModel->update($departmentId, ['manager_id' => $userId]);
+        }
+
         // Handle File Upload - Profile Image
         $profileImage = $this->request->getFile('profile_image');
         if ($profileImage && $profileImage->isValid() && !$profileImage->hasMoved()) {
@@ -474,10 +487,10 @@ class EmployeeController extends ResourceController
             'contact_number' => $data['contact_number'] ?? '',
             'employee_id' => isset($data['employee_id']) ? trim($data['employee_id']) : '',
             'designation_id' => $data['designation_id'] ?? '',
-            'department_id' => $data['department_id'] ?? '',
+            'department_id' => $departmentId,
             'joining_date' => !empty($data['joining_date']) ? $data['joining_date'] : null,
             'working_location' => $data['working_location'] ?? '',
-            'role' => $data['role'] ?? 'employee',
+            'role' => $targetRole,
             'salary' => $data['salary'] ?? '',
         ];
 
@@ -712,12 +725,17 @@ class EmployeeController extends ResourceController
             'department_id' => !empty($department_id) ? (int)$department_id : null,
         ];
 
-        if ($creatorRole === 'admin' && !empty($data['branch_id'])) {
+        if (in_array($creatorRole, ['admin', 'hr']) && !empty($data['branch_id'])) {
             $userUpdateData['branch_id'] = (int)$data['branch_id'];
         }
 
         // Update the users table
         $this->userModel->update($id, $userUpdateData);
+
+        // If updated to department manager, update department manager_id
+        if ($role === 'department_manager' && !empty($department_id)) {
+            $this->departmentModel->update((int)$department_id, ['manager_id' => (int)$id]);
+        }
 
 
         // Prepare gender field (or null if not set)
@@ -801,14 +819,14 @@ class EmployeeController extends ResourceController
 
         // Build query with join
         $builder = $this->userModel
-            ->select('users.*, user_info.employee_id, user_info.status, user_info.status_reason, user_info.last_working_day, user_info.firstname, user_info.lastname, user_info.profile_image, user_info.joining_date, user_info.id as user_info_id, user_info.salary, user_info.last_increment_date, user_info.last_increment_amount, department.department_name, department.id as department_id, employee_leaves.paid_leave, employee_leaves.casual_leave')
+            ->select('users.*, user_info.employee_id, user_info.status, user_info.status_reason, user_info.last_working_day, user_info.firstname, user_info.lastname, user_info.profile_image, user_info.joining_date, user_info.id as user_info_id, user_info.salary, user_info.last_increment_date, user_info.last_increment_amount, department.department_name, COALESCE(NULLIF(user_info.department_id, 0), users.department_id) as department_id, employee_leaves.paid_leave, employee_leaves.casual_leave')
             ->join('user_info', 'user_info.user_id = users.id')
-            ->join('department', 'department.id = user_info.department_id', 'left')
+            ->join('department', 'department.id = COALESCE(NULLIF(user_info.department_id, 0), users.department_id)', 'left')
             ->join('employee_leaves', 'employee_leaves.employee_id = users.id', 'left');
 
         // Role-based filtering
         if ($role === 'admin') {
-            $builder->whereIn('users.role', ['employee', 'hr', 'branch_admin', 'department_manager']);
+            $builder->whereIn('users.role', ['employee', 'hr', 'branch_admin', 'department_manager', 'admin']);
             
             // Apply global branch filter if set in session
             $filterBranchId = $this->authService->getBranchId();
@@ -835,7 +853,7 @@ class EmployeeController extends ResourceController
                 $builder->where('users.branch_id', (int)$dmUser['branch_id']);
             }
             if (!empty($dmUser['department_id'])) {
-                $builder->where('user_info.department_id', (int)$dmUser['department_id']);
+                $builder->where('COALESCE(NULLIF(user_info.department_id, 0), users.department_id) =', (int)$dmUser['department_id']);
             }
         } else {
             return $this->failForbidden('You do not have permission to view employees');
@@ -843,7 +861,7 @@ class EmployeeController extends ResourceController
 
         // Department filtering
         if (!empty($departmentId)) {
-            $builder->where('user_info.department_id', $departmentId);
+            $builder->where('COALESCE(NULLIF(user_info.department_id, 0), users.department_id) =', (int)$departmentId);
         }
 
         // Role filtering
@@ -960,6 +978,13 @@ class EmployeeController extends ResourceController
         } else {
             $userInfo['remaining_paid_leave'] = 0; // Default values
             $userInfo['remaining_sick_leave'] = 0;
+        }
+
+        if ($userInfo) {
+            $userInfo['role'] = $user['role'] ?? ($userInfo['role'] ?? 'employee');
+            if (empty($userInfo['department_id']) && !empty($user['department_id'])) {
+                $userInfo['department_id'] = $user['department_id'];
+            }
         }
 
         return $this->respond([

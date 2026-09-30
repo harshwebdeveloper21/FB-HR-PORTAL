@@ -336,6 +336,67 @@ class OfferLetterTemplateController extends ResourceController
         return $this->response->setJSON(['status' => 'success', 'message' => 'Template updated successfully']);
     }
 
+    private function getDigitalSignatureData()
+    {
+        $db = \Config\Database::connect();
+        $defaultSig = null;
+        if ($db->tableExists('digital_signatures')) {
+            $defaultSig = $db->table('digital_signatures')->where('is_default', 1)->get()->getRowArray();
+            if (!$defaultSig) {
+                $defaultSig = $db->table('digital_signatures')->orderBy('id', 'DESC')->get()->getRowArray();
+            }
+        }
+
+        $digitalSigSrc = '';
+        $stampSrc = '';
+
+        if ($defaultSig) {
+            if (!empty($defaultSig['signature_path']) && file_exists(FCPATH . $defaultSig['signature_path'])) {
+                $sigPath = FCPATH . $defaultSig['signature_path'];
+                $sigMime = @mime_content_type($sigPath) ?: 'image/png';
+                $digitalSigSrc = 'data:' . $sigMime . ';base64,' . base64_encode(file_get_contents($sigPath));
+            }
+            if (!empty($defaultSig['stamp_path']) && file_exists(FCPATH . $defaultSig['stamp_path'])) {
+                $stPath = FCPATH . $defaultSig['stamp_path'];
+                $stMime = @mime_content_type($stPath) ?: 'image/png';
+                $stampSrc = 'data:' . $stMime . ';base64,' . base64_encode(file_get_contents($stPath));
+            }
+        }
+
+        $digitalSigImgTag = !empty($digitalSigSrc)
+            ? '<img src="' . $digitalSigSrc . '" class="digital-signature-img" style="max-height: 55px; max-width: 160px; object-fit: contain; vertical-align: middle; display: inline-block;" alt="Digital Signature">'
+            : '';
+
+        $stampImgTag = !empty($stampSrc)
+            ? '<img src="' . $stampSrc . '" class="company-stamp-img" style="max-height: 85px; max-width: 85px; object-fit: contain; vertical-align: middle; display: inline-block;" alt="Company Stamp">'
+            : '';
+
+        $signatureStampBlock = '';
+        if (!empty($digitalSigImgTag) && !empty($stampImgTag)) {
+            $signatureStampBlock = '<table class="sig-stamp-table" style="border: none; border-collapse: collapse; margin-bottom: 6px; display: inline-table;"><tr>'
+                . '<td style="border: none; padding: 0 15px 0 0; vertical-align: bottom;">' . $digitalSigImgTag . '</td>'
+                . '<td style="border: none; padding: 0; vertical-align: bottom;">' . $stampImgTag . '</td>'
+                . '</tr></table>';
+        } elseif (!empty($digitalSigImgTag)) {
+            $signatureStampBlock = '<div class="sig-block" style="margin-bottom: 6px;">' . $digitalSigImgTag . '</div>';
+        } elseif (!empty($stampImgTag)) {
+            $signatureStampBlock = '<div class="stamp-block" style="margin-bottom: 6px;">' . $stampImgTag . '</div>';
+        }
+
+        return [
+            'raw_sig'               => $defaultSig,
+            'digital_signature'     => $digitalSigImgTag,
+            'digital_signature_img' => $digitalSigImgTag,
+            'digital_signature_src' => $digitalSigSrc,
+            'stamp'                 => $stampImgTag,
+            'company_stamp'         => $stampImgTag,
+            'stamp_img'             => $stampImgTag,
+            'stamp_src'             => $stampSrc,
+            'signature_and_stamp'   => $signatureStampBlock,
+            'signature_stamp_block' => $signatureStampBlock,
+        ];
+    }
+
     public function templateView($id)
     {
         $model = new \App\Models\OfferLetterTemplateModel();
@@ -348,6 +409,8 @@ class OfferLetterTemplateController extends ResourceController
             ]);
         }
 
+        $sigData = $this->getDigitalSignatureData();
+
         // Fix image paths in content (convert relative to absolute)
         $template['content'] = str_replace(
             ['../upload/', 'src="upload/'],
@@ -359,13 +422,28 @@ class OfferLetterTemplateController extends ResourceController
         if (!empty($template['content_pages'])) {
             $template['content_pages'] = preg_replace('/ data-bullet-char="[^"]*"/', '', $template['content_pages']);
             $template['content_pages'] = preg_replace('/ data-bullet-char=\\\\"[^\\\\"]*\\\\\"/', '', $template['content_pages']);
+            // Replace signature placeholders for browser preview
+            $template['content_pages'] = str_replace(
+                ['{{digital_signature}}', '{{stamp}}', '{{company_stamp}}', '{{signature_and_stamp}}', '{{signature_stamp_block}}'],
+                [$sigData['digital_signature'], $sigData['stamp'], $sigData['stamp'], $sigData['signature_and_stamp'], $sigData['signature_and_stamp']],
+                $template['content_pages']
+            );
         }
         if (!empty($template['content'])) {
             $template['content'] = preg_replace('/ data-bullet-char="[^"]*"/', '', $template['content']);
+            $template['content'] = str_replace(
+                ['{{digital_signature}}', '{{stamp}}', '{{company_stamp}}', '{{signature_and_stamp}}', '{{signature_stamp_block}}'],
+                [$sigData['digital_signature'], $sigData['stamp'], $sigData['stamp'], $sigData['signature_and_stamp'], $sigData['signature_and_stamp']],
+                $template['content']
+            );
         }
         
-        return view('offer_templates/template_view', ['templates' => $template]);
+        return view('offer_templates/template_view', [
+            'templates' => $template,
+            'sigData'   => $sigData
+        ]);
     }
+
     function parseTemplate($templateContent, $data)
     {
         // Clean up whitespace for PDF output
@@ -374,10 +452,6 @@ class OfferLetterTemplateController extends ResourceController
         // Replace &nbsp; HTML entities with regular spaces
         $templateContent = str_replace('&nbsp;', ' ', $templateContent);
 
-        // Replace raw UTF-8 non-breaking spaces (U+00A0 = bytes 0xC2 0xA0) with a
-        // regular space. The CKEditor bullet plugin appends \u00A0 after every bullet
-        // char (span.setHtml(value + '\u00A0')). Using str_replace with a PHP
-        // double-quoted string is reliable here — no regex unicode-mode ambiguity.
         $templateContent = str_replace("\xc2\xa0", ' ', $templateContent);
 
         // Collapse multiple consecutive spaces
@@ -385,13 +459,6 @@ class OfferLetterTemplateController extends ResourceController
 
         $templateContent = str_replace(['–', '—', '−', '&ndash;', '&mdash;'], '-', $templateContent);
 
-        // Bullet characters (➢, ➤, ◆, ✓, ★, ▪) are preserved as-is.
-        // offer_letter_preview.php loads Segoe UI Symbol via @font-face (which covers
-        // the full Dingbats block including ➢ U+27A2) so they render correctly in Dompdf.
-
-        // Migrate legacy saved content: old bullet spans had `width:25px` baked into
-        // their inline style (creating a wide gap). Strip it so the CSS class rule
-        // (margin-right:4px !important) takes effect in both the live view and PDF.
         $templateContent = preg_replace(
             '/(<span[^>]+class="[^"]*custom-bullet-char[^"]*"[^>]+style=")([^"]*?)\bwidth\s*:\s*\d+px\s*;?\s*([^"]*")/i',
             '$1$2$3',
@@ -401,6 +468,15 @@ class OfferLetterTemplateController extends ResourceController
         // Remove <code> and <tt> tags wrapping placeholders (e.g. <code>{{job_title}}</code>)
         $templateContent = preg_replace('/<code>\s*(\{\{\s*[a-zA-Z0-9_-]+\s*\}\})\s*<\/code>/i', '$1', $templateContent);
         $templateContent = preg_replace('/<tt>\s*(\{\{\s*[a-zA-Z0-9_-]+\s*\}\})\s*<\/tt>/i', '$1', $templateContent);
+
+        // Auto-inject signature and stamp above signer name if not explicitly placed in template
+        if (!empty($data['signature_and_stamp']) && strpos($templateContent, '{{digital_signature}}') === false && strpos($templateContent, '{{signature_and_stamp}}') === false) {
+            if (preg_match('/(\{\{\s*signer_name\s*\}\})/i', $templateContent)) {
+                $templateContent = preg_replace('/(\{\{\s*signer_name\s*\}\})/i', '{{signature_and_stamp}}<br>$1', $templateContent, 1);
+            } elseif (preg_match('/(\{\{\s*created_by\s*\}\})/i', $templateContent)) {
+                $templateContent = preg_replace('/(\{\{\s*created_by\s*\}\})/i', '{{signature_and_stamp}}<br>$1', $templateContent, 1);
+            }
+        }
 
         // Replace all placeholders
         foreach ($data as $key => $value) {
@@ -416,26 +492,16 @@ class OfferLetterTemplateController extends ResourceController
         // Clean any remaining code tags around replaced values
         $templateContent = preg_replace('/<code>(.*?)<\/code>/i', '$1', $templateContent);
 
-        // Fix Issue 1: Remove any strikethrough tags (<s>, <strike>, <del>) and text-decoration: line-through styles
+        // Remove any strikethrough tags (<s>, <strike>, <del>) and text-decoration: line-through styles
         $templateContent = preg_replace('/<\/?(s|strike|del)\b[^>]*>/i', '', $templateContent);
         $templateContent = preg_replace('/text-decoration\s*:\s*line-through;?/i', '', $templateContent);
 
-        // PDF-only fix: Strip the inline style attribute from .custom-bullet-char spans.
-        // CKEditor saves the bullet span with an inline style like:
-        //   style="display:inline-block; vertical-align:top; font-size:1.4em; ..."
-        // This inline style overrides the CSS class rule vertical-align:middle (even with !important
-        // in some Dompdf rendering paths). Removing the inline style lets the CSS class take full
-        // control, including display:table-cell and vertical-align:middle for correct centering.
         $templateContent = preg_replace(
             '/(<span\b[^>]+\bcustom-bullet-char\b[^>]*?)\s+style="[^"]*"([^>]*>)/i',
             '$1$2',
             $templateContent
         );
 
-        // Wrap text content after each bullet char span in a .custom-bullet-text span.
-        // This is REQUIRED for the table-cell CSS layout to work in Dompdf:
-        // Without this wrapper, the text has no table-cell container and renders
-        // BELOW the bullet instead of BESIDE it.
         $templateContent = preg_replace(
             '/(<span\b[^>]+\bcustom-bullet-char\b[^>]*>[^<]*<\/span>)(.*?)(<\/li>)/is',
             '$1<span class="custom-bullet-text">$2</span>$3',
@@ -569,48 +635,59 @@ class OfferLetterTemplateController extends ResourceController
         $creatorDesignation = $creator['designation'] ?? 'Co-Founder & CEO/CTO';
         $formattedSalary = !empty($salary) ? $salary : '2-month max will be Training Period then after, your position will be Trainee Digital Marketing SEO Executive and salary Based on your performance';
 
+        $sigData = $this->getDigitalSignatureData();
+
         $data = [
-            'logo_img'            => $logoImgTag,
-            'logo_src'            => $logoSrc,
-            'header_img_src'      => $headerImgSrc,
-            'footer_img_src'      => $footerImgSrc,
-            'template_title'      => 'JOINING LETTER',
-            'template_header'     => $templateHeader,
-            'company_name'        => $company['company_name'] ?? 'Fablead Developers Technolab',
-            'company_address'     => !empty($company['company_address']) ? $company['company_address'] : 'Fablead Developers Technolab, Surat , Gujarat , India',
-            'company_phone'       => $company['company_phone'] ?? '9909910855',
-            'company_email'       => $company['company_email'] ?? 'info@fableadtechnolabs.com',
-            'today_date'          => date('F j, Y'),
-            'current_date'        => date('F j, Y'),
-            'candidate_name'      => $candidateName,
-            'employee_name'       => $candidateName,
-            'email'               => $candidateEmail,
-            'candidate_email'     => $candidateEmail,
-            'employee_email'      => $candidateEmail,
-            'phone_number'        => $candidatePhone,
-            'candidate_phone'     => $candidatePhone,
-            'employee_phone'      => $candidatePhone,
-            'job_title'           => $jobTitle,
-            'designation'         => $jobTitle,
-            'position'            => $jobTitle,
-            'start_date'          => $startDate,
-            'joining_date'        => $startDate,
-            'start_date_ordinal'  => $startDateOrdinal,
-            'department_name'     => $departmentName,
-            'department'          => $departmentName,
-            'created_by'          => $createdByName,
-            'signer_name'         => $createdByName,
-            'creator_email'       => $creatorEmail,
-            'creator_designation' => $creatorDesignation,
-            'signer_designation'  => $creatorDesignation,
-            'salary'              => $formattedSalary,
-            'salary_terms'        => $formattedSalary,
-            'docu_submitted'      => $docuSubmitted,
-            'documents_submitted' => $docuSubmitted,
-            'submitted_documents' => $docuSubmitted,
-            'reporting_to'        => 'Simran Goswami',
-            'supervisor'          => 'Simran Goswami',
-            'working_hours'       => '09:30 AM till 06:15 PM (Monday to Friday)',
+            'logo_img'              => $logoImgTag,
+            'logo_src'              => $logoSrc,
+            'header_img_src'        => $headerImgSrc,
+            'footer_img_src'        => $footerImgSrc,
+            'template_title'        => 'JOINING LETTER',
+            'template_header'       => $templateHeader,
+            'company_name'          => $company['company_name'] ?? 'Fablead Developers Technolab',
+            'company_address'       => !empty($company['company_address']) ? $company['company_address'] : 'Fablead Developers Technolab, Surat , Gujarat , India',
+            'company_phone'         => $company['company_phone'] ?? '9909910855',
+            'company_email'         => $company['company_email'] ?? 'info@fableadtechnolabs.com',
+            'today_date'            => date('F j, Y'),
+            'current_date'          => date('F j, Y'),
+            'candidate_name'        => $candidateName,
+            'employee_name'         => $candidateName,
+            'email'                 => $candidateEmail,
+            'candidate_email'       => $candidateEmail,
+            'employee_email'        => $candidateEmail,
+            'phone_number'          => $candidatePhone,
+            'candidate_phone'       => $candidatePhone,
+            'employee_phone'        => $candidatePhone,
+            'job_title'             => $jobTitle,
+            'designation'           => $jobTitle,
+            'position'              => $jobTitle,
+            'start_date'            => $startDate,
+            'joining_date'          => $startDate,
+            'start_date_ordinal'    => $startDateOrdinal,
+            'department_name'       => $departmentName,
+            'department'            => $departmentName,
+            'created_by'            => $createdByName,
+            'signer_name'           => $createdByName,
+            'creator_email'         => $creatorEmail,
+            'creator_designation'   => $creatorDesignation,
+            'signer_designation'    => $creatorDesignation,
+            'salary'                => $formattedSalary,
+            'salary_terms'          => $formattedSalary,
+            'docu_submitted'        => $docuSubmitted,
+            'documents_submitted'   => $docuSubmitted,
+            'submitted_documents'   => $docuSubmitted,
+            'reporting_to'          => 'Simran Goswami',
+            'supervisor'            => 'Simran Goswami',
+            'working_hours'         => '09:30 AM till 06:15 PM (Monday to Friday)',
+            'digital_signature'     => $sigData['digital_signature'],
+            'digital_signature_img' => $sigData['digital_signature_img'],
+            'digital_signature_src' => $sigData['digital_signature_src'],
+            'stamp'                 => $sigData['stamp'],
+            'company_stamp'         => $sigData['company_stamp'],
+            'stamp_img'             => $sigData['stamp_img'],
+            'stamp_src'             => $sigData['stamp_src'],
+            'signature_and_stamp'   => $sigData['signature_and_stamp'],
+            'signature_stamp_block' => $sigData['signature_stamp_block'],
         ];
 
         // Extract all pages

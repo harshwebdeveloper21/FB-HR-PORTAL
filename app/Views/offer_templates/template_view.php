@@ -92,6 +92,32 @@
         font-size: 14pt !important;
         line-height: 1 !important;
     }
+    .digital-signature-img {
+        max-height: 55px;
+        max-width: 160px;
+        height: auto;
+        object-fit: contain;
+        vertical-align: middle;
+        display: inline-block;
+    }
+    .company-stamp-img {
+        max-height: 85px;
+        max-width: 85px;
+        height: auto;
+        object-fit: contain;
+        vertical-align: middle;
+        display: inline-block;
+    }
+    .sig-stamp-table {
+        border-collapse: collapse;
+        border: none;
+        margin-bottom: 6px;
+    }
+    .sig-stamp-table td {
+        border: none;
+        padding: 0 15px 0 0;
+        vertical-align: bottom;
+    }
 </style>
 <div class="row">
     <div class="col-12 grid-margin">

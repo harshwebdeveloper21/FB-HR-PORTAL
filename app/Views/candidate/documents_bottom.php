@@ -1,137 +1,3 @@
-<?= $this->extend("layout") ?>
-<?= $this->section("content") ?>
-<style>
-.doc-wizard { font-family: "Inter", sans-serif; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
-.wizard-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-.progress-container { width: 200px; text-align: right; }
-.progress-text { font-size: 14px; font-weight: 500; margin-bottom: 5px; display: flex; justify-content: space-between;}
-.progress-bar-custom { height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden; display: flex; }
-.progress-bar-fill { height: 100%; background-color: #e75c25; transition: width 0.3s ease; }
-.wizard-tabs { display: flex; border-bottom: 1px solid #eee; margin-bottom: 20px; gap: 20px;}
-.wizard-tab { padding: 10px 0; cursor: pointer; color: #666; font-weight: 500; position: relative; }
-.wizard-tab.active { color: #e75c25; }
-.wizard-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background-color: #e75c25; }
-.tab-badge { background-color: #f1f3f5; color: #495057; font-size: 12px; padding: 2px 8px; border-radius: 12px; margin-left: 5px; font-weight: 600;}
-.wizard-tab.active .tab-badge { background-color: #f1f3f5; color: #495057; }
-.wizard-card { display: none; }
-.wizard-card.active { display: block; }
-.doc-item { padding: 20px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-.doc-info { flex: 1; }
-.doc-info h5 { margin-bottom: 5px; font-size: 16px; font-weight: 600; color: #212529;}
-.doc-info h5 span.text-danger { color: #e75c25 !important; }
-.doc-info p { margin-bottom: 8px; font-size: 13px; color: #6c757d; }
-.status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; margin-right: 10px; }
-.status-approved { background-color: #d1e7dd; color: #0f5132; }
-.status-rejected { background-color: #f8d7da; color: #842029; }
-.status-not-uploaded { background-color: #f1f3f5; color: #6c757d; }
-.file-name { font-size: 13px; color: #495057; }
-.reject-reason { font-size: 13px; color: #dc3545; margin-top: 8px; }
-.btn-upload { color: #e75c25; border-color: #e75c25; background: white; }
-.btn-upload:hover { background-color: #e75c25; color: white; }
-.btn-replace { color: #495057; border-color: #ced4da; background: white; }
-.btn-replace:hover { background-color: #f8f9fa; }
-.btn-remove { color: #495057; border-color: #ced4da; background: white; }
-.btn-remove:hover { background-color: #f8f9fa; }
-.footer-buttons { padding-top: 20px; border-top: 1px solid #eee; }
-.btn-primary-custom { background-color: #e75c25; border-color: #e75c25; color: white; }
-.btn-primary-custom:hover { background-color: #d05321; border-color: #d05321; color: white; }
-.preview-container { margin-top: 0; display: none; flex-shrink: 0; }
-.preview-container img { max-height: 80px; max-width: 150px; border-radius: 5px; border: 1px solid #ddd; object-fit: cover; }
-</style>
-
-<div class="content-wrapper doc-wizard">
-    <?php if (!isset($selectedCandidate)): ?>
-<style>
-    /* DataTable mobile styles */
-    @media (max-width: 767px) {
-        .dataTables_length, .dataTables_filter { font-size: 12px !important; float: left !important; }
-        div.dataTables_wrapper div.dataTables_filter input { width: 212px !important; height: 29px !important; }
-    }
-</style>
-<div class="row">
-    <div class="col-lg-12 grid-margin stretch-card">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
-                    <h4 class="card-title mb-0">Candidate Documents</h4>
-                    <div class="d-flex flex-wrap gap-2">
-                        <button type="button" class="btn hr-btnbg text-nowrap" data-bs-toggle="modal" data-bs-target="#addDocumentModal">
-                            <i class="mdi mdi-plus iconfontsize"></i> Add Document
-                        </button>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-striped w-100" id="candidates-Table">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Candidate Name</th>
-                                <th>Email</th>
-                                <th>Phone Number</th>
-                                <th style="width: 150px;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (isset($candidates) && is_array($candidates)): ?>
-                                <?php foreach($candidates as $c): ?>
-                                    <tr>
-                                        <td class="capitalize-text fw-bold"><?= esc($c['candidate_name']) ?></td>
-                                        <td><?= esc($c['email']) ?></td>
-                                        <td><?= esc($c['phone_number'] ?? 'N/A') ?></td>
-                                        <td>
-                                            <a href="/candidate-documents/<?= $c['id'] ?>" class="btn btn-sm text-white" style="background-color: rgb(230, 97, 54); border-color: rgb(230, 97, 54);"><i class="mdi mdi-eye"></i> View / Upload</a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Add Document Modal -->
-<div class="modal fade" id="addDocumentModal" tabindex="-1" aria-labelledby="addDocumentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addDocumentModalLabel">Select Candidate to Add Document</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group mb-3">
-                    <label for="candidate_id_select_modal" class="form-label fw-bold">Select Employee / Candidate <span class="text-danger">*</span></label>
-                    <select id="candidate_id_select_modal" class="form-select" onchange="if(this.value) window.location.href='/candidate-documents/'+this.value;">
-                        <option value="">-- Select --</option>
-                        <?php if (isset($candidates) && is_array($candidates)): ?>
-                            <?php foreach($candidates as $c): ?>
-                                <option value="<?= $c['id'] ?>"><?= esc($c['candidate_name']) ?> (<?= esc($c['email']) ?>)</option>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </select>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Initialize DataTable -->
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        if ($.fn.DataTable) {
-            $('#candidates-Table').DataTable({
-                language: {
-                    search: "",
-                    searchPlaceholder: "Search"
-                }
-            });
-        }
-    });
-</script>
 <?php else: ?>
         <div class="mb-3">
             <a href="/candidate-documents" class="btn btn-sm btn-outline-secondary">&larr; Back to Selection</a>
@@ -623,19 +489,12 @@
 
                 <!-- Step 4: Other documents -->
                 <div class="wizard-card" id="step-4" data-keys="<?= implode(',', $tabsConfig[4]['keys']) ?>">
-                    <div class="d-flex justify-content-end mb-3">
-                        <button type="button" class="btn-outline-action" id="addMoreOtherDocBtn" style="color: var(--brand-color); border-color: var(--brand-color);">
-                            + Add more document
-                        </button>
-                    </div>
-                    <div id="other-docs-container">
-                        <?php 
-                        foreach ($tabsConfig[4]['keys'] as $idx => $k) {
-                            $title = ($idx == 0) ? 'Resume' : (($idx == 1) ? 'Passport photo' : 'Other document');
-                            renderNewDocItem($k, $title, '', false, $docsMap);
-                        }
-                        ?>
-                    </div>
+                    <?php 
+                    foreach ($tabsConfig[4]['keys'] as $idx => $k) {
+                        $title = ($idx == 0) ? 'Resume' : (($idx == 1) ? 'Passport photo' : 'Other document');
+                        renderNewDocItem($k, $title, '', false, $docsMap);
+                    }
+                    ?>
                 </div>
             </div>
 
@@ -662,9 +521,6 @@
 </div>
 
 <script>
-window.csrfName = '<?= csrf_token() ?>';
-window.csrfHash = '<?= csrf_hash() ?>';
-
 $(document).ready(function() {
     const candidateId = "<?= esc($selectedCandidate['id'] ?? '') ?>";
     let currentTab = 1;
@@ -759,57 +615,6 @@ $(document).ready(function() {
         }
     });
 
-    // Add More Document Logic
-    $('#addMoreOtherDocBtn').click(function() {
-        const container = $('#other-docs-container');
-        const count = container.find('.doc-row').length + 1;
-        const key = 'other_doc_' + count;
-        
-        const newRowHtml = `
-        <div class="doc-row" data-key="${key}" data-required="0">
-            <div class="doc-thumbnail no-file">No file</div>
-            <div class="doc-info">
-                <div class="doc-title" contenteditable="true" style="border-bottom: 1px dashed #ccc; display: inline-block; min-width: 150px; padding-bottom: 2px;" title="Click to edit title">Other document ${count}</div>
-                <div class="doc-meta">
-                    <span class="status-badge status-missing">Missing</span>
-                </div>
-                <div class="error-text"></div>
-            </div>
-            <div class="doc-actions">
-                <input type="file" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                <button type="button" class="btn-brand btn-upload" aria-label="Upload Other document ${count}">Upload file</button>
-            </div>
-        </div>`;
-        container.append(newRowHtml);
-    });
-
-    // Save edited title via AJAX when it loses focus (for dynamically added or existing ones)
-    $(document).on('blur', '.doc-title[contenteditable="true"]', function() {
-        const row = $(this).closest('.doc-row');
-        const key = row.data('key');
-        const val = $(this).text().trim();
-        
-        if (!val) return;
-        
-        const formData = new FormData();
-        formData.append('candidate_id', candidateId);
-        formData.append(`doc_title_${key}`, val);
-        if(window.csrfName && window.csrfHash) {
-            formData.append(window.csrfName, window.csrfHash);
-        }
-        
-        $.ajax({
-            url: '/candidate-documents/upload',
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) { 
-                if (response.csrf_hash) window.csrfHash = response.csrf_hash;
-            }
-        });
-    });
-
     // Handle Upload/Replace click
     $(document).on('click', '.btn-upload, .btn-replace', function() {
         $(this).closest('.doc-actions').find('.file-input').click();
@@ -854,8 +659,10 @@ $(document).ready(function() {
         }
 
         // Add CSRF token
-        if(window.csrfName && window.csrfHash) {
-            formData.append(window.csrfName, window.csrfHash);
+        const csrfName = $('meta[name="csrf-token"]').attr('data-name');
+        const csrfHash = $('meta[name="csrf-token"]').attr('content');
+        if(csrfName && csrfHash) {
+            formData.append(csrfName, csrfHash);
         }
 
         // Visual loading
@@ -869,7 +676,6 @@ $(document).ready(function() {
             processData: false,
             contentType: false,
             success: function(response) {
-                if (response.csrf_hash) window.csrfHash = response.csrf_hash;
                 if(response.status === 'success') {
                     // Refresh row visually
                     row.find('.doc-thumbnail').removeClass('no-file pdf-icon').empty();
@@ -927,16 +733,15 @@ $(document).ready(function() {
             confirmButtonText: 'Yes, remove it!'
         }).then((result) => {
             if (result.isConfirmed) {
+                const csrfName = $('meta[name="csrf-token"]').attr('data-name');
+                const csrfHash = $('meta[name="csrf-token"]').attr('content');
                 let data = {
                     candidate_id: candidateId,
                     doc_key: key
                 };
-                if(window.csrfName && window.csrfHash) {
-                    data[window.csrfName] = window.csrfHash;
-                }
+                data[csrfName] = csrfHash;
 
                 $.post('/candidate-documents/remove', data, function(res) {
-                    if (res.csrf_hash) window.csrfHash = res.csrf_hash;
                     if (res.status === 'success') {
                         // Reset visual
                         row.find('.doc-thumbnail').removeClass('pdf-icon').addClass('no-file').empty().text('No file');
@@ -969,12 +774,13 @@ $(document).ready(function() {
         const row = $(this).closest('.doc-row');
         const key = row.data('key');
         const val = $(this).val();
+        const csrfName = $('meta[name="csrf-token"]').attr('data-name');
+        const csrfHash = $('meta[name="csrf-token"]').attr('content');
+        
         const formData = new FormData();
         formData.append('candidate_id', candidateId);
         formData.append(`doc_subtitle_${key}`, val);
-        if(window.csrfName && window.csrfHash) {
-            formData.append(window.csrfName, window.csrfHash);
-        }
+        formData.append(csrfName, csrfHash);
         
         $.ajax({
             url: '/candidate-documents/upload',
@@ -982,10 +788,7 @@ $(document).ready(function() {
             data: formData,
             processData: false,
             contentType: false,
-            success: function(response) { 
-                if (response.csrf_hash) window.csrfHash = response.csrf_hash;
-                console.log('Month saved'); 
-            }
+            success: function() { console.log('Month saved'); }
         });
     });
 });

@@ -42,7 +42,7 @@ class DigitalSignatureController extends BaseController
             return redirect()->back()->with('error', 'Signee Name is required.');
         }
 
-        $uploadPath = ROOTPATH . 'public/uploads/signatures/';
+        $uploadPath = FCPATH . 'uploads/signatures/';
         if (!is_dir($uploadPath)) {
             mkdir($uploadPath, 0755, true);
         }
@@ -116,7 +116,16 @@ class DigitalSignatureController extends BaseController
     public function delete($id)
     {
         $db = \Config\Database::connect();
-        $db->table('digital_signatures')->where('id', $id)->delete();
+        $sig = $db->table('digital_signatures')->where('id', $id)->get()->getRowArray();
+        if ($sig) {
+            if (!empty($sig['signature_path']) && file_exists(FCPATH . $sig['signature_path'])) {
+                @unlink(FCPATH . $sig['signature_path']);
+            }
+            if (!empty($sig['stamp_path']) && file_exists(FCPATH . $sig['stamp_path'])) {
+                @unlink(FCPATH . $sig['stamp_path']);
+            }
+            $db->table('digital_signatures')->where('id', $id)->delete();
+        }
 
         return redirect()->to('/digital-signature')->with('success', 'Signature deleted successfully!');
     }

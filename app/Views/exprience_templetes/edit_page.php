@@ -125,6 +125,9 @@
                                     <li><code>{{him_her}}</code> → him / her</li>
                                     <li><code>{{signer_name}}</code> or <code>{{created_by}}</code> → Signer / HR name (e.g. Raj Singh)</li>
                                     <li><code>{{signer_designation}}</code> → Signer designation (e.g. Co-Founder / CTO / CEO)</li>
+                                    <li><code>{{digital_signature}}</code> → Authorized digital signature image</li>
+                                    <li><code>{{stamp}}</code> or <code>{{company_stamp}}</code> → Official company stamp / seal image</li>
+                                    <li><code>{{signature_and_stamp}}</code> → Both digital signature & company stamp together</li>
                                     <li><code>{{company_name}}</code> / <code>{{company_address}}</code> → Company info</li>
                                     <li><code>{{current_date}}</code> or <code>{{today_date}}</code> → Today's date</li>
                                 </ul>

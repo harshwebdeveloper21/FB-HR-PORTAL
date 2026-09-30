@@ -225,6 +225,37 @@
         .no-break {
             page-break-inside: avoid;
         }
+
+        .digital-signature-img {
+            max-height: 55px;
+            max-width: 160px;
+            height: auto;
+            object-fit: contain;
+            vertical-align: middle;
+            display: inline-block;
+        }
+
+        .company-stamp-img {
+            max-height: 85px;
+            max-width: 85px;
+            height: auto;
+            object-fit: contain;
+            vertical-align: middle;
+            display: inline-block;
+        }
+
+        .sig-stamp-table {
+            border-collapse: collapse !important;
+            border: none !important;
+            margin-bottom: 6px !important;
+            width: auto !important;
+        }
+
+        .sig-stamp-table td {
+            border: none !important;
+            padding: 0 15px 0 0 !important;
+            vertical-align: bottom !important;
+        }
     </style>
 </head>
 <body>

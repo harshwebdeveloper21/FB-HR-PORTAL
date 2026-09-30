@@ -100,7 +100,7 @@
             <h5 class="mb-0 fw-bold"><i class="mdi mdi-pencil-outline me-1" style="color: #e75c25;"></i> Add Digital Signature & Stamp</h5>
         </div>
         <div class="card-body">
-            <form action="/digital-signature/save" method="POST" enctype="multipart/form-data" id="sigForm" novalidate>
+            <form action="<?= site_url('digital-signature/save') ?>" method="POST" enctype="multipart/form-data" id="sigForm" novalidate>
                 <?= csrf_field() ?>
                 <input type="hidden" name="signature_drawn_data" id="signatureDrawnData">
 
@@ -199,14 +199,14 @@
                                 </td>
                                 <td class="text-center">
                                     <?php if (!empty($sig['signature_path']) && file_exists(FCPATH . $sig['signature_path'])): ?>
-                                        <img src="/<?= esc($sig['signature_path']) ?>" alt="Signature" style="max-height: 45px; max-width: 140px; object-fit: contain;">
+                                        <img src="<?= base_url(esc($sig['signature_path'])) ?>" alt="Signature" style="max-height: 45px; max-width: 140px; object-fit: contain;">
                                     <?php else: ?>
                                         <span class="text-muted" style="font-size: 12px;">None</span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center">
                                     <?php if (!empty($sig['stamp_path']) && file_exists(FCPATH . $sig['stamp_path'])): ?>
-                                        <img src="/<?= esc($sig['stamp_path']) ?>" alt="Stamp" style="max-height: 45px; max-width: 100px; object-fit: contain;">
+                                        <img src="<?= base_url(esc($sig['stamp_path'])) ?>" alt="Stamp" style="max-height: 45px; max-width: 100px; object-fit: contain;">
                                     <?php else: ?>
                                         <span class="text-muted" style="font-size: 12px;">None</span>
                                     <?php endif; ?>
@@ -220,11 +220,11 @@
                                 </td>
                                 <td class="text-end">
                                     <?php if ($sig['is_default'] != 1): ?>
-                                        <a href="/digital-signature/set-default/<?= $sig['id'] ?>" class="btn btn-sm btn-outline-warning text-dark me-1" title="Set as Default">
+                                        <a href="<?= site_url('digital-signature/set-default/' . $sig['id']) ?>" class="btn btn-sm btn-outline-warning text-dark me-1" title="Set as Default">
                                             <i class="mdi mdi-star"></i> Make Default
                                         </a>
                                     <?php endif; ?>
-                                    <a href="/digital-signature/delete/<?= $sig['id'] ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this signature?');" title="Delete">
+                                    <a href="<?= site_url('digital-signature/delete/' . $sig['id']) ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this signature?');" title="Delete">
                                         <i class="mdi mdi-delete"></i>
                                     </a>
                                 </td>

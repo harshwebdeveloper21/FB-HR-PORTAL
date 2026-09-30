@@ -239,6 +239,67 @@ class ExprienceLetterController extends ResourceController
         return $this->response->setJSON(['status' => 'success', 'message' => 'Template updated successfully']);
     }
 
+    private function getDigitalSignatureData()
+    {
+        $db = \Config\Database::connect();
+        $defaultSig = null;
+        if ($db->tableExists('digital_signatures')) {
+            $defaultSig = $db->table('digital_signatures')->where('is_default', 1)->get()->getRowArray();
+            if (!$defaultSig) {
+                $defaultSig = $db->table('digital_signatures')->orderBy('id', 'DESC')->get()->getRowArray();
+            }
+        }
+
+        $digitalSigSrc = '';
+        $stampSrc = '';
+
+        if ($defaultSig) {
+            if (!empty($defaultSig['signature_path']) && file_exists(FCPATH . $defaultSig['signature_path'])) {
+                $sigPath = FCPATH . $defaultSig['signature_path'];
+                $sigMime = @mime_content_type($sigPath) ?: 'image/png';
+                $digitalSigSrc = 'data:' . $sigMime . ';base64,' . base64_encode(file_get_contents($sigPath));
+            }
+            if (!empty($defaultSig['stamp_path']) && file_exists(FCPATH . $defaultSig['stamp_path'])) {
+                $stPath = FCPATH . $defaultSig['stamp_path'];
+                $stMime = @mime_content_type($stPath) ?: 'image/png';
+                $stampSrc = 'data:' . $stMime . ';base64,' . base64_encode(file_get_contents($stPath));
+            }
+        }
+
+        $digitalSigImgTag = !empty($digitalSigSrc)
+            ? '<img src="' . $digitalSigSrc . '" class="digital-signature-img" style="max-height: 55px; max-width: 160px; object-fit: contain; vertical-align: middle; display: inline-block;" alt="Digital Signature">'
+            : '';
+
+        $stampImgTag = !empty($stampSrc)
+            ? '<img src="' . $stampSrc . '" class="company-stamp-img" style="max-height: 85px; max-width: 85px; object-fit: contain; vertical-align: middle; display: inline-block;" alt="Company Stamp">'
+            : '';
+
+        $signatureStampBlock = '';
+        if (!empty($digitalSigImgTag) && !empty($stampImgTag)) {
+            $signatureStampBlock = '<table class="sig-stamp-table" style="border: none; border-collapse: collapse; margin-bottom: 6px; display: inline-table;"><tr>'
+                . '<td style="border: none; padding: 0 15px 0 0; vertical-align: bottom;">' . $digitalSigImgTag . '</td>'
+                . '<td style="border: none; padding: 0; vertical-align: bottom;">' . $stampImgTag . '</td>'
+                . '</tr></table>';
+        } elseif (!empty($digitalSigImgTag)) {
+            $signatureStampBlock = '<div class="sig-block" style="margin-bottom: 6px;">' . $digitalSigImgTag . '</div>';
+        } elseif (!empty($stampImgTag)) {
+            $signatureStampBlock = '<div class="stamp-block" style="margin-bottom: 6px;">' . $stampImgTag . '</div>';
+        }
+
+        return [
+            'raw_sig'               => $defaultSig,
+            'digital_signature'     => $digitalSigImgTag,
+            'digital_signature_img' => $digitalSigImgTag,
+            'digital_signature_src' => $digitalSigSrc,
+            'stamp'                 => $stampImgTag,
+            'company_stamp'         => $stampImgTag,
+            'stamp_img'             => $stampImgTag,
+            'stamp_src'             => $stampSrc,
+            'signature_and_stamp'   => $signatureStampBlock,
+            'signature_stamp_block' => $signatureStampBlock,
+        ];
+    }
+
     public function templateView($id)
     {
         $model = new \App\Models\ExprienceLetterModel();
@@ -253,6 +314,7 @@ class ExprienceLetterController extends ResourceController
 
         $companyModel = new \App\Models\CompanyLogoModel();
         $company = $companyModel->first() ?? [];
+        $sigData = $this->getDigitalSignatureData();
 
         // Fix image paths in content (convert relative to absolute)
         $template['content'] = str_replace(
@@ -261,9 +323,16 @@ class ExprienceLetterController extends ResourceController
             $template['content']
         );
 
+        $template['content'] = str_replace(
+            ['{{digital_signature}}', '{{stamp}}', '{{company_stamp}}', '{{signature_and_stamp}}', '{{signature_stamp_block}}'],
+            [$sigData['digital_signature'], $sigData['stamp'], $sigData['stamp'], $sigData['signature_and_stamp'], $sigData['signature_and_stamp']],
+            $template['content']
+        );
+
         return view('exprience_templetes/template_view', [
             'templates' => $template,
-            'company'   => $company
+            'company'   => $company,
+            'sigData'   => $sigData
         ]);
     }
 
@@ -290,6 +359,17 @@ class ExprienceLetterController extends ResourceController
 
         $templateContent = preg_replace('/<code>\s*(\{\{\s*[a-zA-Z0-9_-]+\s*\}\})\s*<\/code>/i', '$1', $templateContent);
         $templateContent = preg_replace('/<tt>\s*(\{\{\s*[a-zA-Z0-9_-]+\s*\}\})\s*<\/tt>/i', '$1', $templateContent);
+
+        // Auto-inject signature and stamp above signer name if not explicitly placed in template
+        if (!empty($data['signature_and_stamp']) && strpos($templateContent, '{{digital_signature}}') === false && strpos($templateContent, '{{signature_and_stamp}}') === false) {
+            if (preg_match('/(\{\{\s*signer_name\s*\}\})/i', $templateContent)) {
+                $templateContent = preg_replace('/(\{\{\s*signer_name\s*\}\})/i', '{{signature_and_stamp}}<br>$1', $templateContent, 1);
+            } elseif (preg_match('/(\{\{\s*created_by\s*\}\})/i', $templateContent)) {
+                $templateContent = preg_replace('/(\{\{\s*created_by\s*\}\})/i', '{{signature_and_stamp}}<br>$1', $templateContent, 1);
+            } elseif (preg_match('/(<strong>\s*Raj\s+Singh,?\s*<\/strong>)/i', $templateContent)) {
+                $templateContent = preg_replace('/(<strong>\s*Raj\s+Singh,?\s*<\/strong>)/i', '{{signature_and_stamp}}<br>$1', $templateContent, 1);
+            }
+        }
 
         foreach ($data as $key => $value) {
             if (is_scalar($value)) {
@@ -440,6 +520,17 @@ class ExprienceLetterController extends ResourceController
             'creator_designation' => 'Co-Founder / CTO / CEO',
         ];
 
+        $sigData = $this->getDigitalSignatureData();
+        $placeholders['digital_signature']     = $sigData['digital_signature'];
+        $placeholders['digital_signature_img'] = $sigData['digital_signature_img'];
+        $placeholders['digital_signature_src'] = $sigData['digital_signature_src'];
+        $placeholders['stamp']                 = $sigData['stamp'];
+        $placeholders['company_stamp']         = $sigData['company_stamp'];
+        $placeholders['stamp_img']             = $sigData['stamp_img'];
+        $placeholders['stamp_src']             = $sigData['stamp_src'];
+        $placeholders['signature_and_stamp']   = $sigData['signature_and_stamp'];
+        $placeholders['signature_stamp_block'] = $sigData['signature_stamp_block'];
+
         $parsedContent = $this->parseTemplate($template['content'], $placeholders);
 
         $html = view('exprience_templetes/experience_letter_preview', [
@@ -546,6 +637,17 @@ class ExprienceLetterController extends ResourceController
             'signer_designation'  => 'Co-Founder / CTO / CEO',
             'creator_designation' => 'Co-Founder / CTO / CEO',
         ];
+
+        $sigData = $this->getDigitalSignatureData();
+        $placeholders['digital_signature']     = $sigData['digital_signature'];
+        $placeholders['digital_signature_img'] = $sigData['digital_signature_img'];
+        $placeholders['digital_signature_src'] = $sigData['digital_signature_src'];
+        $placeholders['stamp']                 = $sigData['stamp'];
+        $placeholders['company_stamp']         = $sigData['company_stamp'];
+        $placeholders['stamp_img']             = $sigData['stamp_img'];
+        $placeholders['stamp_src']             = $sigData['stamp_src'];
+        $placeholders['signature_and_stamp']   = $sigData['signature_and_stamp'];
+        $placeholders['signature_stamp_block'] = $sigData['signature_stamp_block'];
 
         $parsedContent = $this->parseTemplate($template['content'], $placeholders);
 

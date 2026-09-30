@@ -92,6 +92,9 @@
                                     <li><code>{{company_phone}}</code> / <code>{{company_email}}</code> → Company contact details</li>
                                     <li><code>{{created_by}}</code> or <code>{{signer_name}}</code> → Signer / HR / Creator name</li>
                                     <li><code>{{creator_designation}}</code> or <code>{{signer_designation}}</code> → Signer designation</li>
+                                    <li><code>{{digital_signature}}</code> → Authorized digital signature image</li>
+                                    <li><code>{{stamp}}</code> or <code>{{company_stamp}}</code> → Official company stamp / seal image</li>
+                                    <li><code>{{signature_and_stamp}}</code> → Both digital signature & company stamp together</li>
                                     <li><code>{{email}}</code> / <code>{{phone_number}}</code> → Candidate's email & phone</li>
                                 </ul>
                                 ✨ Example usage: <br>

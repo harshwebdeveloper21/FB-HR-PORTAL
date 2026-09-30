@@ -14,6 +14,10 @@ use App\Models\HolidayCalendarModel;
 use App\Models\LocationSettingsModel;
 use App\Models\NotificationSettingsModel;
 use App\Services\PushNotificationService;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
 class AttendanceController extends ResourceController
 {
@@ -2701,6 +2705,382 @@ class AttendanceController extends ResourceController
         
         $locationSettingsModel = new \App\Models\LocationSettingsModel();
         return $locationSettingsModel->first();
+    }
+
+    public function exportExcel()
+    {
+        $authUser = $this->authService->user();
+        if (!$authUser) {
+            return $this->response->setStatusCode(401)->setJSON(['message' => 'Unauthorized']);
+        }
+
+        $month = (int)($this->request->getGet('month') ?: date('n'));
+        $year  = (int)($this->request->getGet('year') ?: date('Y'));
+
+        $userModel = new \App\Models\UserModel();
+        $userInfoModel = new \App\Models\UserInfoModel();
+        $attendanceModel = new AttendanceModel();
+        $holidayCalendarModel = new HolidayCalendarModel();
+        $companyRulesModel = new CompanyRulesModel();
+
+        $branchId = $this->request->getGet('branch_id');
+        if ($branchId === null || $branchId === '') {
+            $branchId = $this->authService->getBranchId();
+        } else {
+            $branchId = (int)$branchId;
+        }
+
+        $userQuery = $userModel->where('is_deleted', 0);
+        if (in_array($authUser->role, ['admin', 'hr'])) {
+            $userQuery->whereIn('role', ['hr', 'branch_admin', 'department_manager', 'employee']);
+            if (!empty($branchId)) {
+                $userQuery->where('branch_id', (int)$branchId);
+            }
+        } elseif ($authUser->role === 'branch_admin') {
+            $userQuery->whereIn('role', ['branch_admin', 'department_manager', 'employee']);
+            $assignedBranch = $this->authService->getBranchId();
+            if ($assignedBranch) {
+                $userQuery->where('branch_id', $assignedBranch);
+            }
+        } elseif ($authUser->role === 'department_manager') {
+            $userQuery->groupStart()
+                ->where('role', 'employee')
+                ->orWhere('id', $authUser->sub)
+                ->groupEnd();
+            $assignedBranch = $this->authService->getBranchId();
+            if ($assignedBranch) {
+                $userQuery->where('branch_id', $assignedBranch);
+            }
+            $currUser = $this->hierarchyService->getUserDetails((int)$authUser->sub);
+            $mgrDeptId = (int)($currUser['department_id'] ?: $currUser['ui_department_id'] ?: 0);
+            if ($mgrDeptId) {
+                $userQuery->where('department_id', $mgrDeptId);
+            }
+        } else {
+            $userQuery->where('id', $authUser->sub);
+        }
+
+        $users = $userQuery->findAll();
+        $userIds = array_column($users, 'id');
+
+        $userInfoList = !empty($userIds) ? $userInfoModel->whereIn('user_id', $userIds)->findAll() : [];
+        $userInfoMap = [];
+        foreach ($userInfoList as $info) {
+            $userInfoMap[$info['user_id']] = $info;
+        }
+
+        $attendanceData = [];
+        if (!empty($userIds)) {
+            $attendanceData = $attendanceModel
+                ->whereIn('user_id', $userIds)
+                ->where('MONTH(date)', $month)
+                ->where('YEAR(date)', $year)
+                ->findAll();
+        }
+
+        $holidays = $holidayCalendarModel
+            ->where('MONTH(holiday_date)', $month)
+            ->where('YEAR(holiday_date)', $year)
+            ->orderBy('holiday_date', 'ASC')
+            ->findAll();
+
+        $holidayDates = array_column($holidays, 'holiday_date');
+
+        $startOfMonthDate = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
+        $endOfMonthDate = date('Y-m-t', strtotime($startOfMonthDate));
+        $leavesData = [];
+        if (!empty($userIds)) {
+            $leavesData = $this->leaveModel
+                ->whereIn('user_id', $userIds)
+                ->where('status', 'approved')
+                ->where("((start_date >= '$startOfMonthDate' AND start_date <= '$endOfMonthDate') OR (end_date >= '$startOfMonthDate' AND end_date <= '$endOfMonthDate') OR (start_date <= '$startOfMonthDate' AND end_date >= '$endOfMonthDate'))")
+                ->findAll();
+        }
+
+        if (!empty($branchId)) {
+            $branchRulesModel = new \App\Models\BranchRulesModel();
+            $companyRule = $branchRulesModel->getRulesForBranch((int)$branchId) ?? [];
+        } else {
+            $companyRule = $companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+        }
+        $isIncludedHoliday = $companyRule['include_holidays_in_working_days'] ?? 0;
+
+        if (!empty($companyRule) && ($companyRule['saturday_off_enabled'] ?? 0) == 1) {
+            switch ($companyRule['saturday_off_type'] ?? '') {
+                case 'all': $saturdayOffIndexes = [1, 2, 3, 4, 5]; break;
+                case 'alternate-even': $saturdayOffIndexes = [2, 4]; break;
+                case 'alternate-odd': $saturdayOffIndexes = [1, 3, 5]; break;
+                case 'custom': $saturdayOffIndexes = !empty($companyRule['saturday_off_pattern']) ? explode(',', $companyRule['saturday_off_pattern']) : []; break;
+                default: $saturdayOffIndexes = [];
+            }
+        } else {
+            $saturdayOffIndexes = [];
+        }
+
+        $totalDaysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+        $saturdayOffDates = [];
+        $saturdayCount = 0;
+        for ($d = 1; $d <= $totalDaysInMonth; $d++) {
+            $dateStr = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-" . str_pad($d, 2, '0', STR_PAD_LEFT);
+            if (date('N', strtotime($dateStr)) == 6) {
+                $saturdayCount++;
+                if (in_array($saturdayCount, $saturdayOffIndexes)) {
+                    $saturdayOffDates[] = $dateStr;
+                }
+            }
+        }
+
+        $todayStr = date('Y-m-d');
+        $currentMonthNow = (int)date('n');
+        $currentYearNow = (int)date('Y');
+        $isCurrentMonthYear = ($month === $currentMonthNow && $year === $currentYearNow);
+
+        $monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        $monthNameStr = $monthNames[$month] ?? "Month_$month";
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Attendance Matrix');
+
+        $totalCols = 3 + $totalDaysInMonth + 7;
+        $lastColLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols);
+
+        // Title Row
+        $sheet->setCellValue('A1', "Employee Attendance Report - {$monthNameStr} {$year}");
+        $sheet->mergeCells("A1:{$lastColLetter}1");
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFF'));
+        $sheet->getStyle('A1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E66136');
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getRowDimension(1)->setRowHeight(35);
+
+        // Header Row
+        $sheet->setCellValue('A2', 'S.No');
+        $sheet->setCellValue('B2', 'Emp ID');
+        $sheet->setCellValue('C2', 'Employee Name');
+
+        // Day Columns 1..N
+        for ($day = 1; $day <= $totalDaysInMonth; $day++) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $day);
+            $sheet->setCellValue("{$colLetter}2", $day);
+            $sheet->getColumnDimension($colLetter)->setWidth(4.5);
+        }
+
+        // Summary Headers
+        $summaryHeaders = [
+            'Total Working Days',
+            'Present Days',
+            'Work Hours',
+            'Overtime Hours',
+            'Late Hours',
+            'Leaves',
+            'Absent Days'
+        ];
+
+        foreach ($summaryHeaders as $idx => $title) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $totalDaysInMonth + 1 + $idx);
+            $sheet->setCellValue("{$colLetter}2", $title);
+        }
+
+        $headerStyle = [
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '333333']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+        ];
+        $sheet->getStyle("A2:{$lastColLetter}2")->applyFromArray($headerStyle);
+        $sheet->getRowDimension(2)->setRowHeight(25);
+
+        $rowNum = 3;
+        $sno = 1;
+
+        foreach ($users as $u) {
+            $uId = $u['id'];
+            $uInfo = $userInfoMap[$uId] ?? [];
+            $fullName = trim(($uInfo['firstname'] ?? '') . ' ' . ($uInfo['lastname'] ?? ''));
+            if (empty($fullName)) {
+                $fullName = $u['username'] ?? "Employee #{$uId}";
+            }
+
+            $empCode = $uInfo['employee_id'] ?? 'N/A';
+            $userStatus = strtolower($u['status'] ?? 'active');
+            $isInactive = in_array($userStatus, ['inactive', 'resigned', 'fired', 'removed']);
+
+            $lwd = $uInfo['last_working_day'] ?? null;
+            $jd  = $uInfo['joining_date'] ?? null;
+
+            $userAttendance = array_filter($attendanceData, function($att) use ($uId) {
+                return $att['user_id'] == $uId;
+            });
+
+            $startOfMonthStr = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
+            $endOfMonthStr = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-" . str_pad($totalDaysInMonth, 2, '0', STR_PAD_LEFT);
+
+            $hasAnyPunch = false;
+            foreach ($userAttendance as $a) {
+                $st = strtolower($a['status'] ?? '');
+                if (in_array($st, ['present', 'half-day']) || (!empty($a['check_in_time']) && $a['check_in_time'] !== '00:00:00')) {
+                    $hasAnyPunch = true;
+                    break;
+                }
+            }
+
+            if ($jd && $jd > $endOfMonthStr && !$hasAnyPunch) continue;
+            if ($lwd && $lwd < $startOfMonthStr && !$hasAnyPunch) continue;
+
+            $recordsByDate = [];
+            foreach ($userAttendance as $a) {
+                $d = substr($a['date'], 0, 10);
+                $recordsByDate[$d][] = $a;
+            }
+
+            // Write S.No, Emp ID, Name
+            $sheet->setCellValue("A{$rowNum}", $sno++);
+            $sheet->setCellValue("B{$rowNum}", $empCode);
+            $sheet->setCellValue("C{$rowNum}", $fullName . ($isInactive ? ' (Inactive)' : ''));
+
+            $userWorkingDays = 0;
+            $presentDays = 0;
+            $halfDays = 0;
+            $leaveDays = 0;
+
+            // Populate Daily Attendance Status (Columns 1 to totalDaysInMonth)
+            for ($day = 1; $day <= $totalDaysInMonth; $day++) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $day);
+                $dStr = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-" . str_pad($day, 2, '0', STR_PAD_LEFT);
+
+                $dayOfWeek = date('N', strtotime($dStr));
+                $isHoliday = in_array($dStr, $holidayDates);
+                $isSaturdayOff = in_array($dStr, $saturdayOffDates);
+                $isOutOfEmployment = ($lwd && $dStr > $lwd) || ($jd && $dStr < $jd);
+                $isFutureDate = ($isCurrentMonthYear && $dStr > $todayStr);
+
+                // Calculate working days stats
+                if (!$isFutureDate && !$isOutOfEmployment) {
+                    if ($isIncludedHoliday == "1") {
+                        $userWorkingDays++;
+                    } elseif ($dayOfWeek != 7 && !$isHoliday && !$isSaturdayOff) {
+                        $userWorkingDays++;
+                    }
+                }
+
+                $statusText = '-';
+                if (!$isFutureDate && !$isOutOfEmployment) {
+                    $dateRecords = $recordsByDate[$dStr] ?? [];
+                    $hasLeave = false;
+                    $hasHoliday = false;
+                    $hasWeekOff = false;
+                    $hasPresent = false;
+                    $hasHalfDay = false;
+
+                    foreach ($dateRecords as $rec) {
+                        $st = strtolower($rec['status'] ?? '');
+                        if ($st === 'leave') $hasLeave = true;
+                        elseif ($st === 'holiday') $hasHoliday = true;
+                        elseif ($st === 'week off' || $st === 'week_off') $hasWeekOff = true;
+                        elseif ($st === 'present') $hasPresent = true;
+                        elseif ($st === 'half-day') $hasHalfDay = true;
+                    }
+
+                    if ($hasLeave) {
+                        $statusText = 'L';
+                        $leaveDays++;
+                    } elseif ($hasHoliday || $isHoliday) {
+                        $statusText = 'HO';
+                        if ($isIncludedHoliday == "1") $presentDays++;
+                    } elseif ($hasWeekOff || $dayOfWeek == 7 || $isSaturdayOff) {
+                        $statusText = 'WO';
+                        if ($isIncludedHoliday == "1") $presentDays++;
+                    } elseif ($hasPresent) {
+                        $statusText = 'P';
+                        $presentDays++;
+                    } elseif ($hasHalfDay) {
+                        $statusText = 'H';
+                        $halfDays++;
+                    } else {
+                        $statusText = 'A';
+                    }
+                }
+
+                $sheet->setCellValue("{$colLetter}{$rowNum}", $statusText);
+            }
+
+            $totalPresent = $presentDays + ($halfDays * 0.5);
+            $absentDays = $userWorkingDays - $totalPresent - $leaveDays;
+            if ($absentDays < 0) $absentDays = 0;
+
+            $totalSecs = 0;
+            $totalOtSecs = 0;
+            $totalLateMins = 0;
+
+            foreach ($userAttendance as $rec) {
+                $d = substr($rec['date'], 0, 10);
+                if ($isCurrentMonthYear && $d > $todayStr) continue;
+                if ($lwd && $d > $lwd) continue;
+                if ($jd && $d < $jd) continue;
+
+                if (!empty($rec['work_hours']) && $rec['work_hours'] !== '00:00:00') {
+                    $parts = explode(':', $rec['work_hours']);
+                    $totalSecs += (($parts[0] ?? 0) * 3600) + (($parts[1] ?? 0) * 60) + ($parts[2] ?? 0);
+                }
+                if (!empty($rec['overtime']) && $rec['overtime'] !== '00:00:00') {
+                    $parts = explode(':', $rec['overtime']);
+                    $totalOtSecs += (($parts[0] ?? 0) * 3600) + (($parts[1] ?? 0) * 60) + ($parts[2] ?? 0);
+                }
+                if (!empty($rec['is_late']) && !empty($rec['late_minutes'])) {
+                    $totalLateMins += (int)$rec['late_minutes'];
+                }
+            }
+
+            $workHrsStr = sprintf("%dh %dm", floor($totalSecs / 3600), floor(($totalSecs % 3600) / 60));
+            $otHrsStr = sprintf("%dh %dm", floor($totalOtSecs / 3600), floor(($totalOtSecs % 3600) / 60));
+            $lateHrsStr = sprintf("%dh %dm", floor($totalLateMins / 60), $totalLateMins % 60);
+
+            // Populate Summary Columns
+            $colWorkDays = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $totalDaysInMonth + 1);
+            $colPresent  = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $totalDaysInMonth + 2);
+            $colWorkHrs  = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $totalDaysInMonth + 3);
+            $colOvertime = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $totalDaysInMonth + 4);
+            $colLateHrs  = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $totalDaysInMonth + 5);
+            $colLeaves   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $totalDaysInMonth + 6);
+            $colAbsent   = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $totalDaysInMonth + 7);
+
+            $sheet->setCellValue("{$colWorkDays}{$rowNum}", $userWorkingDays);
+            $sheet->setCellValue("{$colPresent}{$rowNum}", $totalPresent);
+            $sheet->setCellValue("{$colWorkHrs}{$rowNum}", $workHrsStr);
+            $sheet->setCellValue("{$colOvertime}{$rowNum}", $otHrsStr);
+            $sheet->setCellValue("{$colLateHrs}{$rowNum}", $lateHrsStr);
+            $sheet->setCellValue("{$colLeaves}{$rowNum}", $leaveDays);
+            $sheet->setCellValue("{$colAbsent}{$rowNum}", $absentDays);
+
+            $rowNum++;
+        }
+
+        $lastRow = max(2, $rowNum - 1);
+        if ($lastRow >= 3) {
+            $sheet->getStyle("A3:{$lastColLetter}{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("C3:C{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        }
+
+        $sheet->getColumnDimension('A')->setAutoSize(true);
+        $sheet->getColumnDimension('B')->setAutoSize(true);
+        $sheet->getColumnDimension('C')->setAutoSize(true);
+
+        for ($idx = 1; $idx <= 7; $idx++) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(3 + $totalDaysInMonth + $idx);
+            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+        }
+
+        $filename = "Attendance_Matrix_{$monthNameStr}_{$year}.xlsx";
+        $writer = new Xlsx($spreadsheet);
+
+        ob_start();
+        $writer->save('php://output');
+        $excelData = ob_get_clean();
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setHeader('Cache-Control', 'max-age=0')
+            ->setBody($excelData);
     }
 }
 

@@ -61,20 +61,18 @@ class CandidateDocumentsController extends BaseController
             return redirect()->back()->with('error', 'Please select a candidate first.');
         }
 
-        // Define all expected document keys
-        $docKeys = [
-            'salary_1', 'salary_2', 'salary_3',
-            'experience_letter', 'relieving_letter',
-            'id_proof', 'edu_cert', 'other_doc'
-        ];
-
         $uploadPath = ROOTPATH . 'public/uploads/candidate_docs/' . $candidateId . '/';
         if (!is_dir($uploadPath)) {
             mkdir($uploadPath, 0755, true);
         }
 
-        foreach ($docKeys as $key) {
-            $file = $this->request->getFile($key);
+        $files = $this->request->getFiles();
+        $posts = $this->request->getPost();
+
+        foreach ($files as $key => $file) {
+            $docTitle = $posts['doc_title_' . $key] ?? null;
+            $docSubtitle = $posts['doc_subtitle_' . $key] ?? null;
+
             if ($file && $file->isValid() && !$file->hasMoved()) {
                 $newName = $file->getRandomName();
                 $file->move($uploadPath, $newName);
@@ -85,21 +83,73 @@ class CandidateDocumentsController extends BaseController
                     ->where('doc_key', $key)
                     ->get()->getRowArray();
 
+                $updateData = [
+                    'file_name'   => $file->getClientName(),
+                    'file_path'   => 'uploads/candidate_docs/' . $candidateId . '/' . $newName,
+                    'status'      => 'approved',
+                    'updated_at'  => date('Y-m-d H:i:s'),
+                ];
+                if ($docTitle !== null) {
+                    $updateData['doc_title'] = $docTitle;
+                }
+                if ($docSubtitle !== null) {
+                    $updateData['doc_subtitle'] = $docSubtitle;
+                }
+
+                if ($existing) {
+                    $db->table('candidate_documents')->where('id', $existing['id'])->update($updateData);
+                } else {
+                    $updateData['candidate_id'] = $candidateId;
+                    $updateData['doc_key']      = $key;
+                    $updateData['created_at']   = date('Y-m-d H:i:s');
+                    $db->table('candidate_documents')->insert($updateData);
+                }
+            } else if ($docTitle !== null || $docSubtitle !== null) {
+                // If doc title/subtitle was updated without uploading a new file
+                $existing = $db->table('candidate_documents')
+                    ->where('candidate_id', $candidateId)
+                    ->where('doc_key', $key)
+                    ->get()->getRowArray();
+
+                $up = ['updated_at' => date('Y-m-d H:i:s')];
+                if ($docTitle !== null) $up['doc_title'] = $docTitle;
+                if ($docSubtitle !== null) $up['doc_subtitle'] = $docSubtitle;
+
+                if ($existing) {
+                    $db->table('candidate_documents')->where('id', $existing['id'])->update($up);
+                }
+            }
+        }
+
+        // Also check any posted doc_title_* or doc_subtitle_* that might not have a file attachment yet
+        foreach ($posts as $postKey => $postVal) {
+            if (strpos($postKey, 'doc_title_') === 0) {
+                $key = str_replace('doc_title_', '', $postKey);
+                $existing = $db->table('candidate_documents')
+                    ->where('candidate_id', $candidateId)
+                    ->where('doc_key', $key)
+                    ->get()->getRowArray();
+
                 if ($existing) {
                     $db->table('candidate_documents')->where('id', $existing['id'])->update([
-                        'file_name'   => $file->getClientName(),
-                        'file_path'   => 'uploads/candidate_docs/' . $candidateId . '/' . $newName,
-                        'status'      => 'approved',
-                        'updated_at'  => date('Y-m-d H:i:s'),
+                        'doc_title'  => $postVal,
+                        'updated_at' => date('Y-m-d H:i:s'),
                     ]);
-                } else {
-                    $db->table('candidate_documents')->insert([
-                        'candidate_id' => $candidateId,
-                        'doc_key'      => $key,
-                        'file_name'    => $file->getClientName(),
-                        'file_path'    => 'uploads/candidate_docs/' . $candidateId . '/' . $newName,
-                        'status'       => 'approved',
-                        'created_at'   => date('Y-m-d H:i:s'),
+                }
+            } elseif (strpos($postKey, 'doc_subtitle_') === 0) {
+                $key = str_replace('doc_subtitle_', '', $postKey);
+                $formattedVal = (preg_match('/^\d{4}-\d{2}$/', trim($postVal)))
+                    ? date('F Y', strtotime(trim($postVal) . '-01'))
+                    : $postVal;
+
+                $existing = $db->table('candidate_documents')
+                    ->where('candidate_id', $candidateId)
+                    ->where('doc_key', $key)
+                    ->get()->getRowArray();
+
+                if ($existing) {
+                    $db->table('candidate_documents')->where('id', $existing['id'])->update([
+                        'doc_subtitle' => $formattedVal,
                         'updated_at'   => date('Y-m-d H:i:s'),
                     ]);
                 }

@@ -368,6 +368,7 @@ $isEmployee = ($role === 'employee');
             <li class="nav-item"> <a class="nav-link" href="/holidays">Holidays</a></li>
             <li class="nav-item"> <a class="nav-link" href="/notification-settings">Push Notifications</a></li>
             <li class="nav-item"> <a class="nav-link" href="/offer-templates-view">Templates</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/digital-signature">Digital Signature</a></li>
           </ul>
         </div>
       </li>

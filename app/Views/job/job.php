@@ -525,10 +525,11 @@
                 if (!nameAttr) return true; // Skip inputs without a name attribute
                 
                 let fieldName = nameAttr.replace(/_/g, " "); // Convert underscores to spaces for readability
-                let label = input.closest(".col-md-6").find("label").first().text().trim(); // Get the label text
+                let label = input.closest(".col-md-6, .col-md-4, .col-md-12, .form-group").find("label").first().text().trim(); // Get the label text
+                if (!label) label = fieldName;
 
-                // Skip validation for the description field
-                if (input.attr("name") === "description") {
+                // Skip validation for the description field or hidden fields
+                if (input.attr("name") === "description" || input.attr("type") === "hidden") {
                     return true; // Skip validation
                 }
 
@@ -537,44 +538,64 @@
                     let isChecked = radioGroup.is(":checked");
 
                     if (!isChecked) {
-                        let errorContainer = radioGroup.closest(".col-md-6").find(".invalid-feedback");
+                        let container = radioGroup.closest(".col-md-6, .col-md-4, .col-md-12, .form-group");
+                        let errorContainer = container.find(".invalid-feedback");
                         if (!errorContainer.length) {
-                            radioGroup.closest(".col-md-6").append(`<div class="invalid-feedback d-block">${label} is required.</div>`);
+                            container.append(`<div class="invalid-feedback d-block">${label} is required.</div>`);
                         }
                         isValid = false;
                     } else {
-                        radioGroup.closest(".col-md-6").find(".invalid-feedback").remove();
+                        radioGroup.closest(".col-md-6, .col-md-4, .col-md-12, .form-group").find(".invalid-feedback").remove();
                     }
-                } else if (!input.val().trim()) {
-                    input.addClass("is-invalid");
-
-                    // Special handling for select fields inside input-group
-                    if (input.is("select") && input.closest(".input-group").length) {
-                        let errorContainer = input.closest(".input-group").next(".invalid-feedback");
-                        if (!errorContainer.length) {
-                            input.closest(".input-group").after(`<div class="invalid-feedback d-block">${label} is required.</div>`);
-                        }
-                    } else {
-                        if (!input.next(".invalid-feedback").length) {
-                            input.after(`<div class="invalid-feedback d-block">${label} is required.</div>`);
-                        }
-                    }
-                    isValid = false;
                 } else {
-                    input.removeClass("is-invalid");
+                    let val = input.val();
+                    let isEmpty = (val === null || val === undefined || (typeof val === 'string' && !val.trim()));
 
-                    // Remove error message for normal inputs
-                    input.next(".invalid-feedback").remove();
+                    if (isEmpty) {
+                        input.addClass("is-invalid");
 
-                    // Remove error message for select fields inside input-group
-                    if (input.is("select") && input.closest(".input-group").length) {
-                        input.closest(".input-group").next(".invalid-feedback").remove();
+                        // Handling for any field (input, textarea, select) inside input-group
+                        if (input.closest(".input-group").length) {
+                            let inputGroup = input.closest(".input-group");
+                            let errorContainer = inputGroup.next(".invalid-feedback");
+                            if (!errorContainer.length) {
+                                inputGroup.after(`<div class="invalid-feedback d-block">${label} is required.</div>`);
+                            }
+                        } else {
+                            if (!input.next(".invalid-feedback").length) {
+                                input.after(`<div class="invalid-feedback d-block">${label} is required.</div>`);
+                            }
+                        }
+                        isValid = false;
+                    } else {
+                        input.removeClass("is-invalid");
+
+                        // Remove error message for normal inputs
+                        input.next(".invalid-feedback").remove();
+
+                        // Remove error message for fields inside input-group
+                        if (input.closest(".input-group").length) {
+                            input.closest(".input-group").next(".invalid-feedback").remove();
+                        }
                     }
                 }
             });
 
             return isValid;
         }
+
+        // Live validation clearing on input / change
+        $(document).on("input change", "#multiStepForm input, #multiStepForm select, #multiStepForm textarea", function () {
+            let input = $(this);
+            let val = input.val();
+            if (val !== null && val !== undefined && (typeof val !== 'string' || val.trim() !== '')) {
+                input.removeClass("is-invalid");
+                input.next(".invalid-feedback").remove();
+                if (input.closest(".input-group").length) {
+                    input.closest(".input-group").next(".invalid-feedback").remove();
+                }
+            }
+        });
 
         $(".next-step").click(function () {
             if (validateStep(currentStep)) {

@@ -1573,7 +1573,7 @@
             const userFilterEl = document.getElementById('user-filter');
             const selectedUserId = userFilterEl ? userFilterEl.value : '';
             const mobileList = document.getElementById('mobile-attendance-list');
-            const defaultImagePath = "<?= base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg') ?>";
+            const defaultImagePath = "/assets/images/default_avatar.png";
             const todayDate = new Date().toISOString().split('T')[0];
 
             // Filter users by dropdown selection
@@ -1939,7 +1939,7 @@
             const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
             const firstDay = new Date(selectedYear, selectedMonth - 1, 1).getDay();
             const calendarContainer = document.getElementById('calendar-container');
-            const defaultImagePath = "<?= base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg') ?>";
+            const defaultImagePath = "/assets/images/default_avatar.png";
 
             // Filter users by dropdown selection (only if filter exists)
             let filteredUsers = users;
@@ -2362,7 +2362,7 @@
         }
 
         // Multi Attendance Functions
-        const defaultProfileImg = "<?= base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg') ?>";
+        const defaultProfileImg = "/assets/images/default_avatar.png";
 
         window.toggleMultiAttendanceTimes = function () {
             const status = document.getElementById('multi_attendance_status').value;

@@ -88,7 +88,13 @@ class InterviewController extends ResourceController
         // Get form data
         $data = $this->request->getPost();
         if (!isset($data['status']) || empty($data['status'])) {
-            $data['status'] = 'scheduled';
+            if (!empty($data['selection_status'])) {
+                $data['status'] = $data['selection_status'];
+            } elseif (!empty($data['interview_status'])) {
+                $data['status'] = $data['interview_status'];
+            } else {
+                $data['status'] = 'scheduled';
+            }
         }
         $userInfoModel = new \App\Models\UserInfoModel();
         $candidateModel = new \App\Models\CandidateModel();
@@ -127,9 +133,25 @@ class InterviewController extends ResourceController
 
             $data['job_id'] = $candidate['job_id']; // Automatically set job_id
             $candidateName = $candidate['candidate_name'];
+        } else {
+            // Create a new candidate if none was selected
+            $newCandidateId = $candidateModel->insert([
+                'candidate_name' => $data['full_name'],
+                'email'          => $data['email'],
+                'phone_number'   => $data['mobile_number']
+            ]);
+            $data['candidate_id'] = $newCandidateId;
         }
 
         $data['created_by'] = $user->sub;
+
+        // Extract multiple entries arrays
+        $educations = $data['education'] ?? [];
+        $experiences = $data['experience'] ?? [];
+        $rounds = $data['rounds'] ?? [];
+        $total_score = $data['total_score'] ?? 0;
+        $data['interview_score'] = $total_score;
+        unset($data['education'], $data['experience'], $data['rounds'], $data['total_score']);
 
         // Insert the interview entry
         if ($this->interviewModel->insert($data)) {
@@ -146,6 +168,37 @@ class InterviewController extends ResourceController
                         'message' => 'Failed to update userinfo status to scheduled'
                     ], ResponseInterface::HTTP_INTERNAL_SERVER_ERROR);
                 }
+            }
+
+            // Save Educations
+            $eduModel = new \App\Models\CandidateEducationModel();
+            foreach ($educations as $edu) {
+                if (empty($edu['degree']) && empty($edu['course']) && empty($edu['university']) && empty($edu['passing_year']) && empty($edu['percentage'])) {
+                    continue;
+                }
+                $edu['candidate_id'] = $data['candidate_id'];
+                $eduModel->insert($edu);
+            }
+
+            // Save Experiences
+            $expModel = new \App\Models\CandidateExperienceModel();
+            foreach ($experiences as $exp) {
+                if (empty($exp['company']) && empty($exp['role']) && empty($exp['total_experience']) && empty($exp['last_salary']) && empty($exp['notice_period']) && empty($exp['reason_for_leaving'])) {
+                    continue;
+                }
+                $exp['candidate_id'] = $data['candidate_id'];
+                $expModel->insert($exp);
+            }
+
+            // Save Rounds
+            $interviewId = $this->interviewModel->getInsertID();
+            $roundModel = new \App\Models\InterviewRoundModel();
+            foreach ($rounds as $round) {
+                if (empty($round['interviewer_id'])) {
+                    continue;
+                }
+                $round['interview_id'] = $interviewId;
+                $roundModel->insert($round);
             }
 
             $notificationModel = new \App\Models\NotificationModel();
@@ -198,7 +251,7 @@ class InterviewController extends ResourceController
             return $this->failForbidden('Forbidden: You do not have access to this resource');
         }
         // Retrieve onboarding entries
-        $interviews = $this->interviewModel->select('interviews.id, COALESCE(jobs.job_title, interviews.position_applied_for) as job_title, interviews.status , interviews.schedule_date , COALESCE(candidate.candidate_name, interviews.full_name) as candidate_name')
+        $interviews = $this->interviewModel->select('interviews.id, COALESCE(jobs.job_title, interviews.position_applied_for) as job_title, interviews.status , interviews.schedule_date , COALESCE(candidate.candidate_name, interviews.full_name) as candidate_name, interviews.convert_to_employee')
             ->join('candidate', 'interviews.candidate_id = candidate.id', 'left')
             ->join('jobs', 'interviews.job_id = jobs.id', 'left')
             ->orderBy('interviews.created_at', 'DESC')
@@ -206,7 +259,6 @@ class InterviewController extends ResourceController
         return $this->respond(['status' => 'success', 'data' => $interviews]);
     }
 
-    // Show specific Interview
     public function get($id = null)
     {
         // Validate user authorization
@@ -214,34 +266,26 @@ class InterviewController extends ResourceController
         if (!$user) {
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
-        $query = $this->interviewModel->select('
-        interviews.id, 
-        interviews.schedule_date, 
-        interviews.status AS interview_status, 
-        COALESCE(candidate.candidate_name, interviews.full_name) as candidate_name,
-        COALESCE(jobs.job_title, interviews.position_applied_for) as job_title,
-        interviews.description
-    ')
-            ->join('candidate', 'interviews.candidate_id = candidate.id', 'left')
-            ->join('jobs', 'interviews.job_id = jobs.id', 'left');
 
-        // If an ID is provided, filter by ID; otherwise, get all jobs
-        if ($id !== null) {
-            $interview = $query->where('interviews.id', $id)->first();
-
-            if ($interview) {
-                return $this->respond(['status' => 'success', 'data' => $interview]);
+        $record = $this->interviewModel->find($id);
+        if ($record) {
+            if (!empty($record['candidate_id'])) {
+                $eduModel = new \App\Models\CandidateEducationModel();
+                $expModel = new \App\Models\CandidateExperienceModel();
+                $record['educations'] = $eduModel->where('candidate_id', $record['candidate_id'])->findAll();
+                $record['experiences'] = $expModel->where('candidate_id', $record['candidate_id'])->findAll();
+            } else {
+                $record['educations'] = [];
+                $record['experiences'] = [];
             }
+            
+            $roundModel = new \App\Models\InterviewRoundModel();
+            $record['rounds'] = $roundModel->where('interview_id', $record['id'])->findAll();
 
-            return $this->respond(['status' => 'error', 'message' => 'interview not found'], ResponseInterface::HTTP_NOT_FOUND);
+            return $this->respond(['status' => 'success', 'data' => $record]);
         }
-        // Fetch onboarding entry
-        // $entry = $this->interviewModel->find($id);
-        // if ($entry) {
-        //     return $this->respond(['status' => 'success', 'data' => $entry]);
-        // }
 
-        // return $this->respond(['status' => 'error', 'message' => 'Interview entry not found'], ResponseInterface::HTTP_NOT_FOUND);
+        return $this->respond(['status' => 'error', 'message' => 'interview not found'], ResponseInterface::HTTP_NOT_FOUND);
     }
 
 
@@ -262,8 +306,15 @@ class InterviewController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'No data provided to update'], ResponseInterface::HTTP_BAD_REQUEST);
         }
 
-        // Filter out empty values
-        $data = array_filter($data, fn ($value) => !empty($value));
+        $educations = $data['education'] ?? [];
+        $experiences = $data['experience'] ?? [];
+        $rounds = $data['rounds'] ?? [];
+        $total_score = isset($data['total_score']) ? $data['total_score'] : 0;
+        $data['interview_score'] = $total_score;
+        unset($data['education'], $data['experience'], $data['rounds'], $data['total_score']);
+
+        // Filter out empty values but keep 0
+        $data = array_filter($data, fn ($value) => $value !== '' && $value !== null);
 
         // Check if the Interview entry exists
         $entry = $this->interviewModel->find($id);
@@ -273,6 +324,37 @@ class InterviewController extends ResourceController
 
         // Update the Interview entry
         if ($this->interviewModel->update($id, $data)) {
+            $candidate_id = $data['candidate_id'] ?? $entry['candidate_id'];
+            
+            if ($candidate_id) {
+                $eduModel = new \App\Models\CandidateEducationModel();
+                $eduModel->where('candidate_id', $candidate_id)->delete();
+                foreach ($educations as $edu) {
+                    if (!empty($edu['degree']) || !empty($edu['course']) || !empty($edu['university'])) {
+                        $edu['candidate_id'] = $candidate_id;
+                        $eduModel->insert($edu);
+                    }
+                }
+
+                $expModel = new \App\Models\CandidateExperienceModel();
+                $expModel->where('candidate_id', $candidate_id)->delete();
+                foreach ($experiences as $exp) {
+                    if (!empty($exp['company']) || !empty($exp['role'])) {
+                        $exp['candidate_id'] = $candidate_id;
+                        $expModel->insert($exp);
+                    }
+                }
+            }
+
+            $roundModel = new \App\Models\InterviewRoundModel();
+            $roundModel->where('interview_id', $id)->delete();
+            foreach ($rounds as $round) {
+                if (!empty($round['interviewer_id'])) {
+                    $round['interview_id'] = $id;
+                    $roundModel->insert($round);
+                }
+            }
+
             //Send welcome email
             $emailService = new EmailService();
             $emailService->sendInterviewEmail($data);
@@ -332,6 +414,15 @@ class InterviewController extends ResourceController
 
         $record = $this->interviewModel->find($id);
         if ($record) {
+            if (!empty($record['candidate_id'])) {
+                $eduModel = new \App\Models\CandidateEducationModel();
+                $expModel = new \App\Models\CandidateExperienceModel();
+                $record['educations'] = $eduModel->where('candidate_id', $record['candidate_id'])->findAll();
+                $record['experiences'] = $expModel->where('candidate_id', $record['candidate_id'])->findAll();
+            } else {
+                $record['educations'] = [];
+                $record['experiences'] = [];
+            }
             return $this->respond(['status' => 'success', 'data' => $record]);
         }
 
@@ -339,9 +430,23 @@ class InterviewController extends ResourceController
     }
     public function creates($id = null)
     {
+        $interviewModel = new \App\Models\InterviewModel();
+        $existingCandidateIds = $interviewModel->select('candidate_id')->where('candidate_id IS NOT NULL')->findAll();
+        $existingIds = array_column($existingCandidateIds, 'candidate_id');
+
+        if ($id !== null) {
+            $currentInterview = $interviewModel->find($id);
+            if ($currentInterview && $currentInterview['candidate_id']) {
+                $existingIds = array_diff($existingIds, [$currentInterview['candidate_id']]);
+            }
+        }
+
         $candidateModel = new CandidateModel();
-        $candidates = $candidateModel->findAll();
-        
+        if (!empty($existingIds)) {
+            $candidates = $candidateModel->whereNotIn('id', $existingIds)->groupBy('email')->findAll();
+        } else {
+            $candidates = $candidateModel->groupBy('email')->findAll();
+        }
         $userModel = new UserModel();
         $interviewers = $userModel->whereIn('role', ['admin', 'hr', 'employee'])->findAll();
 
@@ -362,7 +467,14 @@ class InterviewController extends ResourceController
 
     public function display()
     {
-        return view('interview/view');
+        $departmentModel = new \App\Models\DepartmentModel();
+        $branchModel = new \App\Models\BranchModel();
+        
+        $data = [
+            'departments' => $departmentModel->findAll(),
+            'branches' => $branchModel->findAll(),
+        ];
+        return view('interview/view', $data);
     }
 
     // public function edits($id)
@@ -445,6 +557,27 @@ class InterviewController extends ResourceController
         }
 
         return $this->respond(['status' => 'error', 'message' => 'Failed to update status'], ResponseInterface::HTTP_INTERNAL_SERVER_ERROR);
+    }
+
+    public function updateConvertToEmployee($id)
+    {
+        $user = $this->authService->check();
+        if (!$user) {
+            return $this->failUnauthorized('Unauthorized: Token missing or invalid');
+        }
+
+        $convertToEmployee = $this->request->getJSON()->convert_to_employee ?? 0;
+        
+        $interview = $this->interviewModel->find($id);
+        if (!$interview) {
+            return $this->failNotFound('Interview not found');
+        }
+
+        if ($this->interviewModel->update($id, ['convert_to_employee' => $convertToEmployee])) {
+            return $this->respond(['status' => 'success', 'message' => 'Convert to Employee updated successfully']);
+        }
+
+        return $this->respond(['status' => 'error', 'message' => 'Failed to update convert status'], ResponseInterface::HTTP_INTERNAL_SERVER_ERROR);
     }
 
     /**

@@ -127,6 +127,7 @@
                                 <th>Candidate Name</th>
                                 <th class="desktop-only-col">Job Title</th>
                                 <th class="desktop-only-col">Schedule Date</th>
+                                <th class="desktop-only-col">Convert To Employee</th>
                                 <th class="desktop-only-col">Status</th>
                                 <th class="desktop-only-col action-column" style="width: 100px;">Action</th>
                                 <th class="mobile-expand-col" style="width: 50px;">Details</th>
@@ -182,6 +183,7 @@
                                         </div>
                                         <div class="detail-actions">
                                             <a href="/interview/display/${interview.id}" class="btn btn-sm btn-info text-white"><i class="mdi mdi-eye"></i> View</a>
+                                            <a href="/interviews/${interview.id}" class="btn btn-sm btn-success text-white"><i class="mdi mdi-pencil"></i> Edit</a>
                                             <button type="button" class="btn btn-sm btn-danger" onclick="deleteInterviewById(${interview.id}, '${interview.status || ''}')"><i class="mdi mdi-delete"></i> Delete</button>
                                         </div>
                                     </div>
@@ -190,6 +192,12 @@
                         </td>
                         <td class="desktop-only-col capitalize-text">${interview.job_title || 'N/A'}</td>
                         <td class="desktop-only-col">${interview.schedule_date || 'N/A'}</td>
+                        <td class="desktop-only-col py-1">
+                            <select class="form-select convert-select shadow-none" data-id="${interview.id}" style="height: 32px; font-size: 12px; padding: 2px 8px;">
+                                <option value="0" ${interview.convert_to_employee != 1 ? 'selected' : ''}>No</option>
+                                <option value="1" ${interview.convert_to_employee == 1 ? 'selected' : ''}>Yes</option>
+                            </select>
+                        </td>
                         <td class="desktop-only-col py-1">
                             <select class="form-select status-select capitalize-text shadow-none" data-id="${interview.id}" style="height: 32px; font-size: 12px; padding: 2px 8px;">
                                 <option value="scheduled" ${interview.status === 'scheduled' ? 'selected' : ''}>Scheduled</option>
@@ -200,6 +208,7 @@
                         <td class="desktop-only-col">
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <a href="/interview/display/${interview.id}" class="text-primary fs-5" title="View"><i class="mdi mdi-eye"></i></a>
+                                <a href="/interviews/${interview.id}" class="text-success fs-5" title="Edit"><i class="mdi mdi-pencil"></i></a>
                                 <a href="javascript:void(0);" class="text-danger fs-5" title="Delete"
                                    onclick="deleteInterviewById(${interview.id}, '${interview.status || ''}')">
                                    <i class="mdi mdi-delete"></i>
@@ -369,6 +378,48 @@
                 $select.val($select.data('prev-status'));
             });
     }
+
+    $(document).on('change', '.convert-select', function () {
+        const token = localStorage.getItem('token');
+        const interviewId = $(this).data('id');
+        const newVal = $(this).val();
+        
+        const csrfName = $('meta[name="csrf-token"]').attr('data-name');
+        const csrfHash = $('meta[name="csrf-token"]').attr('content');
+        const payload = {
+            convert_to_employee: newVal
+        };
+        payload[csrfName] = csrfHash;
+
+        fetch(`/api/interviews/${interviewId}/convert`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Updated!',
+                    text: 'Conversion status updated successfully!',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    customClass: {
+                        confirmButton: 'hr-btnbg',
+                    }
+                });
+            } else {
+                Swal.fire('Error!', data.message || 'Failed to update.', 'error');
+            }
+        })
+        .catch(error => {
+            Swal.fire('Error!', 'An unexpected error occurred.', 'error');
+        });
+    });
 
 
 

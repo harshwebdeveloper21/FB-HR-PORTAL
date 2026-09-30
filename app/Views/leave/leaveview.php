@@ -1296,7 +1296,7 @@
         employees.forEach(function (employee) {
             let imageUrl = employee.profile_image
                 ? `/upload/${employee.profile_image}`
-                : `${baseImagePath}upload/1789966027_54c5a38ccda20f7c2bac.jpg`;
+                : `/assets/images/default_avatar.png`;
 
             let employeeItem = $(`
                 <li class="list-group-item employee-item p-1" data-id="${employee.user_id}">
@@ -1346,7 +1346,7 @@
         employees.forEach(employee => {
             const imageUrl = employee.profile_image
                 ? `/upload/${employee.profile_image}`
-                : `${baseImagePath}upload/1789966027_54c5a38ccda20f7c2bac.jpg`;
+                : `/assets/images/default_avatar.png`;
 
             const item = document.createElement('li');
             item.className = 'list-group-item employee-item p-1';
@@ -1683,7 +1683,7 @@
             const props = event.extendedProps;
             const imageUrl = props.profile_image
                 ? `/upload/${props.profile_image}`
-                : `${baseImagePath}upload/1789966027_54c5a38ccda20f7c2bac.jpg`;
+                : `/assets/images/default_avatar.png`;
 
             // Determine leave type class
             let leaveTypeClass = 'casual-leave';
@@ -1770,7 +1770,7 @@
         employees.forEach(employee => {
             const imageUrl = employee.profile_image
                 ? `/upload/${employee.profile_image}`
-                : `${baseImagePath}upload/1789966027_54c5a38ccda20f7c2bac.jpg`;
+                : `/assets/images/default_avatar.png`;
 
             const item = document.createElement('li');
             item.className = 'list-group-item employee-item p-1';
@@ -1829,7 +1829,7 @@
             const props = event.extendedProps;
             const imageUrl = props.profile_image
                 ? `/upload/${props.profile_image}`
-                : `${baseImagePath}upload/1789966027_54c5a38ccda20f7c2bac.jpg`;
+                : `/assets/images/default_avatar.png`;
 
             const card = document.createElement('div');
             card.className = `mobile-leave-card cancelled-leave`;

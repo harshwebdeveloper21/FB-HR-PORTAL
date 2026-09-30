@@ -60,7 +60,8 @@ class LeaveController extends ResourceController
                 ->join('users', 'leaves.created_by = users.id', 'left')
                 ->join('leave_type', 'leaves.leave_id = leave_type.id', 'left')
                 ->join('users emp_u', 'leaves.user_id = emp_u.id', 'inner')
-                ->where('emp_u.is_deleted', 0);
+                ->where('emp_u.is_deleted', 0)
+                ->where('emp_u.role !=', 'candidate');
 
             if (!empty($filterBranchId)) {
                 $leaveQuery->where('emp_u.branch_id', (int)$filterBranchId);
@@ -73,7 +74,8 @@ class LeaveController extends ResourceController
 
             $userQuery = $userModel->select('user_info.*, users.username, users.role')
                 ->join('users', 'user_info.user_id = users.id')
-                ->where('users.is_deleted', 0);
+                ->where('users.is_deleted', 0)
+                ->where('users.role !=', 'candidate');
             if (!empty($filterBranchId)) {
                 $userQuery->where('users.branch_id', (int)$filterBranchId);
             }

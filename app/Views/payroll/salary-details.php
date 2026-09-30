@@ -202,10 +202,10 @@
                       <a href="/employee/profile/<?= $emp["id"] ?>" class="text-decoration-none text-dark">
                         <div style="display: flex; align-items: center; gap: 12px;">
                           <?php if (!empty($emp["profile_image"])) { ?>
-                            <img src="/upload/<?= !empty($emp["profile_image"]) ? esc($emp["profile_image"]) : "1789966027_54c5a38ccda20f7c2bac.jpg" ?>" alt="Profile"
+                            <img src="/upload/<?= esc($emp["profile_image"]) ?>" alt="Profile" onerror="this.onerror=null;this.src='/assets/images/default_avatar.png';"
                               style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
                           <?php } else { ?>
-                            <img src="/public/upload/<?= !empty($emp["profile_image"]) ? esc($emp["profile_image"]) : "1789966027_54c5a38ccda20f7c2bac.jpg" ?>" alt="Profile"
+                            <img src="/assets/images/default_avatar.png" alt="Profile"
                               style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
                           <?php } ?>
                           <div style="display: flex; flex-direction: column;">

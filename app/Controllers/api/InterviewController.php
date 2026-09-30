@@ -41,16 +41,12 @@ class InterviewController extends ResourceController
 
         // Validate input data
         $validationRules = [
-            'interviewer_id' => 'required',
             'full_name'      => 'required',
             'email'          => 'required|valid_email',
             'mobile_number'  => 'required',
             'schedule_date'  => 'permit_empty|valid_date', // Adjusted to not strictly require schedule_date since it's on step 6
         ];
         $validationMessages = [
-            'interviewer_id' => [
-                'required' => 'Interviewer is required.',
-            ],
             'full_name' => [
                 'required' => 'Full name is required.',
             ],

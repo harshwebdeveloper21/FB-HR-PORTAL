@@ -25,6 +25,8 @@ class CandidateController extends ResourceController
     private $userInfoModel;
     private $userModel;
     private $interviewModel;
+    private $departmentModel;
+    private $designationModel;
 
     public function __construct()
     {
@@ -32,6 +34,8 @@ class CandidateController extends ResourceController
         $this->userInfoModel = new UserInfoModel();
         $this->candidateModel = new CandidateModel();
         $this->interviewModel = new InterviewModel();
+        $this->departmentModel = new \App\Models\DepartmentModel();
+        $this->designationModel = new \App\Models\DesignationModel();
         $this->authService = new AuthService(service('request'));
     }
 
@@ -245,12 +249,21 @@ class CandidateController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin'], true)) {
             return $this->failForbidden('Forbidden: You do not have access to this resource');
         }
 
-        $candidates = $this->candidateModel->select('candidate.id, candidate.job_id, candidate.candidate_name, candidate.email, candidate.phone_number, candidate.resume, candidate.job_date, candidate.status, jobs.job_title')
+        $candidates = $this->candidateModel->select('
+            candidate.id, candidate.job_id, candidate.candidate_name, candidate.email, 
+            candidate.phone_number, candidate.resume, candidate.job_date, candidate.status, 
+            jobs.job_title, jobs.department_id as job_department_id, department.department_name,
+            MAX(u.role) as user_role, MAX(ui.employee_id) as current_emp_id, MAX(ui.department_id) as employee_department_id
+        ')
             ->join('jobs', 'candidate.job_id = jobs.id', 'left')
+            ->join('department', 'department.id = jobs.department_id', 'left')
+            ->join('users u', 'u.email = candidate.email AND u.is_deleted = 0', 'left')
+            ->join('user_info ui', 'ui.user_id = u.id', 'left')
+            ->groupBy('candidate.id')
             ->orderBy('candidate.created_at', 'DESC')
             ->findAll();
         return $this->respond(['status' => 'success', 'data' => $candidates]);
@@ -265,30 +278,39 @@ class CandidateController extends ResourceController
         }
 
         $query = $this->candidateModel->select('
-        candidate.id, 
-        candidate.candidate_name,
-        candidate.email, 
-        candidate.phone_number, 
-        candidate.status AS candidate_status, 
-        candidate.resume, 
-       candidate.notes,
-        jobs.job_title,
-        jobs.post_date, 
-        jobs.status,
-       ')
-            ->join('jobs', 'candidate.job_id = jobs.id');
+            candidate.id, 
+            candidate.candidate_name,
+            candidate.email, 
+            candidate.phone_number, 
+            candidate.status AS candidate_status, 
+            candidate.status,
+            candidate.resume, 
+            candidate.notes,
+            candidate.job_id,
+            jobs.job_title,
+            jobs.department_id as job_department_id,
+            department.department_name,
+            jobs.post_date, 
+            jobs.status as job_status,
+            MAX(u.role) as user_role,
+            MAX(ui.employee_id) as current_emp_id,
+            MAX(ui.department_id) as employee_department_id
+        ')
+            ->join('jobs', 'candidate.job_id = jobs.id', 'left')
+            ->join('department', 'department.id = jobs.department_id', 'left')
+            ->join('users u', 'u.email = candidate.email AND u.is_deleted = 0', 'left')
+            ->join('user_info ui', 'ui.user_id = u.id', 'left')
+            ->groupBy('candidate.id');
 
         // If an ID is provided, filter by ID; otherwise, get all jobs
         if ($id !== null) {
             $candidate = $query->where('candidate.id', $id)->first();
 
             if ($candidate) {
-                return $this->respond(['status' => 'success', 'data' => $candidate]);
-            }
-            if ($candidate) {
                 // Construct full URL for resume file
-                $candidate['resume_url'] = base_url($candidate['resume']);
-
+                if (!empty($candidate['resume'])) {
+                    $candidate['resume_url'] = base_url($candidate['resume']);
+                }
                 return $this->respond(['status' => 'success', 'data' => $candidate]);
             }
 
@@ -562,5 +584,292 @@ class CandidateController extends ResourceController
         $writer = new Xlsx($spreadsheet);
         $writer->save('php://output');
         exit;
+    }
+
+    /**
+     * Generate a guaranteed unique collision-free Employee ID
+     */
+    public function getGuaranteedUniqueEmployeeId(?string $preferredId = null): string
+    {
+        $db = \Config\Database::connect();
+        $rows = $db->table('user_info')
+            ->select('user_info.employee_id, user_info.user_id')
+            ->join('users', 'users.id = user_info.user_id')
+            ->where('users.is_deleted', 0)
+            ->where('user_info.employee_id IS NOT NULL')
+            ->where('user_info.employee_id !=', '')
+            ->get()
+            ->getResultArray();
+
+        $existing = [];
+
+        foreach ($rows as $r) {
+            $raw = trim((string)($r['employee_id'] ?? ''));
+            if ($raw === '' || $raw === '0') {
+                continue;
+            }
+            $existing[strtolower($raw)] = true;
+
+            if (preg_match('/(\d+)/', $raw, $m)) {
+                $num = (int)$m[1];
+                $existing['emp-' . str_pad($num, 3, '0', STR_PAD_LEFT)] = true;
+                $existing['emp-' . $num] = true;
+                $existing[(string)$num] = true;
+            }
+        }
+
+        $userRows = $db->table('users')->select('id')->where('is_deleted', 0)->get()->getResultArray();
+        foreach ($userRows as $u) {
+            $uId = (int)$u['id'];
+            $existing['emp-' . str_pad($uId, 3, '0', STR_PAD_LEFT)] = true;
+            $existing['emp-' . $uId] = true;
+            $existing[(string)$uId] = true;
+        }
+
+        if (!empty($preferredId)) {
+            $cleanPref = strtolower(trim($preferredId));
+            if (!isset($existing[$cleanPref])) {
+                return trim($preferredId);
+            }
+        }
+
+        $nextNum = 1;
+        while (
+            isset($existing['emp-' . str_pad($nextNum, 3, '0', STR_PAD_LEFT)]) ||
+            isset($existing['emp-' . $nextNum]) ||
+            isset($existing[(string)$nextNum])
+        ) {
+            $nextNum++;
+        }
+
+        return 'EMP-' . str_pad($nextNum, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Get candidate data and department/designation options for conversion modal
+     * GET /api/candidate/convert-data/(:num)
+     */
+    public function getConvertData($candidateId = null)
+    {
+        $user = $this->authService->check();
+        if (!$user) {
+            return $this->failUnauthorized('Unauthorized access');
+        }
+
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin'], true)) {
+            return $this->failForbidden('Forbidden: Access denied');
+        }
+
+        $candidate = $this->candidateModel
+            ->select('candidate.*, jobs.job_title, jobs.department_id as job_department_id')
+            ->join('jobs', 'candidate.job_id = jobs.id', 'left')
+            ->find($candidateId);
+
+        if (!$candidate) {
+            return $this->failNotFound('Candidate not found');
+        }
+
+        // Fetch departments with branch names
+        $deptModel = new \App\Models\DepartmentModel();
+        $deptBuilder = $deptModel->builder()
+            ->select('department.*, branches.name as branch_name')
+            ->join('branches', 'branches.id = department.branch_id', 'left')
+            ->orderBy('department.department_name', 'ASC');
+
+        if ($user->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            if ($branchId) {
+                $deptBuilder->where('department.branch_id', $branchId);
+            }
+        }
+
+        $departments = $deptBuilder->get()->getResultArray();
+
+        // Fetch all designations with department name
+        $designationModel = new \App\Models\DesignationModel();
+        $designations = $designationModel->select('designation.*, department.department_name')
+            ->join('department', 'department.id = designation.department_id', 'left')
+            ->orderBy('designation.designation_name', 'ASC')
+            ->findAll();
+
+        $suggestedEmpId = $this->getGuaranteedUniqueEmployeeId();
+
+        $existingUser = $this->userModel->where('email', $candidate['email'])->where('is_deleted', 0)->first();
+        $existingInfo = null;
+        if ($existingUser) {
+            $existingInfo = $this->userInfoModel->where('user_id', $existingUser['id'])->first();
+        }
+
+        return $this->respond([
+            'status' => 'success',
+            'data'   => [
+                'candidate'        => $candidate,
+                'departments'      => $departments,
+                'designations'     => $designations,
+                'suggested_emp_id' => $suggestedEmpId,
+                'default_date'     => date('Y-m-d'),
+                'is_already_emp'   => ($existingUser && $existingUser['role'] === 'employee'),
+                'existing_emp_id'  => $existingInfo['employee_id'] ?? null,
+            ]
+        ]);
+    }
+
+    /**
+     * Convert Candidate to Employee
+     * POST /api/candidate/convert-to-employee
+     */
+    public function convertToEmployee()
+    {
+        $user = $this->authService->check();
+        if (!$user) {
+            return $this->failUnauthorized('Unauthorized access');
+        }
+
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin'], true)) {
+            return $this->failForbidden('Forbidden: Only Admin, HR, or Branch Admin can convert candidates to employees.');
+        }
+
+        $candidateId = (int)$this->request->getPost('candidate_id');
+        $candidate = $this->candidateModel->find($candidateId);
+        if (!$candidate) {
+            return $this->respond(['status' => 'error', 'message' => 'Candidate not found.'], 404);
+        }
+
+        $departmentId = (int)$this->request->getPost('department_id');
+        if (empty($departmentId)) {
+            return $this->respond(['status' => 'error', 'message' => 'Department is required.'], 400);
+        }
+
+        $deptModel = new \App\Models\DepartmentModel();
+        $department = $deptModel->find($departmentId);
+        if (!$department) {
+            return $this->respond(['status' => 'error', 'message' => 'Selected department does not exist.'], 400);
+        }
+
+        // Branch admin constraint: department must belong to their branch
+        if ($user->role === 'branch_admin') {
+            $branchId = (int)$this->authService->getBranchId();
+            if ((int)($department['branch_id'] ?? 0) !== $branchId) {
+                return $this->respond(['status' => 'error', 'message' => 'You can only assign candidates to departments within your branch.'], 403);
+            }
+        } else {
+            $branchId = !empty($department['branch_id']) ? (int)$department['branch_id'] : (int)$this->authService->getBranchId();
+        }
+
+        $designationId = !empty($this->request->getPost('designation_id')) ? (int)$this->request->getPost('designation_id') : null;
+        $joiningDate   = !empty($this->request->getPost('joining_date')) ? $this->request->getPost('joining_date') : date('Y-m-d');
+        $salary        = !empty($this->request->getPost('salary')) ? (float)$this->request->getPost('salary') : 0.00;
+        $targetRole    = in_array($this->request->getPost('role'), ['employee', 'department_manager'], true) ? $this->request->getPost('role') : 'employee';
+        $location      = $this->request->getPost('working_location') ?: 'On-Site';
+
+        $preferredEmpId = trim((string)$this->request->getPost('employee_id'));
+        $empId = $this->getGuaranteedUniqueEmployeeId($preferredEmpId);
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        // 1. Users table
+        $existingUser = $this->userModel->where('email', $candidate['email'])->where('is_deleted', 0)->first();
+        if ($existingUser) {
+            $userId = (int)$existingUser['id'];
+            $userUpdate = [
+                'role'          => $targetRole,
+                'department_id' => $departmentId,
+            ];
+            if ($branchId) {
+                $userUpdate['branch_id'] = $branchId;
+            }
+            $this->userModel->update($userId, $userUpdate);
+        } else {
+            $plainPassword = bin2hex(random_bytes(4));
+            $passwordHash  = password_hash($plainPassword, PASSWORD_DEFAULT);
+            $userId = $this->userModel->insert([
+                'username'      => $candidate['candidate_name'],
+                'email'         => $candidate['email'],
+                'password'      => $passwordHash,
+                'role'          => $targetRole,
+                'department_id' => $departmentId,
+                'branch_id'     => $branchId,
+                'is_deleted'    => 0,
+            ]);
+        }
+
+        // 2. User Info table
+        $fullName = trim($candidate['candidate_name'] ?? '');
+        $nameParts = explode(' ', $fullName, 2);
+        $firstName = $nameParts[0] ?? '';
+        $lastName  = $nameParts[1] ?? '';
+
+        $existingInfo = $this->userInfoModel->where('user_id', $userId)->orWhere('email', $candidate['email'])->first();
+
+        $infoData = [
+            'user_id'          => $userId,
+            'firstname'        => !empty($existingInfo['firstname']) ? $existingInfo['firstname'] : $firstName,
+            'lastname'         => !empty($existingInfo['lastname']) ? $existingInfo['lastname'] : $lastName,
+            'email'            => $candidate['email'],
+            'contact_number'   => !empty($candidate['phone_number']) ? $candidate['phone_number'] : ($existingInfo['contact_number'] ?? ''),
+            'employee_id'      => $empId,
+            'department_id'    => $departmentId,
+            'designation_id'   => $designationId ?: ($existingInfo['designation_id'] ?? null),
+            'joining_date'     => $joiningDate,
+            'salary'           => $salary ?: ($existingInfo['salary'] ?? 0.00),
+            'role'             => $targetRole,
+            'status'           => 'Active',
+            'working_location' => $location,
+            'date_of_birth'    => !empty($candidate['date_of_birth']) ? $candidate['date_of_birth'] : ($existingInfo['date_of_birth'] ?? null),
+            'gender'           => !empty($candidate['gender']) ? $candidate['gender'] : ($existingInfo['gender'] ?? null),
+            'address_1'        => !empty($candidate['current_address']) ? $candidate['current_address'] : ($existingInfo['address_1'] ?? null),
+            'city_id'          => !empty($candidate['city']) ? $candidate['city'] : ($existingInfo['city_id'] ?? null),
+            'resume'           => !empty($candidate['resume']) ? $candidate['resume'] : ($existingInfo['resume'] ?? null),
+            'job_id'           => !empty($candidate['job_id']) ? $candidate['job_id'] : ($existingInfo['job_id'] ?? null),
+        ];
+
+        if ($existingInfo) {
+            $this->userInfoModel->update($existingInfo['id'], $infoData);
+        } else {
+            $this->userInfoModel->insert($infoData);
+        }
+
+        // If targetRole is department_manager, link department's manager_id
+        if ($targetRole === 'department_manager' && $departmentId) {
+            $deptModel->update($departmentId, ['manager_id' => $userId]);
+        }
+
+        // 3. Mark candidate as Hired in candidate table
+        $this->candidateModel->update($candidateId, [
+            'status' => 'Hired',
+        ]);
+
+        // 4. Send notification to Admin and HR
+        $notificationModel = new \App\Models\NotificationModel();
+        $adminHrUsers = $this->userModel->whereIn('role', ['admin', 'hr'])->where('is_deleted', 0)->findAll();
+        $deptName = $department['department_name'] ?? 'Department';
+        foreach ($adminHrUsers as $adm) {
+            $notificationModel->insert([
+                'sender_id'    => $user->sub,
+                'recipient_id' => $adm['id'],
+                'data'         => json_encode([
+                    'type'        => 'candidate_converted',
+                    'username'    => $candidate['candidate_name'],
+                    'message'     => "Candidate '{$candidate['candidate_name']}' has been converted to Employee ({$empId}) in {$deptName}.",
+                    'employee_id' => $empId,
+                    'user_id'     => $userId,
+                ]),
+                'is_read'      => 0,
+            ]);
+        }
+
+        $db->transComplete();
+
+        if ($db->transStatus() === false) {
+            return $this->respond(['status' => 'error', 'message' => 'Database transaction failed. Could not convert candidate.'], 500);
+        }
+
+        return $this->respond([
+            'status'      => 'success',
+            'message'     => "Candidate '{$candidate['candidate_name']}' successfully converted to Employee ({$empId}) in {$deptName}!",
+            'employee_id' => $empId,
+            'user_id'     => $userId,
+        ]);
     }
 }

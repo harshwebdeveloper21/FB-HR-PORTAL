@@ -83,7 +83,7 @@ $isEmployee = ($role === 'employee');
     </li>
 
     <!-- ── Complaints & Announcements ───────────────────────── -->
-    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
+    <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#complaintsMenu" aria-expanded="false" aria-controls="complaintsMenu">
           <i class="menu-icon mdi mdi-message-alert"></i>
@@ -110,7 +110,7 @@ $isEmployee = ($role === 'employee');
           </ul>
         </div>
       </li>
-    <?php elseif ($isDeptManager || $isEmployee): ?>
+    <?php elseif ($isBranchAdmin || $isDeptManager || $isEmployee): ?>
       <li class="nav-item">
         <a class="nav-link" href="<?= base_url('complaints') ?>">
           <i class="menu-icon mdi mdi-message-alert"></i>

@@ -44,15 +44,24 @@ class CandidateController extends ResourceController
         $jobModel = new JobModel();
         $departmentModel = new \App\Models\DepartmentModel();
         $locationModel = new \App\Models\JoblocationModel();
+        $countryModel = new \App\Models\CountryModel();
+        $stateModel = new \App\Models\StateModel();
+        $cityModel = new \App\Models\CityModel();
 
         $jobs = $jobModel->findAll();
         $departments = $departmentModel->findAll();
         $locations = $locationModel->findAll();
+        $countries = $countryModel->orderBy('country_name', 'ASC')->findAll();
+        $states = $stateModel->orderBy('state_name', 'ASC')->findAll();
+        $cities = $cityModel->orderBy('city_name', 'ASC')->findAll();
 
         return view('candidate/candidate', [
-            'jobs' => $jobs,
+            'jobs'        => $jobs,
             'departments' => $departments,
-            'locations' => $locations
+            'locations'   => $locations,
+            'countries'   => $countries,
+            'states'      => $states,
+            'cities'      => $cities,
         ]);
     }
 
@@ -60,13 +69,6 @@ class CandidateController extends ResourceController
     {
         return view('candidate/view');
     }
-    // public function CandidateApply()
-    // {
-    //     $jobModel = new JobModel();
-    //     $jobs = $jobModel->findAll();
-
-    //     return view('candidate/candidate_apply', ['jobs' => $jobs]);
-    // }
 
     public function creates()
     {
@@ -79,13 +81,11 @@ class CandidateController extends ResourceController
         // Validate input data
         $validationRules = [
             'candidate_name' => 'required',
-            'email' => 'required|valid_email|is_unique[candidate.email]',
-            'phone_number' => 'required',
+            'email'          => 'required|valid_email|is_unique[candidate.email]',
+            'phone_number'   => 'required',
+            'resume'         => 'uploaded[resume]|max_size[resume,2048]|ext_in[resume,pdf,doc,docx]',
         ];
-        $resumeFile = $this->request->getFile('resume');
-        if ($resumeFile && $resumeFile->isValid() && !$resumeFile->hasMoved()) {
-            $validationRules['resume'] = 'max_size[resume,2048]|ext_in[resume,pdf,doc,docx]';
-        }
+
         $validationMessages = [
             'candidate_name' => [
                 'required' => 'Candidate name is required.',
@@ -95,25 +95,21 @@ class CandidateController extends ResourceController
                 'valid_email' => 'Please enter a valid email address.',
                 'is_unique'   => 'This email has already been used to apply.'
             ],
-
             'phone_number' => [
                 'required' => 'Phone number is required.',
             ],
             'resume' => [
+                'uploaded' => 'Resume is required. Please upload your resume.',
                 'max_size' => 'Resume file size must not exceed 2MB.',
                 'ext_in'   => 'Resume must be in PDF, DOC, or DOCX format.',
             ],
-            // 'notes' => [
-            //     'required' => 'The notes field is required.',
-            // ],
         ];
-
 
         if (!$this->validate($validationRules, $validationMessages)) {
             return $this->respond([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Validation failed',
-                'errors' => $this->validator->getErrors()
+                'errors'  => $this->validator->getErrors()
             ], 400);
         }
 
@@ -123,20 +119,31 @@ class CandidateController extends ResourceController
         if (empty($data['job_id'])) {
             $data['job_id'] = 0; // Use 0 instead of null to avoid 'cannot be null' db errors
         }
-        // Handle optional file upload
+
+        // Location fields from master modules
+        $data['country_id'] = !empty($data['country_id']) ? (int)$data['country_id'] : null;
+        $data['state_id']   = !empty($data['state_id']) ? (int)$data['state_id'] : null;
+        $data['city_id']    = !empty($data['city_id']) ? (int)$data['city_id'] : null;
+
+        if (!empty($data['city_id'])) {
+            $cityRow = (new \App\Models\CityModel())->find($data['city_id']);
+            if ($cityRow && !empty($cityRow['city_name'])) {
+                $data['city'] = $cityRow['city_name'];
+            }
+        }
+
+        // Handle required file upload
         $resume = $this->request->getFile('resume');
         if ($resume && $resume->isValid() && !$resume->hasMoved()) {
-            // Set the file path for the public folder
             $filePath = FCPATH . 'uploads/resumes/';
-
+            if (!is_dir($filePath)) {
+                mkdir($filePath, 0755, true);
+            }
             $newFileName = $resume->getRandomName();
             $resume->move($filePath, $newFileName);
-
-            // Add file name (relative path) to data
-            $data['resume'] = 'uploads/resumes/' . $newFileName;  // Store relative path for the resume
+            $data['resume'] = 'uploads/resumes/' . $newFileName;
         } else {
-            // If no file is uploaded, set `resume` to NULL
-            $data['resume'] = null;
+            $data['resume'] = '';
         }
 
         // Add user ID to track who created the candidate
@@ -256,6 +263,7 @@ class CandidateController extends ResourceController
         $candidates = $this->candidateModel->select('
             candidate.id, candidate.job_id, candidate.candidate_name, candidate.email, 
             candidate.phone_number, candidate.resume, candidate.job_date, candidate.status, 
+            candidate.city, candidate.city_id, candidate.country_id, candidate.state_id,
             jobs.job_title, jobs.department_id as job_department_id, department.department_name,
             MAX(u.role) as user_role, MAX(ui.employee_id) as current_emp_id, MAX(ui.department_id) as employee_department_id
         ')
@@ -287,6 +295,16 @@ class CandidateController extends ResourceController
             candidate.resume, 
             candidate.notes,
             candidate.job_id,
+            candidate.date_of_birth,
+            candidate.gender,
+            candidate.current_address,
+            candidate.city,
+            candidate.country_id,
+            candidate.state_id,
+            candidate.city_id,
+            country.country_name,
+            states.state_name,
+            city.city_name,
             jobs.job_title,
             jobs.department_id as job_department_id,
             department.department_name,
@@ -298,6 +316,9 @@ class CandidateController extends ResourceController
         ')
             ->join('jobs', 'candidate.job_id = jobs.id', 'left')
             ->join('department', 'department.id = jobs.department_id', 'left')
+            ->join('country', 'country.id = candidate.country_id', 'left')
+            ->join('states', 'states.id = candidate.state_id', 'left')
+            ->join('city', 'city.id = candidate.city_id', 'left')
             ->join('users u', 'u.email = candidate.email AND u.is_deleted = 0', 'left')
             ->join('user_info ui', 'ui.user_id = u.id', 'left')
             ->groupBy('candidate.id');
@@ -329,22 +350,31 @@ class CandidateController extends ResourceController
         // Validate input data
         $validationRules = [
             'candidate_name' => 'required',
-            'email' => 'required|valid_email',
-            'phone_number' => 'required',
+            'email'          => 'required|valid_email',
+            'phone_number'   => 'required',
         ];
+        $resumeFile = $this->request->getFile('resume');
+        if ($resumeFile && $resumeFile->isValid() && !$resumeFile->hasMoved()) {
+            $validationRules['resume'] = 'max_size[resume,2048]|ext_in[resume,pdf,doc,docx]';
+        }
+
         $validationMessages = [
             'candidate_name' => ['required' => 'Candidate name is required.'],
-            'email' => ['required' => 'Email is required.', 'valid_email' => 'Please enter a valid email address.'],
-            'phone_number' => [
+            'email'          => ['required' => 'Email is required.', 'valid_email' => 'Please enter a valid email address.'],
+            'phone_number'   => [
                 'required' => 'Phone number is required.',
+            ],
+            'resume' => [
+                'max_size' => 'Resume file size must not exceed 2MB.',
+                'ext_in'   => 'Resume must be in PDF, DOC, or DOCX format.',
             ],
         ];
 
         if (!$this->validate($validationRules, $validationMessages)) {
             return $this->respond([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Validation failed',
-                'errors' => $this->validator->getErrors()
+                'errors'  => $this->validator->getErrors()
             ], 400);
         }
 
@@ -357,13 +387,31 @@ class CandidateController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'Candidate not found'], ResponseInterface::HTTP_NOT_FOUND);
         }
 
+        // Location fields from master modules
+        $data['country_id'] = !empty($data['country_id']) ? (int)$data['country_id'] : null;
+        $data['state_id']   = !empty($data['state_id']) ? (int)$data['state_id'] : null;
+        $data['city_id']    = !empty($data['city_id']) ? (int)$data['city_id'] : null;
+
+        if (!empty($data['city_id'])) {
+            $cityRow = (new \App\Models\CityModel())->find($data['city_id']);
+            if ($cityRow && !empty($cityRow['city_name'])) {
+                $data['city'] = $cityRow['city_name'];
+            }
+        }
+
         // Handle optional file upload for resume
         $resume = $this->request->getFile('resume');
         if ($resume && $resume->isValid() && !$resume->hasMoved()) {
             $filePath = FCPATH . 'uploads/resumes/';
+            if (!is_dir($filePath)) {
+                mkdir($filePath, 0755, true);
+            }
             $newFileName = $resume->getRandomName();
             $resume->move($filePath, $newFileName);
             $data['resume'] = 'uploads/resumes/' . $newFileName;
+        } else {
+            // Keep existing resume
+            unset($data['resume']);
         }
 
         // Add updated_by field
@@ -377,7 +425,7 @@ class CandidateController extends ResourceController
         if ($userRecord) {
             $userUpdateData = [
                 'username' => $data['candidate_name'],
-                'email' => $data['email'],
+                'email'    => $data['email'],
             ];
             $this->userModel->update($userRecord['id'], $userUpdateData);
         }
@@ -386,11 +434,17 @@ class CandidateController extends ResourceController
         $userInfoRecord = $this->userInfoModel->where('email', $candidate['email'])->first();
         if ($userInfoRecord) {
             $userInfoUpdateData = [
-                'firstname' => $data['candidate_name'],
-                'email' => $data['email'],
+                'firstname'      => $data['candidate_name'],
+                'email'          => $data['email'],
                 'contact_number' => $data['phone_number'],
-                'job_id' => $data['job_id'],
-                'resume' => isset($data['resume']) ? $data['resume'] : $userInfoRecord['resume'],
+                'job_id'         => $data['job_id'] ?? $userInfoRecord['job_id'],
+                'resume'         => isset($data['resume']) ? $data['resume'] : $userInfoRecord['resume'],
+                'address_1'      => $data['current_address'] ?? $userInfoRecord['address_1'],
+                'gender'         => $data['gender'] ?? $userInfoRecord['gender'],
+                'date_of_birth'  => $data['date_of_birth'] ?? $userInfoRecord['date_of_birth'],
+                'country_id'     => $data['country_id'] ?? $userInfoRecord['country_id'],
+                'state_id'       => $data['state_id'] ?? $userInfoRecord['state_id'],
+                'city_id'        => $data['city_id'] ?? $userInfoRecord['city_id'],
             ];
             $this->userInfoModel->update($userInfoRecord['id'], $userInfoUpdateData);
         }
@@ -437,8 +491,8 @@ class CandidateController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        // Only Admin and HR can access leave records
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        // Admin, HR, or Branch Admin can access candidate records
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin'], true)) {
             return $this->failForbidden('Forbidden: You do not have access to this resource');
         }
 
@@ -819,7 +873,9 @@ class CandidateController extends ResourceController
             'date_of_birth'    => !empty($candidate['date_of_birth']) ? $candidate['date_of_birth'] : ($existingInfo['date_of_birth'] ?? null),
             'gender'           => !empty($candidate['gender']) ? $candidate['gender'] : ($existingInfo['gender'] ?? null),
             'address_1'        => !empty($candidate['current_address']) ? $candidate['current_address'] : ($existingInfo['address_1'] ?? null),
-            'city_id'          => !empty($candidate['city']) ? $candidate['city'] : ($existingInfo['city_id'] ?? null),
+            'country_id'       => !empty($candidate['country_id']) ? $candidate['country_id'] : ($existingInfo['country_id'] ?? null),
+            'state_id'         => !empty($candidate['state_id']) ? $candidate['state_id'] : ($existingInfo['state_id'] ?? null),
+            'city_id'          => !empty($candidate['city_id']) ? $candidate['city_id'] : ($existingInfo['city_id'] ?? null),
             'resume'           => !empty($candidate['resume']) ? $candidate['resume'] : ($existingInfo['resume'] ?? null),
             'job_id'           => !empty($candidate['job_id']) ? $candidate['job_id'] : ($existingInfo['job_id'] ?? null),
         ];

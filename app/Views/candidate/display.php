@@ -73,7 +73,43 @@
 
                     <div class="mb-3 row">
                         <h4 class="col-sm-6 info-label font-size-candidate col-6">
-                            <i class="mdi mdi-check-circle me-1" style="color: #E66136;"></i> Description:
+                            <i class="mdi mdi-calendar me-1" style="color: #E66136;"></i> Date of Birth:
+                        </h4>
+                        <div class="col-sm-6 col-6">
+                            <p class="info-value" id="disp_dob">-</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <h4 class="col-sm-6 info-label font-size-candidate col-6">
+                            <i class="mdi mdi-gender-male-female me-1" style="color: #E66136;"></i> Gender:
+                        </h4>
+                        <div class="col-sm-6 col-6">
+                            <p class="info-value capitalize-text" id="disp_gender">-</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <h4 class="col-sm-6 info-label font-size-candidate col-6">
+                            <i class="mdi mdi-earth me-1" style="color: #E66136;"></i> Location:
+                        </h4>
+                        <div class="col-sm-6 col-6">
+                            <p class="info-value capitalize-text" id="disp_location">-</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <h4 class="col-sm-6 info-label font-size-candidate col-6">
+                            <i class="mdi mdi-home-map-marker me-1" style="color: #E66136;"></i> Address:
+                        </h4>
+                        <div class="col-sm-6 col-6">
+                            <p class="info-value" id="disp_address">-</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <h4 class="col-sm-6 info-label font-size-candidate col-6">
+                            <i class="mdi mdi-check-circle me-1" style="color: #E66136;"></i> Description / Notes:
                         </h4>
                         <div class="col-sm-6 col-6">
                             <p class="info-value capitalize-text" id="description"></p>
@@ -285,6 +321,12 @@
                     $('#candidate_id').text(candidate.candidate_name || '-');
                     $('#email').text(candidate.email || '-');
                     $('#phone').text(candidate.phone_number || '-');
+                    $('#disp_dob').text(candidate.date_of_birth || '-');
+                    $('#disp_gender').text(candidate.gender || '-');
+                    
+                    const locParts = [candidate.city_name || candidate.city, candidate.state_name, candidate.country_name].filter(Boolean);
+                    $('#disp_location').text(locParts.length > 0 ? locParts.join(', ') : '-');
+                    $('#disp_address').text(candidate.current_address || '-');
                     $('#description').text(candidate.notes || 'N/A');
 
                     // Populate job details

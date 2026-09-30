@@ -156,6 +156,38 @@ class CandidateDocumentsController extends BaseController
             }
         }
 
+        if ($this->request->isAJAX()) {
+            return $this->response->setJSON([
+                'status' => 'success',
+                'message' => 'Document uploaded successfully!',
+                'csrf_hash' => csrf_hash()
+            ]);
+        }
         return redirect()->to('/candidate-documents/' . $candidateId)->with('success', 'Documents uploaded successfully!');
+    }
+
+    public function remove()
+    {
+        $db = \Config\Database::connect();
+        $candidateId = $this->request->getPost('candidate_id');
+        $key = $this->request->getPost('doc_key');
+
+        if ($candidateId && $key) {
+            $existing = $db->table('candidate_documents')
+                ->where('candidate_id', $candidateId)
+                ->where('doc_key', $key)
+                ->get()->getRowArray();
+
+            if ($existing) {
+                // Remove file
+                $filepath = ROOTPATH . 'public/' . $existing['file_path'];
+                if (file_exists($filepath)) {
+                    unlink($filepath);
+                }
+                $db->table('candidate_documents')->where('id', $existing['id'])->delete();
+                return $this->response->setJSON(['status' => 'success', 'message' => 'Document removed successfully!', 'csrf_hash' => csrf_hash()]);
+            }
+        }
+        return $this->response->setJSON(['status' => 'error', 'message' => 'Failed to remove document.', 'csrf_hash' => csrf_hash()]);
     }
 }

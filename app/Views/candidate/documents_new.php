@@ -623,19 +623,12 @@
 
                 <!-- Step 4: Other documents -->
                 <div class="wizard-card" id="step-4" data-keys="<?= implode(',', $tabsConfig[4]['keys']) ?>">
-                    <div class="d-flex justify-content-end mb-3">
-                        <button type="button" class="btn-outline-action" id="addMoreOtherDocBtn" style="color: var(--brand-color); border-color: var(--brand-color);">
-                            + Add more document
-                        </button>
-                    </div>
-                    <div id="other-docs-container">
-                        <?php 
-                        foreach ($tabsConfig[4]['keys'] as $idx => $k) {
-                            $title = ($idx == 0) ? 'Resume' : (($idx == 1) ? 'Passport photo' : 'Other document');
-                            renderNewDocItem($k, $title, '', false, $docsMap);
-                        }
-                        ?>
-                    </div>
+                    <?php 
+                    foreach ($tabsConfig[4]['keys'] as $idx => $k) {
+                        $title = ($idx == 0) ? 'Resume' : (($idx == 1) ? 'Passport photo' : 'Other document');
+                        renderNewDocItem($k, $title, '', false, $docsMap);
+                    }
+                    ?>
                 </div>
             </div>
 
@@ -662,9 +655,6 @@
 </div>
 
 <script>
-window.csrfName = '<?= csrf_token() ?>';
-window.csrfHash = '<?= csrf_hash() ?>';
-
 $(document).ready(function() {
     const candidateId = "<?= esc($selectedCandidate['id'] ?? '') ?>";
     let currentTab = 1;
@@ -759,57 +749,6 @@ $(document).ready(function() {
         }
     });
 
-    // Add More Document Logic
-    $('#addMoreOtherDocBtn').click(function() {
-        const container = $('#other-docs-container');
-        const count = container.find('.doc-row').length + 1;
-        const key = 'other_doc_' + count;
-        
-        const newRowHtml = `
-        <div class="doc-row" data-key="${key}" data-required="0">
-            <div class="doc-thumbnail no-file">No file</div>
-            <div class="doc-info">
-                <div class="doc-title" contenteditable="true" style="border-bottom: 1px dashed #ccc; display: inline-block; min-width: 150px; padding-bottom: 2px;" title="Click to edit title">Other document ${count}</div>
-                <div class="doc-meta">
-                    <span class="status-badge status-missing">Missing</span>
-                </div>
-                <div class="error-text"></div>
-            </div>
-            <div class="doc-actions">
-                <input type="file" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
-                <button type="button" class="btn-brand btn-upload" aria-label="Upload Other document ${count}">Upload file</button>
-            </div>
-        </div>`;
-        container.append(newRowHtml);
-    });
-
-    // Save edited title via AJAX when it loses focus (for dynamically added or existing ones)
-    $(document).on('blur', '.doc-title[contenteditable="true"]', function() {
-        const row = $(this).closest('.doc-row');
-        const key = row.data('key');
-        const val = $(this).text().trim();
-        
-        if (!val) return;
-        
-        const formData = new FormData();
-        formData.append('candidate_id', candidateId);
-        formData.append(`doc_title_${key}`, val);
-        if(window.csrfName && window.csrfHash) {
-            formData.append(window.csrfName, window.csrfHash);
-        }
-        
-        $.ajax({
-            url: '/candidate-documents/upload',
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) { 
-                if (response.csrf_hash) window.csrfHash = response.csrf_hash;
-            }
-        });
-    });
-
     // Handle Upload/Replace click
     $(document).on('click', '.btn-upload, .btn-replace', function() {
         $(this).closest('.doc-actions').find('.file-input').click();
@@ -854,8 +793,10 @@ $(document).ready(function() {
         }
 
         // Add CSRF token
-        if(window.csrfName && window.csrfHash) {
-            formData.append(window.csrfName, window.csrfHash);
+        const csrfName = $('meta[name="csrf-token"]').attr('data-name');
+        const csrfHash = $('meta[name="csrf-token"]').attr('content');
+        if(csrfName && csrfHash) {
+            formData.append(csrfName, csrfHash);
         }
 
         // Visual loading
@@ -869,7 +810,6 @@ $(document).ready(function() {
             processData: false,
             contentType: false,
             success: function(response) {
-                if (response.csrf_hash) window.csrfHash = response.csrf_hash;
                 if(response.status === 'success') {
                     // Refresh row visually
                     row.find('.doc-thumbnail').removeClass('no-file pdf-icon').empty();
@@ -927,16 +867,15 @@ $(document).ready(function() {
             confirmButtonText: 'Yes, remove it!'
         }).then((result) => {
             if (result.isConfirmed) {
+                const csrfName = $('meta[name="csrf-token"]').attr('data-name');
+                const csrfHash = $('meta[name="csrf-token"]').attr('content');
                 let data = {
                     candidate_id: candidateId,
                     doc_key: key
                 };
-                if(window.csrfName && window.csrfHash) {
-                    data[window.csrfName] = window.csrfHash;
-                }
+                data[csrfName] = csrfHash;
 
                 $.post('/candidate-documents/remove', data, function(res) {
-                    if (res.csrf_hash) window.csrfHash = res.csrf_hash;
                     if (res.status === 'success') {
                         // Reset visual
                         row.find('.doc-thumbnail').removeClass('pdf-icon').addClass('no-file').empty().text('No file');
@@ -969,12 +908,13 @@ $(document).ready(function() {
         const row = $(this).closest('.doc-row');
         const key = row.data('key');
         const val = $(this).val();
+        const csrfName = $('meta[name="csrf-token"]').attr('data-name');
+        const csrfHash = $('meta[name="csrf-token"]').attr('content');
+        
         const formData = new FormData();
         formData.append('candidate_id', candidateId);
         formData.append(`doc_subtitle_${key}`, val);
-        if(window.csrfName && window.csrfHash) {
-            formData.append(window.csrfName, window.csrfHash);
-        }
+        formData.append(csrfName, csrfHash);
         
         $.ajax({
             url: '/candidate-documents/upload',
@@ -982,10 +922,7 @@ $(document).ready(function() {
             data: formData,
             processData: false,
             contentType: false,
-            success: function(response) { 
-                if (response.csrf_hash) window.csrfHash = response.csrf_hash;
-                console.log('Month saved'); 
-            }
+            success: function() { console.log('Month saved'); }
         });
     });
 });

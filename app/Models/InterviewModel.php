@@ -16,7 +16,7 @@ class InterviewModel extends Model
         'experience_type', 'total_experience', 'previous_company', 'previous_job_title', 'previous_salary', 'expected_salary',
         'notice_period', 'reason_for_leaving', 'technical_skills', 'communication_skills', 'computer_skills', 'relevant_experience',
         'key_strengths', 'interview_score', 'interview_feedback', 'interview_status', 'selection_status', 'offered_salary',
-        'joining_date', 'hr_remarks', 'candidate_remarks'
+        'joining_date', 'hr_remarks', 'candidate_remarks', 'convert_to_employee'
     ];
 
     protected $useTimestamps = true;

@@ -184,11 +184,18 @@
                 $idEduCount++;
             }
         }
+        $otherCount = 0;
+        foreach (['other_doc', 'other_doc_2'] as $k) {
+            if (isset($docsMap[$k]) && in_array($docsMap[$k]['status'], ['pending', 'approved'])) {
+                $otherCount++;
+            }
+        }
         ?>
         <div class="wizard-tabs">
             <div class="wizard-tab active" data-step="1">Salary slips <span class="tab-badge"><?= $salaryCount ?>/3</span></div>
             <div class="wizard-tab" data-step="2">Previous company <span class="tab-badge"><?= $prevCompCount ?>/1</span></div>
             <div class="wizard-tab" data-step="3">ID and education <span class="tab-badge"><?= $idEduCount ?>/2</span></div>
+            <div class="wizard-tab" data-step="4">Other documents <span class="tab-badge"><?= $otherCount ?>/2</span></div>
         </div>
 
         <form id="docsUploadForm" method="POST" action="/candidate-documents/upload" enctype="multipart/form-data">
@@ -197,26 +204,21 @@
             
             <?php
             if (!function_exists('renderDocItem')) {
-                function renderDocItem($docKey, $title, $subtitle, $isRequired, $docsMap) {
+                function renderDocItem($docKey, $defaultTitle, $defaultSubtitle, $isRequired, $docsMap, $isMonthPicker = false) {
                     $isUploaded = isset($docsMap[$docKey]) && !empty($docsMap[$docKey]['file_name']);
                     $status = $isUploaded ? $docsMap[$docKey]['status'] : 'not-uploaded';
                     $fileName = $isUploaded ? $docsMap[$docKey]['file_name'] : '';
                     $filePath = $isUploaded ? '/' . $docsMap[$docKey]['file_path'] : '';
                     $ext = $isUploaded ? strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) : '';
                     
-                    $statusText = 'Not uploaded';
-                    $statusClass = 'status-not-uploaded';
-                    if ($status === 'pending' || $status === 'approved') {
-                        $statusText = 'Approved';
-                        $statusClass = 'status-approved';
-                    } elseif ($status === 'rejected') {
-                        $statusText = 'Rejected';
-                        $statusClass = 'status-rejected';
-                    }
+                    $savedTitle = (isset($docsMap[$docKey]) && !empty($docsMap[$docKey]['doc_title']))
+                        ? $docsMap[$docKey]['doc_title']
+                        : $defaultTitle;
 
-                    $requiredHtml = $isRequired ? '<span class="text-danger">*</span>' : '';
-                    $dNone = $isUploaded ? '' : 'd-none';
-                    $dFlex = $isUploaded ? 'd-flex align-items-center' : '';
+                    $savedSubtitle = (isset($docsMap[$docKey]) && !empty($docsMap[$docKey]['doc_subtitle']))
+                        ? $docsMap[$docKey]['doc_subtitle']
+                        : $defaultSubtitle;
+
                     $btnClass = $isUploaded ? 'btn-replace' : 'btn-upload px-3 py-2 fw-bold';
                     $btnText = $isUploaded ? 'Replace' : 'Upload';
                     $removeDisplay = $isUploaded ? '' : 'display:none;';
@@ -232,15 +234,42 @@
                         $fileHtml = '<div class="file-preview-icon text-center"><i class="mdi mdi-file-document-outline" style="font-size: 30px; color: #6c757d;"></i><br><a href="'.$filePath.'" target="_blank" class="text-decoration-none" style="font-size: 11px;">View</a></div>';
                     }
 
+                    $titleHtml = '
+                    <div class="mb-1" style="max-width: 320px;">
+                        <input type="text" name="doc_title_'.$docKey.'" class="form-control form-control-sm fw-bold border" style="font-size: 14px;" value="'.esc($savedTitle).'" placeholder="Enter document name...">
+                    </div>';
+
+                    if ($isMonthPicker) {
+                        $monthVal = '';
+                        if (!empty($savedSubtitle)) {
+                            if (preg_match('/^\d{4}-\d{2}$/', trim($savedSubtitle))) {
+                                $monthVal = trim($savedSubtitle);
+                            } else {
+                                $ts = strtotime($savedSubtitle);
+                                if ($ts !== false) {
+                                    $monthVal = date('Y-m', $ts);
+                                }
+                            }
+                        }
+                        $subtitleHtml = '
+                        <div class="input-group input-group-sm mt-1" style="max-width: 220px;">
+                            <span class="input-group-text text-white me-0" style="background-color: #e75c25; border-color: #e75c25;">
+                                <i class="mdi mdi-calendar text-white" style="font-size: 16px; color: #ffffff !important;"></i>
+                            </span>
+                            <input type="month" name="doc_subtitle_'.$docKey.'" class="form-control form-control-sm text-dark fw-bold" style="font-size: 13px; cursor: pointer;" value="'.esc($monthVal).'" title="Click to open month and year calendar">
+                        </div>';
+                    } else {
+                        $subtitleHtml = '
+                        <div class="mt-1" style="max-width: 320px;">
+                            <input type="text" name="doc_subtitle_'.$docKey.'" class="form-control form-control-sm text-muted border" style="font-size: 13px;" value="'.esc($savedSubtitle).'" placeholder="Enter subtitle or description...">
+                        </div>';
+                    }
+
                     echo '
                     <div class="doc-item">
                         <div class="doc-info">
-                            <h5>'.$title.' '.$requiredHtml.'</h5>
-                            <p>'.$subtitle.'</p>
-                            <div class="status-container '.$dFlex.'">
-                                <span class="status-badge '.$statusClass.'">'.$statusText.'</span>
-                                <span class="file-name '.$dNone.'">'.esc($fileName).'</span>
-                            </div>
+                            '.$titleHtml.'
+                            '.$subtitleHtml.'
                         </div>
                         <div class="preview-container mx-3" style="'.$previewStyle.'">
                             <img src="'.$imgSrc.'" alt="Preview" class="zoomable-image" style="'.$imgStyle.' cursor: pointer;" title="Click to zoom">
@@ -261,9 +290,9 @@
             <p class="text-muted" style="font-size: 13px;">Allowed: PDF, JPG, PNG. Maximum 5 MB per file. HR will review each document.</p>
             
             <?php 
-            renderDocItem('salary_1', 'Salary slip, Month 1', 'August 2026', true, $docsMap); 
-            renderDocItem('salary_2', 'Salary slip, Month 2', 'July 2026', true, $docsMap); 
-            renderDocItem('salary_3', 'Salary slip, Month 3', 'June 2026', true, $docsMap); 
+            renderDocItem('salary_1', 'Salary slip, Month 1', 'August 2026', true, $docsMap, true); 
+            renderDocItem('salary_2', 'Salary slip, Month 2', 'July 2026', true, $docsMap, true); 
+            renderDocItem('salary_3', 'Salary slip, Month 3', 'June 2026', true, $docsMap, true); 
             ?>
         </div>
 
@@ -284,8 +313,32 @@
             <?php 
             renderDocItem('id_proof', 'ID proof', 'Aadhaar or PAN', true, $docsMap); 
             renderDocItem('edu_cert', 'Educational certificates', 'Highest qualification', true, $docsMap); 
-            renderDocItem('other_doc', 'Other documents', 'Any other related document', false, $docsMap); 
             ?>
+        </div>
+
+        <!-- Step 4: Other documents -->
+        <div class="wizard-card" id="step-4">
+            <p class="text-muted" style="font-size: 13px;">Allowed: PDF, JPG, PNG. Maximum 5 MB per file. HR will review each document.</p>
+            
+            <div id="other-docs-container">
+                <?php 
+                renderDocItem('other_doc', 'Other document 1', 'Any other related document', false, $docsMap); 
+                renderDocItem('other_doc_2', 'Other document 2', 'Additional document or certificate', false, $docsMap); 
+
+                // Render any additional uploaded other_doc_X items
+                $otherDocIndex = 3;
+                while (isset($docsMap['other_doc_' . $otherDocIndex])) {
+                    renderDocItem('other_doc_' . $otherDocIndex, 'Other document ' . $otherDocIndex, 'Additional document or certificate', false, $docsMap);
+                    $otherDocIndex++;
+                }
+                ?>
+            </div>
+
+            <div class="mt-3">
+                <button type="button" class="btn btn-sm text-white fw-bold px-3 py-2" id="addMoreOtherDocBtn" style="background-color: #e75c25; border-color: #e75c25; border-radius: 6px;">
+                    <i class="mdi mdi-plus me-1"></i> Add More Document
+                </button>
+            </div>
         </div>
 
         <!-- Footer Buttons -->
@@ -316,7 +369,7 @@
 
 <script>
 let currentTab = 1;
-const totalTabs = 3;
+const totalTabs = 4;
 
 $('.wizard-tab').click(function(){
     const step = $(this).data('step');
@@ -354,12 +407,42 @@ function nextPrev(n) {
     showTab(currentTab);
 }
 
-// File Upload Logic
-$('.upload-btn').click(function() {
+// Add More Document Logic
+$('#addMoreOtherDocBtn').click(function() {
+    const currentCount = $('#other-docs-container .doc-item').length + 1;
+    const docKey = 'other_doc_' + currentCount;
+    const title = 'Other document ' + currentCount;
+    const subtitle = 'Additional document or certificate';
+
+    const newDocHtml = `
+    <div class="doc-item">
+        <div class="doc-info">
+            <div class="mb-1" style="max-width: 320px;">
+                <input type="text" name="doc_title_${docKey}" class="form-control form-control-sm fw-bold border" style="font-size: 14px;" value="${title}" placeholder="Enter document name...">
+            </div>
+            <div class="mt-1" style="max-width: 320px;">
+                <input type="text" name="doc_subtitle_${docKey}" class="form-control form-control-sm text-muted border" style="font-size: 13px;" value="${subtitle}" placeholder="Enter subtitle or description...">
+            </div>
+        </div>
+        <div class="preview-container mx-3" style="display:none;">
+            <img src="" alt="Preview" class="zoomable-image" style="display:none; cursor: pointer;" title="Click to zoom">
+        </div>
+        <div class="doc-actions">
+            <input type="file" name="${docKey}" class="d-none file-input" accept=".pdf,.jpg,.jpeg,.png">
+            <button type="button" class="btn btn-sm upload-btn btn-upload px-3 py-2 fw-bold">Upload</button>
+            <button type="button" class="btn btn-sm btn-remove ms-2 remove-btn" style="display:none;">Remove</button>
+        </div>
+    </div>`;
+
+    $('#other-docs-container').append(newDocHtml);
+});
+
+// File Upload Logic with Delegation
+$(document).on('click', '.upload-btn', function() {
     $(this).siblings('.file-input').click();
 });
 
-$('.file-input').change(function() {
+$(document).on('change', '.file-input', function() {
     const file = this.files[0];
     const item = $(this).closest('.doc-item');
     const uploadBtn = item.find('.upload-btn');
@@ -395,7 +478,6 @@ $('.file-input').change(function() {
             reader.readAsDataURL(file);
         } else {
             previewImg.hide();
-            // Show a generic document icon for non-image files dynamically selected
             let iconHtml = previewContainer.find('.file-preview-icon');
             if (iconHtml.length === 0) {
                 previewContainer.append('<div class="file-preview-icon text-center"><i class="mdi mdi-file-document-outline" style="font-size: 30px; color: #6c757d;"></i><br><span style="font-size: 11px;">Selected</span></div>');
@@ -407,7 +489,7 @@ $('.file-input').change(function() {
     }
 });
 
-$('.remove-btn').click(function() {
+$(document).on('click', '.remove-btn', function() {
     const item = $(this).closest('.doc-item');
     const fileInput = item.find('.file-input');
     const uploadBtn = item.find('.upload-btn');
@@ -428,7 +510,7 @@ $('.remove-btn').click(function() {
     uploadBtn.removeClass('btn-replace').addClass('btn-upload px-3 py-2 fw-bold').text('Upload');
     removeBtn.hide();
     previewContainer.hide();
-    if (rejectReason.length) rejectReason.show(); // Show if it existed originally, but maybe better to keep it hidden on clear.
+    if (rejectReason.length) rejectReason.show();
 });
 
 // Image Zoom Handler

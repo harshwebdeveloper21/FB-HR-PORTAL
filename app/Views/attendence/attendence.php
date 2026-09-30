@@ -264,6 +264,9 @@
             <div class="d-md-flex justify-content-between align-items-center mb-3">
                 <h4 class="card-title fw-bolder mb-1">Employee Attendance Summary</h4>
                 <div class="d-md-flex gap-2 align-items-center attendance-filter-container">
+                    <button type="button" id="btnExportAttendance" class="btn hr-btnbg attendenceall text-nowrap font-13">
+                        <i class="mdi mdi-file-excel iconfontsize me-1"></i> Export Excel
+                    </button>
                     <select id="month-selector" class="form-select font-13" style="min-width: 140px; width: auto;">
                         <option value="1">January</option>
                         <option value="2">February</option>
@@ -856,6 +859,57 @@
         // Event listeners for month/year change
         document.getElementById('month-selector').addEventListener('change', loadAttendanceData);
         document.getElementById('year-selector').addEventListener('change', loadAttendanceData);
+
+        // Export Attendance to Excel handler
+        document.getElementById('btnExportAttendance')?.addEventListener('click', function () {
+            const month = document.getElementById('month-selector').value;
+            const year = document.getElementById('year-selector').value;
+            const branchSelect = document.getElementById('navbarBranchSelect');
+            const branchId = branchSelect ? branchSelect.value : '';
+
+            let exportUrl = `/api/attendance/export?month=${month}&year=${year}`;
+            if (branchId) {
+                exportUrl += `&branch_id=${encodeURIComponent(branchId)}`;
+            }
+
+            const token = localStorage.getItem('token');
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Exporting...';
+
+            fetch(exportUrl, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                },
+                credentials: 'same-origin'
+            })
+            .then(async response => {
+                if (!response.ok) {
+                    throw new Error('Export failed');
+                }
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                const monthNames = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                const monthName = monthNames[parseInt(month)] || month;
+                a.download = `Attendance_Summary_${monthName}_${year}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(err => {
+                console.error('Export error:', err);
+                alert('Failed to export attendance data. Please try again.');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+        });
 
         // Initial load
         loadAttendanceData();

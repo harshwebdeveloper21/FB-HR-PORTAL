@@ -224,9 +224,9 @@
                                             <i class="mdi mdi-star"></i> Make Default
                                         </a>
                                     <?php endif; ?>
-                                    <a href="<?= site_url('digital-signature/delete/' . $sig['id']) ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this signature?');" title="Delete">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteSignature('/digital-signature/delete/<?= $sig['id'] ?>')" title="Delete">
                                         <i class="mdi mdi-delete"></i>
-                                    </a>
+                                    </button>
                                 </td>
                             </tr>
                         <?php endforeach; else: ?>
@@ -240,6 +240,29 @@
         </div>
     </div>
 </div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white py-2" style="background-color: #d33;">
+                <h6 class="modal-title fw-bold mb-0"><i class="mdi mdi-alert-circle me-1"></i> Confirm Delete</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <i class="mdi mdi-delete-alert-outline text-danger mb-2" style="font-size: 48px;"></i>
+                <h6 class="fw-bold text-dark">Are you sure?</h6>
+                <p class="text-muted font-13 mb-0">Are you sure you want to delete this digital signature record?</p>
+            </div>
+            <div class="modal-footer py-2 bg-light">
+                <button type="button" class="btn btn-sm btn-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                <a id="confirmDeleteLink" href="#" class="btn btn-sm btn-danger fw-bold px-3">Yes, Delete</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <!-- Canvas Drawing Script -->
 <script>
@@ -390,6 +413,28 @@ document.getElementById('sigForm').addEventListener('submit', function(e) {
         return false;
     }
 });
+
+function deleteSignature(url) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'You are about to delete this digital signature record!',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, delete it!',
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#6c757d'
+        }).then(result => {
+            if (result.isConfirmed) {
+                window.location.href = url;
+            }
+        });
+    } else {
+        document.getElementById('confirmDeleteLink').href = url;
+        const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        modal.show();
+    }
+}
 </script>
 
 <?= $this->endSection() ?>

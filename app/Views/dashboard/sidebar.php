@@ -556,5 +556,28 @@ $isEmployee = ($role === 'employee');
       </li>
     <?php endif; ?>
 
+    <!-- ── Resignation & Exit ──────────────────────────────── -->
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="collapse" href="#resignationMenu" aria-expanded="false" aria-controls="resignationMenu">
+        <i class="menu-icon mdi mdi-exit-to-app"></i>
+        <span class="menu-title">Resignation & Exit</span>
+        <i class="menu-arrow"></i>
+      </a>
+      <div class="collapse" id="resignationMenu">
+        <ul class="nav flex-column sub-menu">
+          <!-- Every user can see My Resignation -->
+          <li class="nav-item"><a class="nav-link" href="<?= base_url('/resignation') ?>">My Resignation</a></li>
+          <li class="nav-item"><a class="nav-link" href="<?= base_url('/resignation/my-handover') ?>">My Handover Tasks</a></li>
+          <?php if ($isAdminOrHr || $isBranchAdmin || $isDeptManager): ?>
+          <li class="nav-item"><a class="nav-link" href="<?= base_url('/resignation/manager') ?>">Manager Approvals</a></li>
+          <li class="nav-item"><a class="nav-link" href="<?= base_url('/resignation/clearance') ?>">Clearance Approvals</a></li>
+          <?php endif; ?>
+          <?php if ($isAdminOrHr): ?>
+          <li class="nav-item"><a class="nav-link" href="<?= base_url('/resignation/hr') ?>">All Resignations (HR)</a></li>
+          <?php endif; ?>
+        </ul>
+      </div>
+    </li>
+
   </ul>
 </nav>

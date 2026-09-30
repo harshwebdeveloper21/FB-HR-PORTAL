@@ -150,7 +150,7 @@ class GadgetIssuanceController extends BaseController
         }
     }
 
-    public function index()
+   public function index()
     {
         $this->ensureTableExists();
         $db = \Config\Database::connect();

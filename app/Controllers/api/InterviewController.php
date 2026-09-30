@@ -368,8 +368,8 @@ class InterviewController extends ResourceController
         if (!$user) {
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
-        if ($user->role !== 'admin') {
-            return $this->failForbidden('Forbidden: Only Admin can delete interview records');
+        if (!in_array($user->role, ['admin', 'hr'])) {
+            return $this->failForbidden('Forbidden: Only Admin or HR can delete interview records');
         }
 
         $interview = $this->interviewModel->find($id);
@@ -380,13 +380,7 @@ class InterviewController extends ResourceController
 
         $status = strtolower($interview['status']);
 
-        // Scheduled interviews cannot be deleted — they have active/pending activity
-        if ($status === 'scheduled') {
-            return $this->respond([
-                'status'  => 'error',
-                'message' => 'Cannot delete a scheduled interview. Please cancel it first before deleting.'
-            ], ResponseInterface::HTTP_FORBIDDEN);
-        }
+        // Both 'cancelled', 'scheduled', and 'completed' interviews may be deleted
 
         // Both 'cancelled' and 'completed' interviews may be deleted
         // (Frontend already shows a strong warning for completed interviews)

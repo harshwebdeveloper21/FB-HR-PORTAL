@@ -434,11 +434,12 @@
         function performDelete() {
             $.ajax({
                 url: `/api/interviews/${interviewId}`,
-                type: 'POST',
-                data: JSON.stringify({ [csrfName]: csrfHash, _method: 'DELETE' }),
+                type: 'DELETE',
+                data: JSON.stringify({ [csrfName]: csrfHash }),
                 contentType: 'application/json',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'X-CSRF-TOKEN': csrfHash
                 },
                 success: function(responseData) {
                     if (responseData.status === 'success') {

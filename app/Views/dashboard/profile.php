@@ -272,12 +272,34 @@
             </div>
             <div class="modal-body">
                 <form id="departmentForm">
+                    <?php
+                        $curUserRole = $role ?? session()->get('role') ?? '';
+                        $isAdminOrHr = in_array($curUserRole, ['admin', 'hr']);
+                        $isBranchAdminRole = ($curUserRole === 'branch_admin');
+                        $userBranchId = session()->get('branch_id') ?? '';
+                        $branchesList = (new \App\Models\BranchModel())->getActiveBranches();
+                    ?>
+                    <?php if ($isAdminOrHr): ?>
                     <div class="mb-3">
-                        <label for="country_name" class="form-label">Department Name</label>
+                        <label for="dept_modal_branch_id" class="form-label">Branch <span class="text-danger">*</span></label>
+                        <select class="form-select" name="branch_id" id="dept_modal_branch_id" required>
+                            <option value="">Select Branch</option>
+                            <?php foreach ($branchesList as $branch): ?>
+                                <option value="<?= esc($branch['id']) ?>"><?= esc($branch['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="text-danger mt-1" id="dept_branch_error"></div>
+                    </div>
+                    <?php elseif ($isBranchAdminRole): ?>
+                    <!-- Hidden branch_id auto-filled for branch_admin -->
+                    <input type="hidden" name="branch_id" id="dept_modal_branch_id" value="<?= esc($userBranchId) ?>">
+                    <?php endif; ?>
+                    <div class="mb-3">
+                        <label for="department_name" class="form-label">Department Name</label>
 
                         <div class="input-group">
                             <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="mdi mdi-calendar fs-5"></i></span>
+                                <span class="input-group-text"><i class="mdi mdi-briefcase fs-5"></i></span>
                             </div>
                             <input type="text" class="form-control" name="department_name" id="department_name" placeholder="Enter Department Name" />
                         </div>
@@ -1015,6 +1037,7 @@
             e.preventDefault();
 
             $('#department_name_error').text('');
+            $('#dept_branch_error').text('');
 
             let departmentName = $("#department_name").val().trim();
 
@@ -1023,11 +1046,25 @@
                 return;
             }
 
+            <?php if ($isAdminOrHr): ?>
+            if (!$("#dept_modal_branch_id").val()) {
+                $('#dept_branch_error').text('Please select a branch.');
+                return;
+            }
+            <?php endif; ?>
+
             let formData = $(this).serialize();
+
+            const profileDeptToken = localStorage.getItem('token');
+            let reqHeaders = {};
+            if (profileDeptToken && profileDeptToken !== 'null' && profileDeptToken !== 'undefined') {
+                reqHeaders['Authorization'] = 'Bearer ' + profileDeptToken;
+            }
 
             $.ajax({
                 url: "<?= base_url('api/department/add'); ?>",
                 type: "POST",
+                headers: reqHeaders,
                 data: formData,
                 dataType: "json",
                 success: function(response) {

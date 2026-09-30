@@ -66,6 +66,9 @@ class DepartmentController extends ResourceController
         // Resolve branch_id
         if ($user->role === 'branch_admin') {
             $branchId = (int)$this->authService->getBranchId();
+            if (empty($branchId)) {
+                $branchId = !empty($data['branch_id']) ? (int)$data['branch_id'] : ((int)session()->get('branch_id') ?: null);
+            }
         } else {
             $branchId = !empty($data['branch_id']) ? (int)$data['branch_id'] : ($this->authService->getBranchId() ?: null);
         }
@@ -212,14 +215,7 @@ class DepartmentController extends ResourceController
             $builder->where('department.branch_id', $branchId);
         } elseif ($user->role === 'department_manager') {
             $dmUser = (new \App\Models\UserModel())->find($user->sub);
-            if (!empty($dmUser['department_id'])) {
-                $builder->where('department.id', (int)$dmUser['department_id']);
-            }
-        } else {
-            $filterBranchId = $this->authService->getBranchId();
-            if (!empty($filterBranchId)) {
-                $builder->where('department.branch_id', (int)$filterBranchId);
-            }
+            $builder->where('department.id', (int)($dmUser['department_id'] ?? 0));
         }
 
         $departments = $builder->orderBy('department.created_at', 'DESC')->get()->getResultArray();
@@ -261,11 +257,9 @@ class DepartmentController extends ResourceController
         if ($user->role === 'branch_admin') {
             $branchId = (int)$this->authService->getBranchId();
             $builder->where('department.branch_id', $branchId);
-        } else {
-            $filterBranchId = $this->authService->getBranchId();
-            if (!empty($filterBranchId)) {
-                $builder->where('department.branch_id', (int)$filterBranchId);
-            }
+        } elseif ($user->role === 'department_manager') {
+            $dmUser = (new \App\Models\UserModel())->find($user->sub);
+            $builder->where('department.id', (int)($dmUser['department_id'] ?? 0));
         }
 
         $departments = $builder->orderBy('department.department_name', 'ASC')->get()->getResultArray();
@@ -391,7 +385,13 @@ class DepartmentController extends ResourceController
 
     public function creates()
     {
-        return view('department/department');
+        $actor = $this->authService->check();
+        $branches = (new \App\Models\BranchModel())->getActiveBranches();
+        return view('department/department', [
+            'branches'            => $branches,
+            'currentUserRole'     => $actor ? $actor->role : (session()->get('role') ?? ''),
+            'currentUserBranchId' => $this->authService->getBranchId() ?? (session()->get('branch_id') ?? ''),
+        ]);
     }
 
     public function display()
@@ -413,7 +413,19 @@ class DepartmentController extends ResourceController
     $authService = \Config\Services::auth($this->request);
     $user = $authService->check();
 
-    if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
+    if (!$user && session()->has('user_id')) {
+        $u = (new \App\Models\UserModel())->find(session()->get('user_id'));
+        if ($u) {
+            $user = (object)[
+                'sub'   => $u['id'],
+                'id'    => $u['id'],
+                'role'  => $u['role'],
+                'email' => $u['email'] ?? '',
+            ];
+        }
+    }
+
+    if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
         return $this->response->setJSON([
             'success' => false,
             'message' => 'Unauthorized access.'
@@ -431,12 +443,32 @@ class DepartmentController extends ResourceController
     }
 
     // Resolve branch_id
-    if ($user->role === 'branch_admin') {
-        $branchId = (int)$authService->getBranchId();
+    if (in_array($user->role, ['branch_admin', 'department_manager'], true)) {
+        $branchId = $authService->getBranchId();
+        if (empty($branchId)) {
+            $branchId = !empty($this->request->getPost('branch_id'))
+                ? (int)$this->request->getPost('branch_id')
+                : ((int)session()->get('branch_id') ?: null);
+        }
     } else {
-        $branchId = !empty($this->request->getPost('branch_id'))
-            ? (int)$this->request->getPost('branch_id')
-            : null;
+        $requestedBranchId = $this->request->getPost('branch_id');
+        $branchId = !empty($requestedBranchId)
+            ? (int)$requestedBranchId
+            : $authService->getBranchId();
+    }
+
+    if (in_array($user->role, ['branch_admin', 'department_manager'], true) && empty($branchId)) {
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'Your account is not assigned to a branch.'
+        ]);
+    }
+
+    if (!empty($branchId) && !(new \App\Models\BranchModel())->where('status', 'active')->find((int)$branchId)) {
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'Select a valid active branch.'
+        ]);
     }
 
     // Scope duplicate check per branch
@@ -453,11 +485,11 @@ class DepartmentController extends ResourceController
         ]);
     }
 
-    // Insert new department
-    $insertData = ['department_name' => ucwords(strtolower($departmentName))];
-    if (!empty($branchId)) {
-        $insertData['branch_id'] = $branchId;
-    }
+    // Insert new department — always include branch_id (null = all-branches)
+    $insertData = [
+        'department_name' => ucwords(strtolower($departmentName)),
+        'branch_id'       => !empty($branchId) ? (int)$branchId : null,
+    ];
 
     $departmentId = $departmentModel->insert($insertData);
 

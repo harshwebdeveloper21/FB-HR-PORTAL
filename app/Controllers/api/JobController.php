@@ -44,12 +44,16 @@ class JobController extends ResourceController
         $located = $joblocationModel->findAll();
         // $jobLocationAddressModel = new JobLocationAddressModel();
         // $address = $jobLocationAddressModel->findAll();
+        $actor = $this->authService->check();
         return view('job/job', [
-            'departments' => $departments,
-            'locations' => $locations,
-            'located' => $located,
-            'cities' => $cities,
-            'countries' => $countries,
+            'departments'         => $departments,
+            'locations'           => $locations,
+            'located'             => $located,
+            'cities'              => $cities,
+            'countries'           => $countries,
+            'branches'            => (new \App\Models\BranchModel())->getActiveBranches(),
+            'currentUserRole'     => $actor ? $actor->role : '',
+            'currentUserBranchId' => $actor ? ($this->authService->getBranchId() ?? '') : '',
         ]);
         //  return view('job/multistepjob', ['departments' => $departments, 'locations' => $locations]);
     }

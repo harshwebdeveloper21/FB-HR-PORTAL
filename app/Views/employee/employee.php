@@ -230,7 +230,7 @@
                         <label for="department_name" class="form-label">Department Name <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="mdi mdi-domain fs-5"></i></span>
+                                <span class="input-group-text"><i class="mdi mdi-briefcase fs-5"></i></span>
                             </div>
                             <input type="text" class="form-control" name="department_name" id="department_name"
                                 placeholder="Enter Department Name" />
@@ -1623,11 +1623,13 @@
 
             let formData = $(this).serialize();
 
+            const empDeptToken = localStorage.getItem('token');
             $.ajax({
                 url: "<?= base_url("api/department/add") ?>",
                 type: "POST",
                 data: formData,
                 dataType: "json",
+                headers: { 'Authorization': 'Bearer ' + empDeptToken },
                 success: function (response) {
                     $('#department_name_error').text('');
                     $('#dept_branch_error').text('');

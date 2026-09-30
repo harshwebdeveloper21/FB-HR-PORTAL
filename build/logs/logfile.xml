@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="D:\xampp\htdocs\HR-Korvia\phpunit.xml.dist" tests="5" assertions="7" errors="0" failures="0" skipped="0" time="1.098650">
+    <testsuite name="App" tests="5" assertions="7" errors="0" failures="0" skipped="0" time="1.098650">
+      <testsuite name="ExampleDatabaseTest" file="D:\xampp\htdocs\HR-Korvia\tests\database\ExampleDatabaseTest.php" tests="2" assertions="3" errors="0" failures="0" skipped="0" time="1.015902">
+        <testcase name="testModelFindAll" file="D:\xampp\htdocs\HR-Korvia\tests\database\ExampleDatabaseTest.php" line="17" class="ExampleDatabaseTest" classname="ExampleDatabaseTest" assertions="1" time="0.710348"/>
+        <testcase name="testSoftDeleteLeavesRow" file="D:\xampp\htdocs\HR-Korvia\tests\database\ExampleDatabaseTest.php" line="28" class="ExampleDatabaseTest" classname="ExampleDatabaseTest" assertions="2" time="0.305554"/>
+      </testsuite>
+      <testsuite name="ExampleSessionTest" file="D:\xampp\htdocs\HR-Korvia\tests\session\ExampleSessionTest.php" tests="1" assertions="1" errors="0" failures="0" skipped="0" time="0.004909">
+        <testcase name="testSessionSimple" file="D:\xampp\htdocs\HR-Korvia\tests\session\ExampleSessionTest.php" line="10" class="ExampleSessionTest" classname="ExampleSessionTest" assertions="1" time="0.004909"/>
+      </testsuite>
+      <testsuite name="HealthTest" file="D:\xampp\htdocs\HR-Korvia\tests\unit\HealthTest.php" tests="2" assertions="3" errors="0" failures="0" skipped="0" time="0.077838">
+        <testcase name="testIsDefinedAppPath" file="D:\xampp\htdocs\HR-Korvia\tests\unit\HealthTest.php" line="12" class="HealthTest" classname="HealthTest" assertions="1" time="0.008536"/>
+        <testcase name="testBaseUrlHasBeenSet" file="D:\xampp\htdocs\HR-Korvia\tests\unit\HealthTest.php" line="17" class="HealthTest" classname="HealthTest" assertions="2" time="0.069302"/>
+      </testsuite>
+    </testsuite>
+  </testsuite>
+</testsuites>

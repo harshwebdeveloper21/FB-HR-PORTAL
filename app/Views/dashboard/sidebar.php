@@ -137,6 +137,7 @@ $isEmployee = ($role === 'employee');
           <ul class="nav flex-column sub-menu">
             <li class="nav-item"> <a class="nav-link" href="/empview">Manage Employee</a></li>
             <li class="nav-item"> <a class="nav-link" href="/employee">Add Employee</a></li>
+            <li class="nav-item"> <a class="nav-link" href="/gadget-issuance">Gadget Issuance</a></li>
           </ul>
         </div>
       </li>

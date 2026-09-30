@@ -556,11 +556,74 @@ class InterviewController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        $convertToEmployee = $this->request->getJSON()->convert_to_employee ?? 0;
+        $payload = $this->request->getJSON();
+        $convertToEmployee = $payload->convert_to_employee ?? 0;
+        $branchId = $payload->branch_id ?? null;
+        $departmentId = $payload->department_id ?? null;
         
         $interview = $this->interviewModel->find($id);
         if (!$interview) {
             return $this->failNotFound('Interview not found');
+        }
+
+        // If converting to employee, update/create the user
+        if ($convertToEmployee == 1) {
+            if (!$branchId || !$departmentId) {
+                return $this->respond(['status' => 'error', 'message' => 'Branch and Department are required to convert to employee'], 400);
+            }
+
+            $userModel = new \App\Models\UserModel();
+            $userInfoModel = new \App\Models\UserInfoModel();
+
+            // Check if user already exists
+            $existingUser = $userModel->where('email', $interview['email'])->first();
+            
+            $userId = null;
+            if (!$existingUser) {
+                // Insert into users
+                $userData = [
+                    'username' => $interview['full_name'] ?? $interview['candidate_name'] ?? 'Employee',
+                    'email' => $interview['email'],
+                    'password' => password_hash('123456', PASSWORD_DEFAULT),
+                    'role' => 'employee',
+                    'branch_id' => $branchId,
+                    'department_id' => $departmentId
+                ];
+                $userId = $userModel->insert($userData);
+            } else {
+                $userId = $existingUser['id'];
+                // Update their role to employee
+                $userModel->update($userId, [
+                    'role' => 'employee',
+                    'branch_id' => $branchId,
+                    'department_id' => $departmentId
+                ]);
+            }
+
+            // Upsert into user_info
+            $existingInfo = $userInfoModel->where('user_id', $userId)->first();
+            $nameParts = explode(' ', ($interview['full_name'] ?? $interview['candidate_name'] ?? 'Employee'), 2);
+            $userInfoData = [
+                'user_id' => $userId,
+                'firstname' => $nameParts[0] ?? '',
+                'lastname' => $nameParts[1] ?? '',
+                'email' => $interview['email'],
+                'gender' => $interview['gender'] ?? '',
+                'date_of_birth' => $interview['date_of_birth'] ?? null,
+                'address_1' => $interview['current_address'] ?? '',
+                'contact_number' => $interview['mobile_number'] ?? '',
+                'department_id' => $departmentId,
+                'joining_date' => $interview['joining_date'] ?? null,
+                'job_id' => $interview['job_id'] ?? null,
+                'salary' => $interview['offered_salary'] ?? null,
+                'status' => 'active'
+            ];
+            
+            if (!$existingInfo) {
+                $userInfoModel->insert($userInfoData);
+            } else {
+                $userInfoModel->update($existingInfo['id'], $userInfoData);
+            }
         }
 
         if ($this->interviewModel->update($id, ['convert_to_employee' => $convertToEmployee])) {

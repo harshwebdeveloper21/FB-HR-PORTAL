@@ -23,7 +23,7 @@
                                 <div class="col-sm-8">
                                     <div class="input-group">
                                         <div class="input-group-prepend">
-                                            <span class="input-group-text"><i class="mdi mdi-domain fs-5"></i></span>
+                                            <span class="input-group-text"><i class="mdi mdi-briefcase fs-5"></i></span>
                                         </div>
                                         <input type="text" class="form-control" name="department_name" id="department_name" placeholder="Enter Department Name" required />
                                     </div>
@@ -31,23 +31,38 @@
                             </div>
                         </div>
                     </div>
+                    <?php
+                        $curUserRole = $currentUserRole ?? session()->get('role') ?? '';
+                        $isAdminOrHr = in_array($curUserRole, ['admin', 'hr']);
+                        $isBranchAdminRole = ($curUserRole === 'branch_admin');
+                        $userBranchId = $currentUserBranchId ?? session()->get('branch_id') ?? '';
+                    ?>
+                    <?php if ($isAdminOrHr): ?>
                     <div class="row">
                         <div class="col-md-10">
                             <div class="form-group row">
-                                <label class="col-sm-4 col-form-label">Branch</label>
+                                <label class="col-sm-4 col-form-label">Branch <span class="text-danger">*</span></label>
                                 <div class="col-sm-8">
                                     <div class="input-group">
                                         <div class="input-group-prepend">
                                             <span class="input-group-text"><i class="mdi mdi-office-building fs-5"></i></span>
                                         </div>
-                                        <select class="form-select form-control" name="branch_id" id="branch_id">
-                                            <option value="">Select Branch (or All Branches)</option>
+                                        <select class="form-select form-control" name="branch_id" id="branch_id" required>
+                                            <option value="">Select Branch</option>
+                                            <?php foreach ($branches ?? [] as $b): ?>
+                                                <option value="<?= esc($b['id']) ?>"><?= esc($b['name']) ?></option>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
+                                    <div class="text-danger mt-1" id="branch_error"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    <?php elseif ($isBranchAdminRole): ?>
+                    <!-- Hidden branch_id auto-filled for branch_admin -->
+                    <input type="hidden" name="branch_id" id="branch_id" value="<?= esc($userBranchId) ?>">
+                    <?php endif; ?>
                     <div class="row">
                         <div class="col-md-10">
                             <div class="form-group row">
@@ -108,6 +123,15 @@
             isValid = false;
         } else {
             $('#department_name').removeClass('is-invalid');
+        }
+
+        if ($('#branch_id').is('select') && !$('#branch_id').val()) {
+            $('#branch_id').addClass('is-invalid');
+            $('#branch_error').text('Please select a branch.');
+            isValid = false;
+        } else {
+            $('#branch_id').removeClass('is-invalid');
+            $('#branch_error').text('');
         }
 
         if (isValid) {
@@ -172,13 +196,14 @@
 
         // Load Branches
         function loadBranchesDropdown(selectedBranchId = null) {
+            if (!$('#branch_id').is('select')) return;
             $.ajax({
                 url: '/api/branches/list-all',
                 type: 'GET',
                 headers: { 'Authorization': `Bearer ${token}` },
                 success: function(res) {
                     if (res.data) {
-                        let options = '<option value="">All Branches / Unassigned</option>';
+                        let options = '<option value="">Select Branch</option>';
                         res.data.forEach(b => {
                             const sel = (selectedBranchId && parseInt(selectedBranchId, 10) === parseInt(b.id, 10)) ? 'selected' : '';
                             options += `<option value="${b.id}" ${sel}>${b.name} (${b.code || ''})</option>`;
@@ -211,7 +236,9 @@
         }
 
         // Initial dropdown loads
-        loadBranchesDropdown();
+        if ($('#branch_id').is('select')) {
+            loadBranchesDropdown();
+        }
         loadStaffDropdown();
 
         const params = new URLSearchParams(window.location.search);

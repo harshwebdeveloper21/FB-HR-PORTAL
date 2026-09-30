@@ -34,7 +34,18 @@ $(document).ready(function () {
     if (href) {
       var hrefPath = new URL(href, window.location.origin).pathname.replace(/\/$/, '');
 
-      if (currentPath === hrefPath) {
+      var isMatch = (currentPath === hrefPath);
+
+      // Smart UX active route matching for sub-pages / actions
+      if (!isMatch) {
+        if (hrefPath === '/departmentview' && (currentPath === '/department' || currentPath.indexOf('/department/') === 0)) {
+          isMatch = true;
+        } else if (hrefPath === '/branches' && (currentPath === '/branches/create' || currentPath.indexOf('/branches/edit') === 0 || currentPath.indexOf('/branches/assign') === 0)) {
+          isMatch = true;
+        }
+      }
+
+      if (isMatch) {
         if ($this.closest('.sub-menu').length) {
           // Submenu item matched
           $this.addClass('active');

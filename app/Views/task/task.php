@@ -31,12 +31,34 @@
             <div class="modal-body">
                 <form id="departmentForm">
                       <input type="hidden" name="<?= csrf_token() ?>" value="<?= csrf_hash() ?>" id="csrfToken">
+                    <?php
+                        $curUserRole = $currentUserRole ?? session()->get('role') ?? '';
+                        $isAdminOrHr = in_array($curUserRole, ['admin', 'hr']);
+                        $isBranchAdminRole = ($curUserRole === 'branch_admin');
+                        $userBranchId = $currentUserBranchId ?? session()->get('branch_id') ?? '';
+                        $branchesList = $branches ?? (new \App\Models\BranchModel())->getActiveBranches();
+                    ?>
+                    <?php if ($isAdminOrHr): ?>
                     <div class="mb-3">
-                        <label for="country_name" class="form-label">Department Name</label>
+                        <label for="dept_modal_branch_id" class="form-label">Branch <span class="text-danger">*</span></label>
+                        <select class="form-select" name="branch_id" id="dept_modal_branch_id" required>
+                            <option value="">Select Branch</option>
+                            <?php foreach ($branchesList as $branch): ?>
+                                <option value="<?= esc($branch['id']) ?>"><?= esc($branch['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="text-danger mt-1" id="dept_branch_error"></div>
+                    </div>
+                    <?php elseif ($isBranchAdminRole): ?>
+                    <!-- Hidden branch_id auto-filled for branch_admin -->
+                    <input type="hidden" name="branch_id" id="dept_modal_branch_id" value="<?= esc($userBranchId) ?>">
+                    <?php endif; ?>
+                    <div class="mb-3">
+                        <label for="department_name" class="form-label">Department Name</label>
 
                         <div class="input-group">
                             <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="mdi mdi-calendar fs-5"></i></span>
+                                <span class="input-group-text"><i class="mdi mdi-briefcase fs-5"></i></span>
                             </div>
                             <input type="text" class="form-control" name="department_name" id="department_name" placeholder="Enter Department Name" />
                         </div>
@@ -400,10 +422,12 @@
         }
     });
     $(document).ready(function() {
+        const taskDeptToken = localStorage.getItem('token');
         $("#departmentForm").submit(function(e) {
             e.preventDefault();
 
             $('#department_name_error').text('');
+            $('#dept_branch_error').text('');
 
             let departmentName = $("#department_name").val().trim();
 
@@ -412,15 +436,29 @@
                 return;
             }
 
+            <?php if ($isAdminOrHr): ?>
+            if (!$("#dept_modal_branch_id").val()) {
+                $('#dept_branch_error').text('Please select a branch.');
+                return;
+            }
+            <?php endif; ?>
+
             let formData = $(this).serialize();
+
+            let reqHeaders = {};
+            if (taskDeptToken && taskDeptToken !== 'null' && taskDeptToken !== 'undefined') {
+                reqHeaders['Authorization'] = 'Bearer ' + taskDeptToken;
+            }
 
             $.ajax({
                 url: "<?= base_url("api/department/add") ?>",
                 type: "POST",
                 data: formData,
                 dataType: "json",
+                headers: reqHeaders,
                 success: function(response) {
                     $('#department_name_error').text('');
+                    $('#dept_branch_error').text('');
 
                     if (response.success) {
                         let newOption = `<option value="${response.department.id}" selected>${response.department.department_name}</option>`;

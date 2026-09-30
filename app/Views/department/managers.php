@@ -14,7 +14,7 @@
           </div>
           <div class="d-flex gap-2">
             <a href="<?= base_url('/departmentview') ?>" class="btn hr-btnbg">
-              <i class="mdi mdi-database me-1"></i> Manage Departments
+              <i class="mdi mdi-briefcase me-1"></i> All Departments
             </a>
             <a href="<?= base_url('/branch-managers') ?>" class="btn hr-btnbg">
               <i class="mdi mdi-office-building me-1"></i> Branch Managers

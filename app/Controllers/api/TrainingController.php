@@ -28,16 +28,21 @@ class TrainingController extends ResourceController
     {
         $userModel = new \App\Models\UserModel();
         $departmentModel = new \App\Models\DepartmentModel();
+        $actor = $this->authService->check();
+        if (!$actor) {
+            return redirect()->to('/login');
+        }
 
-        // Fetch employees with role 'employee'
-        $employees = $userModel->where('role', 'employee')->findAll();
-
-        // Fetch departments
-        $departments = $departmentModel->findAll();
+        $employees = $this->managedEmployees($actor);
+        $departments = $this->managedDepartments($actor);
+        $branches = (new \App\Models\BranchModel())->getActiveBranches();
 
         return view('training/training', [
-            'employees' => $employees,
-            'departments' => $departments
+            'employees'           => $employees,
+            'departments'         => $departments,
+            'branches'            => $branches,
+            'currentUserRole'     => $actor->role,
+            'currentUserBranchId' => $this->authService->getBranchId() ?? '',
         ]);
     }
 
@@ -58,12 +63,17 @@ class TrainingController extends ResourceController
         }
 
         // Role-based access control (RBAC)
-        if ($user->role !== 'admin' && $user->role !== 'hr') {
-            return $this->failForbidden('Forbidden: You do not have permission to create performance records');
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
+            return $this->failForbidden('Forbidden: You do not have permission to create training records');
         }
 
         // Validate input data
         $data = $this->request->getPost();
+        if (!$this->canManageEmployee($user, (int)($data['user_id'] ?? 0))) {
+            return $this->failForbidden('You can assign training only within your permitted scope.');
+        }
+        $target = (new \App\Models\UserModel())->find((int)$data['user_id']);
+        $data['department_id'] = $target['department_id'] ?? null;
         if (!$this->validate([
             'training_title' => [
                 'rules' => 'required',
@@ -172,12 +182,12 @@ class TrainingController extends ResourceController
              ->join('user_info', 'user_info.user_id = training.user_id');
 
         // Role-based filtering
-        if ($user->role === 'admin') {
-            // Admin can see all records (no filter)
+        if (in_array($user->role, ['admin', 'hr'], true)) {
+            // Global roles can see all records.
             $records = $this->trainingModel->orderBy('created_at', 'DESC')->findAll();
-        } elseif ($user->role === 'hr') {
-            // HR can only see employee records (exclude admin & HR)
-            $records = $this->trainingModel->where('users.role', 'employee')->orderBy('created_at', 'DESC')->findAll();
+        } elseif (in_array($user->role, ['branch_admin', 'department_manager'], true)) {
+            $this->applyManagedScope($this->trainingModel, $user);
+            $records = $this->trainingModel->orderBy('training.created_at', 'DESC')->findAll();
         } elseif ($user->role === 'employee') {
             // Employee can only see their own records
             $records = $this->trainingModel->where('training.user_id', $user->sub)->orderBy('created_at', 'DESC')->findAll();
@@ -197,14 +207,16 @@ class TrainingController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        // Employee can only view their own performance records
-        if ($user->role === 'employee' && $user->sub !== $employeeId) {
-            return $this->failForbidden('Forbidden: You can only access your own performance records');
+        $record = $this->trainingModel->find($employeeId);
+        if (!$record) return $this->failNotFound('Training record not found');
+        if ($user->role === 'employee' && (int)$record['user_id'] !== (int)$user->sub) {
+            return $this->failForbidden('Forbidden: You can only access your own training records');
+        }
+        if (!in_array($user->role, ['admin', 'hr', 'employee'], true) && !$this->canManageEmployee($user, (int)$record['user_id'])) {
+            return $this->failForbidden('Forbidden: You can only access training within your permitted scope');
         }
 
-
-        // Change 'employee_id' to 'user_id' (as per your model)
-        $records = $this->trainingModel->where('id', $employeeId)->findAll();
+        $records = [$record];
 
         return $this->respond(['status' => 'success', 'data' => $records]);
     }
@@ -218,13 +230,23 @@ class TrainingController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        // Check user role for authorization
-        if ($user->role !== 'admin' && $user->role !== 'hr') {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
             return $this->failForbidden('Forbidden: You do not have permission to update training records');
         }
 
         // Get input data
         $data = $this->request->getPost();
+
+        $existingRecord = $this->trainingModel->find($id);
+        if (!$existingRecord) {
+            return $this->respond(['status' => 'error', 'message' => 'Training record not found'], 404);
+        }
+        $targetUserId = (int)($data['user_id'] ?? $existingRecord['user_id']);
+        if (!$this->canManageEmployee($user, (int)$existingRecord['user_id']) || !$this->canManageEmployee($user, $targetUserId)) {
+            return $this->failForbidden('You can update training only within your permitted scope.');
+        }
+        $target = (new \App\Models\UserModel())->find($targetUserId);
+        $data['department_id'] = $target['department_id'] ?? null;
 
         // Validate input data before updating
         if (!$this->validate([
@@ -267,12 +289,6 @@ class TrainingController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => $this->validator->getErrors()], 400);
         }
 
-        // Check if the record exists before updating
-        $existingRecord = $this->trainingModel->find($id);
-        if (!$existingRecord) {
-            return $this->respond(['status' => 'error', 'message' => 'Training record not found'], 404);
-        }
-
         // Update training record in database
         if ($this->trainingModel->update($id, $data)) {
             $emailService = new EmailService();
@@ -292,9 +308,13 @@ class TrainingController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        // Check user role for deletion permission
-        if ($user->role !== 'admin' && $user->role !== 'hr') {
-            return $this->failForbidden('Forbidden: You do not have permission to delete performance records');
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
+            return $this->failForbidden('Forbidden: You do not have permission to delete training records');
+        }
+
+        $record = $this->trainingModel->find($id);
+        if (!$record || !$this->canManageEmployee($user, (int)$record['user_id'])) {
+            return $this->failForbidden('You can delete training only within your permitted scope.');
         }
 
         if ($this->trainingModel->delete($id)) {
@@ -332,35 +352,20 @@ class TrainingController extends ResourceController
         if (!$record) {
             return $this->failNotFound('training record not found');
         }
+        if ($user->role === 'employee' && (int)$record['user_id'] !== (int)$user->sub) {
+            return $this->failForbidden('You can access only your own training record.');
+        }
+        if (!in_array($user->role, ['admin', 'hr', 'employee'], true) && !$this->canManageEmployee($user, (int)$record['user_id'])) {
+            return $this->failForbidden('You can access only training within your permitted scope.');
+        }
 
         return $this->respond(['status' => 'success', 'data' => $record]);
     }
     public function addDepartment()
     {
-        $departmentModel = new \App\Models\DepartmentModel();
-        $departmentName = $this->request->getPost('department_name');
-
-        if (empty($departmentName)) {
-            return $this->response->setJSON(['success' => false, 'message' => 'Department Name is required.']);
-        }
-
-        $data = [
-            'department_name' => $departmentName
-        ];
-
-        $departmentId = $departmentModel->insert($data);
-
-        if ($departmentId) {
-            return $this->response->setJSON([
-                'success' => true,
-                'department' => [
-                    'id' => $departmentId,
-                    'department_name' => $departmentName
-                ]
-            ]);
-        } else {
-            return $this->response->setJSON(['success' => false, 'message' => 'Failed to add department.']);
-        }
+        $deptController = new \App\Controllers\Api\DepartmentController();
+        $deptController->initController($this->request, $this->response, $this->logger);
+        return $deptController->addDepartment();
     }
 
     /**
@@ -372,10 +377,11 @@ class TrainingController extends ResourceController
         if (!$user) {
             return $this->response->setStatusCode(401)->setJSON(['message' => 'Unauthorized: Token missing or invalid']);
         }
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager', 'employee'], true)) {
+            return $this->failForbidden('Forbidden: Unauthorized role');
+        }
 
         $search = $this->request->getGet('search');
-
-        $builder = $this->trainingModel->builder();
         $builder->select('training.*, users.username as employee_name, ui.firstname, ui.lastname, ui.employee_id, ui.email, dep.department_name, des.designation_name')
             ->join('users', 'users.id = training.user_id', 'left')
             ->join('user_info ui', 'ui.user_id = users.id', 'left')
@@ -383,8 +389,8 @@ class TrainingController extends ResourceController
             ->join('designation des', 'des.id = ui.designation_id', 'left');
 
         // Role-based filtering
-        if ($user->role === 'hr') {
-            $builder->where('users.role', 'employee');
+        if (in_array($user->role, ['branch_admin', 'department_manager'], true)) {
+            $this->applyManagedScope($builder, $user);
         } elseif ($user->role === 'employee') {
             $builder->where('training.user_id', $user->sub);
         }
@@ -474,5 +480,55 @@ class TrainingController extends ResourceController
         $writer = new Xlsx($spreadsheet);
         $writer->save('php://output');
         exit;
+    }
+
+    private function managedEmployees(object $actor): array
+    {
+        $model = new \App\Models\UserModel();
+        if (in_array($actor->role, ['admin', 'hr'], true)) {
+            return $model->whereIn('role', ['employee', 'department_manager'])->where('is_deleted', 0)->findAll();
+        }
+        $actorRow = $model->find($actor->sub);
+        $query = $model->where('is_deleted', 0)->where('branch_id', (int)($actorRow['branch_id'] ?? 0));
+        if ($actor->role === 'branch_admin') {
+            return $query->whereIn('role', ['employee', 'department_manager'])->findAll();
+        }
+        if ($actor->role === 'department_manager') {
+            return $query->where('department_id', (int)($actorRow['department_id'] ?? 0))->where('role', 'employee')->findAll();
+        }
+        return [];
+    }
+
+    private function managedDepartments(object $actor): array
+    {
+        $model = new \App\Models\DepartmentModel();
+        if (in_array($actor->role, ['admin', 'hr'], true)) return $model->findAll();
+        $actorRow = (new \App\Models\UserModel())->find($actor->sub);
+        if ($actor->role === 'branch_admin') return $model->where('branch_id', (int)($actorRow['branch_id'] ?? 0))->findAll();
+        if ($actor->role === 'department_manager') return $model->where('id', (int)($actorRow['department_id'] ?? 0))->findAll();
+        return [];
+    }
+
+    private function canManageEmployee(object $actor, int $employeeId): bool
+    {
+        if (in_array($actor->role, ['admin', 'hr'], true)) return true;
+        $users = new \App\Models\UserModel();
+        $actorRow = $users->find($actor->sub);
+        $target = $users->find($employeeId);
+        if (!$actorRow || !$target) return false;
+        if ($actor->role === 'branch_admin') return (int)$target['branch_id'] === (int)$actorRow['branch_id'] && in_array($target['role'], ['employee', 'department_manager'], true);
+        if ($actor->role === 'department_manager') return $target['role'] === 'employee' && (int)$target['branch_id'] === (int)$actorRow['branch_id'] && (int)$target['department_id'] === (int)$actorRow['department_id'];
+        return false;
+    }
+
+    private function applyManagedScope($builder, object $actor): void
+    {
+        $actorRow = (new \App\Models\UserModel())->find($actor->sub);
+        $builder->where('users.branch_id', (int)($actorRow['branch_id'] ?? 0));
+        if ($actor->role === 'branch_admin') {
+            $builder->whereIn('users.role', ['employee', 'department_manager']);
+        } else {
+            $builder->where('users.role', 'employee')->where('users.department_id', (int)($actorRow['department_id'] ?? 0));
+        }
     }
 }

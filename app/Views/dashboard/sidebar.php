@@ -141,13 +141,6 @@ $isEmployee = ($role === 'employee');
           </ul>
         </div>
       </li>
-    <?php elseif ($isDeptManager): ?>
-      <li class="nav-item">
-        <a class="nav-link" href="/empview">
-          <i class="menu-icon mdi mdi-account-multiple"></i>
-          <span class="menu-title">Department Staff</span>
-        </a>
-      </li>
     <?php endif; ?>
 
     <!-- ── Attendance ───────────────────────────────────────── -->
@@ -392,6 +385,23 @@ $isEmployee = ($role === 'employee');
       </li>
     <?php endif; ?>
 
+    <!-- ── Departments (Admin, HR & Branch Admin) ─────────────── -->
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
+      <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="collapse" href="#departmentsMenu" aria-expanded="false" aria-controls="departmentsMenu">
+          <i class="menu-icon mdi mdi-briefcase"></i>
+          <span class="menu-title">Departments</span>
+          <i class="menu-arrow"></i>
+        </a>
+        <div class="collapse" id="departmentsMenu">
+          <ul class="nav flex-column sub-menu">
+            <li class="nav-item"> <a class="nav-link" href="<?= base_url('/departmentview') ?>">All Departments</a></li>
+            <li class="nav-item"> <a class="nav-link" href="<?= base_url('/department-managers') ?>">Department Managers</a></li>
+          </ul>
+        </div>
+      </li>
+    <?php endif; ?>
+
     <!-- ── Staff Transfer (Admin & HR) ──────────────────────── -->
     <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
@@ -467,7 +477,7 @@ $isEmployee = ($role === 'employee');
       </li>
     <?php endif; ?>
 
-    <!-- ── Masters & Departments ────────────────────────────── -->
+    <!-- ── Masters ──────────────────────────────────────────── -->
     <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#Masters" aria-expanded="false" aria-controls="Masters">
@@ -480,24 +490,8 @@ $isEmployee = ($role === 'employee');
             <li class="nav-item"><a class="nav-link" href="/countryview">Country</a></li>
             <li class="nav-item"><a class="nav-link" href="/stateView">State</a></li>
             <li class="nav-item"><a class="nav-link" href="/cityview">City</a></li>
-            <li class="nav-item"><a class="nav-link" href="/departmentview">Departments</a></li>
-            <li class="nav-item"><a class="nav-link" href="/department-managers">Department Managers</a></li>
             <li class="nav-item"><a class="nav-link" href="/designationview">Designations</a></li>
             <li class="nav-item"><a class="nav-link" href="/leavetypeview">Leave Types</a></li>
-          </ul>
-        </div>
-      </li>
-    <?php elseif ($isBranchAdmin): ?>
-      <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#branchMasters" aria-expanded="false" aria-controls="branchMasters">
-          <i class="menu-icon mdi mdi-database"></i>
-          <span class="menu-title">Departments</span>
-          <i class="menu-arrow"></i>
-        </a>
-        <div class="collapse" id="branchMasters">
-          <ul class="nav flex-column sub-menu">
-            <li class="nav-item"><a class="nav-link" href="/departmentview">Branch Departments</a></li>
-            <li class="nav-item"><a class="nav-link" href="/department-managers">Department Managers</a></li>
           </ul>
         </div>
       </li>

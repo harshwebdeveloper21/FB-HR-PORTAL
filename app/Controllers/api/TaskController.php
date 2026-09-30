@@ -29,43 +29,49 @@ class TaskController extends ResourceController
 
     public function getTasks()
     {
-        // Initialize the Task model
-        $taskModel = new TaskModel();
+        $user = $this->authService->check();
+        if (!$user) {
+            return $this->failUnauthorized('Unauthorized: Token missing or invalid');
+        }
 
-        // Fetch tasks from the database
-        $tasks = $taskModel->findAll();
+        $builder = $this->taskModel->builder();
+        $builder->select('task.*')->join('users', 'users.id = task.user_id');
 
-        // Return the tasks as JSON
-        return $this->response->setJSON($tasks);
+        if (in_array($user->role, ['admin', 'hr'], true)) {
+            // Global roles can see all records.
+        } elseif (in_array($user->role, ['branch_admin', 'department_manager'], true)) {
+            $this->applyManagedScope($builder, $user);
+        } elseif ($user->role === 'employee') {
+            $builder->where('task.user_id', $user->sub);
+        } else {
+            return $this->failForbidden('Forbidden: Unauthorized role');
+        }
+
+        return $this->response->setJSON($builder->get()->getResultArray());
     }
     public function creates()
     {
         $userModel = new \App\Models\UserModel();
         $departmentModel = new \App\Models\DepartmentModel();
+        $actor = $this->authService->check();
+        if (!$actor) return redirect()->to('/login');
 
         // Get the role of the logged-in user
-        $role = session()->get('role');  // Assuming the user's role is stored in the session
+        $role = $actor->role;
 
         // Fetch employees with role 'employee'
-        $employees = $userModel->where('role', 'employee')->findAll();
+        $employees = $this->managedEmployees($actor);
 
         // If the user is an admin, fetch both HR and employees for the dropdown
-        if ($role === 'admin') {
-            $employees = $userModel->whereIn('role', ['employee'])->findAll();
-        } elseif ($role === 'hr') {
-            // If the user is HR, only fetch employees for the dropdown
-            $employees = $userModel->where('role', 'employee')->findAll();
-        } else {
-            // If neither admin nor HR, you can choose to handle it or return an empty array
-            $employees = [];
-        }
-
-        // Fetch departments
-        $departments = $departmentModel->findAll();
+        $departments = $this->managedDepartments($actor);
+        $branches = (new \App\Models\BranchModel())->getActiveBranches();
 
         return view('task/task', [
-            'employees' => $employees,  // Pass the filtered employees
-            'departments' => $departments
+            'employees'          => $employees,
+            'departments'        => $departments,
+            'branches'           => $branches,
+            'currentUserRole'    => $actor->role,
+            'currentUserBranchId'=> $this->authService->getBranchId() ?? '',
         ]);
     }
 
@@ -82,7 +88,7 @@ class TaskController extends ResourceController
         }
 
         // Role-based access control (RBAC)
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
             return $this->failForbidden('Forbidden: You do not have permission to create tasks');
         }
 
@@ -95,7 +101,9 @@ class TaskController extends ResourceController
             'due_date' => $this->request->getPost('due_date'),
             'document' => $this->request->getFile('document') // ✅ Include the file for validation
         ];
-
+        if (!$this->canManageEmployee($user, (int)$data['user_id'])) {
+            return $this->failForbidden('You can assign tasks only within your permitted scope.');
+        }
         // Validation rules and messages
         $validationRules = [
             'user_id' => 'required|integer',
@@ -142,6 +150,7 @@ class TaskController extends ResourceController
 
         // Prepare data for saving
         $saveData = $this->request->getPost();
+        $saveData['department_id'] = $scopedDepartmentId;
         $saveData['created_by'] = $user->sub;
 
         if (!isset($saveData['task_status']) || empty($saveData['task_status'])) {
@@ -231,12 +240,12 @@ class TaskController extends ResourceController
 
 
         // Role-based filtering
-        if ($user->role === 'admin') {
-            // Admin can see all records (no filter)
+        if (in_array($user->role, ['admin', 'hr'], true)) {
+            // Global roles can see all records.
             $records = $this->taskModel->orderBy('task.created_at', 'DESC')->findAll();
-        } elseif ($user->role === 'hr') {
-            // HR can only see employee records (exclude admin & HR)
-            $records = $this->taskModel->where('users.role', 'employee')->orderBy('task.created_at', 'DESC')->findAll();
+        } elseif (in_array($user->role, ['branch_admin', 'department_manager'], true)) {
+            $this->applyManagedScope($this->taskModel, $user);
+            $records = $this->taskModel->orderBy('task.created_at', 'DESC')->findAll();
         } elseif ($user->role === 'employee') {
             // Employee can only see their own records
             $records = $this->taskModel->where('task.user_id', $user->sub)->orderBy('task.created_at', 'DESC')->findAll();
@@ -256,11 +265,16 @@ class TaskController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        if ($user->role === 'employee' && $user->sub !== $employeeId) {
+        $task = $this->taskModel->find($employeeId);
+        if (!$task) return $this->failNotFound('Task not found');
+        if ($user->role === 'employee' && (int)$task['user_id'] !== (int)$user->sub) {
             return $this->failForbidden('Forbidden: You can only access your own tasks');
         }
+        if (!in_array($user->role, ['admin', 'hr', 'employee'], true) && !$this->canManageEmployee($user, (int)$task['user_id'])) {
+            return $this->failForbidden('Forbidden: You can only access tasks within your permitted scope');
+        }
 
-        $tasks = $this->taskModel->where('id', $employeeId)->findAll();
+        $tasks = [$task];
         return $this->respond([
             'status' => 'success',
             'data' => $tasks
@@ -274,11 +288,21 @@ class TaskController extends ResourceController
         return $this->failUnauthorized('Unauthorized: Token missing or invalid');
     }
 
-    if (!in_array($user->role, ['admin', 'hr'])) {
+    if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
         return $this->failForbidden('Forbidden: You do not have permission to update tasks');
     }
 
     $data = $this->request->getPost();
+    $existingTask = $this->taskModel->find($id);
+    if (!$existingTask) {
+        return $this->failNotFound('Task not found');
+    }
+    $targetUserId = (int)($data['user_id'] ?? $existingTask['user_id']);
+    if (!$this->canManageEmployee($user, (int)$existingTask['user_id']) || !$this->canManageEmployee($user, $targetUserId)) {
+        return $this->failForbidden('You can update tasks only within your permitted scope.');
+    }
+    $target = (new \App\Models\UserModel())->find($targetUserId);
+    $data['department_id'] = $target['department_id'] ?? null;
 
     // Validation rules
     $validationRules = [
@@ -401,7 +425,7 @@ class TaskController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
             return $this->failForbidden('Forbidden: You do not have permission to delete tasks');
         }
 
@@ -410,6 +434,9 @@ class TaskController extends ResourceController
 
         if (!$task) {
             return $this->failNotFound('Task not found');
+        }
+        if (!$this->canManageEmployee($user, (int)$task['user_id'])) {
+            return $this->failForbidden('You can delete tasks only within your permitted scope.');
         }
 
         // Only allow deletion if the status is "completed"
@@ -471,6 +498,12 @@ class TaskController extends ResourceController
 
         if (!$record) {
             return $this->failNotFound('task record not found');
+        }
+        if ($user->role === 'employee' && (int)$record['user_id'] !== (int)$user->sub) {
+            return $this->failForbidden('You can access only your own task.');
+        }
+        if (!in_array($user->role, ['admin', 'hr', 'employee'], true) && !$this->canManageEmployee($user, (int)$record['user_id'])) {
+            return $this->failForbidden('You can access only tasks within your permitted scope.');
         }
         $commentModel = new \App\Models\CommentModel();
         $comments = $commentModel
@@ -571,33 +604,14 @@ class TaskController extends ResourceController
 
     public function addDepartment()
     {
-        $departmentModel = new \App\Models\DepartmentModel();
-        $departmentName = $this->request->getPost('department_name');
-
-        if (empty($departmentName)) {
-            return $this->response->setJSON(['success' => false, 'message' => 'Department Name is required.']);
-        }
-
-        $data = [
-            'department_name' => $departmentName
-        ];
-
-        $departmentId = $departmentModel->insert($data);
-
-        if ($departmentId) {
-            return $this->response->setJSON([
-                'success' => true,
-                'department' => [
-                    'id' => $departmentId,
-                    'department_name' => $departmentName
-                ]
-            ]);
-        } else {
-            return $this->response->setJSON(['success' => false, 'message' => 'Failed to add department.']);
-        }
+        $deptController = new \App\Controllers\Api\DepartmentController();
+        $deptController->initController($this->request, $this->response, $this->logger);
+        return $deptController->addDepartment();
     }
     public function updateStatus()
     {
+        $user = $this->authService->check();
+        if (!$user) return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         $json = $this->request->getJSON();
         $taskId = $json->id ?? null;
         $newStatus = $json->status ?? null;
@@ -611,6 +625,12 @@ class TaskController extends ResourceController
 
         if (!$task) {
             return $this->failNotFound('Task not found');
+        }
+        if ($user->role === 'employee' && (int)$task['user_id'] !== (int)$user->sub) {
+            return $this->failForbidden('You can update only your own task status.');
+        }
+        if (!in_array($user->role, ['admin', 'hr', 'employee'], true) && !$this->canManageEmployee($user, (int)$task['user_id'])) {
+            return $this->failForbidden('You can update tasks only within your permitted scope.');
         }
 
         $taskModel->update($taskId, ['task_status' => $newStatus]);
@@ -630,6 +650,9 @@ class TaskController extends ResourceController
         if (!$user) {
             return $this->response->setStatusCode(401)->setJSON(['message' => 'Unauthorized: Token missing or invalid']);
         }
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager', 'employee'], true)) {
+            return $this->failForbidden('Forbidden: Unauthorized role');
+        }
 
         $search = $this->request->getGet('search');
         $status = $this->request->getGet('status');
@@ -642,8 +665,8 @@ class TaskController extends ResourceController
             ->join('users creator', 'creator.id = task.created_by', 'left');
 
         // Role-based filtering
-        if ($user->role === 'hr') {
-            $builder->where('users.role', 'employee');
+        if (in_array($user->role, ['branch_admin', 'department_manager'], true)) {
+            $this->applyManagedScope($builder, $user);
         } elseif ($user->role === 'employee') {
             $builder->where('task.user_id', $user->sub);
         }
@@ -737,5 +760,44 @@ class TaskController extends ResourceController
         $writer = new Xlsx($spreadsheet);
         $writer->save('php://output');
         exit;
+    }
+
+    private function managedEmployees(object $actor): array
+    {
+        $users = new \App\Models\UserModel();
+        if (in_array($actor->role, ['admin', 'hr'], true)) return $users->whereIn('role', ['employee', 'department_manager'])->where('is_deleted', 0)->findAll();
+        $actorRow = $users->find($actor->sub);
+        $query = $users->where('is_deleted', 0)->where('branch_id', (int)($actorRow['branch_id'] ?? 0));
+        if ($actor->role === 'branch_admin') return $query->whereIn('role', ['employee', 'department_manager'])->findAll();
+        if ($actor->role === 'department_manager') return $query->where('role', 'employee')->where('department_id', (int)($actorRow['department_id'] ?? 0))->findAll();
+        return [];
+    }
+
+    private function managedDepartments(object $actor): array
+    {
+        $departments = new \App\Models\DepartmentModel();
+        if (in_array($actor->role, ['admin', 'hr'], true)) return $departments->findAll();
+        $actorRow = (new \App\Models\UserModel())->find($actor->sub);
+        if ($actor->role === 'branch_admin') return $departments->where('branch_id', (int)($actorRow['branch_id'] ?? 0))->findAll();
+        if ($actor->role === 'department_manager') return $departments->where('id', (int)($actorRow['department_id'] ?? 0))->findAll();
+        return [];
+    }
+
+    private function canManageEmployee(object $actor, int $employeeId): bool
+    {
+        if (in_array($actor->role, ['admin', 'hr'], true)) return true;
+        $users = new \App\Models\UserModel(); $actorRow = $users->find($actor->sub); $target = $users->find($employeeId);
+        if (!$actorRow || !$target) return false;
+        if ($actor->role === 'branch_admin') return (int)$target['branch_id'] === (int)$actorRow['branch_id'] && in_array($target['role'], ['employee', 'department_manager'], true);
+        if ($actor->role === 'department_manager') return $target['role'] === 'employee' && (int)$target['branch_id'] === (int)$actorRow['branch_id'] && (int)$target['department_id'] === (int)$actorRow['department_id'];
+        return false;
+    }
+
+    private function applyManagedScope($builder, object $actor): void
+    {
+        $actorRow = (new \App\Models\UserModel())->find($actor->sub);
+        $builder->where('users.branch_id', (int)($actorRow['branch_id'] ?? 0));
+        if ($actor->role === 'branch_admin') $builder->whereIn('users.role', ['employee', 'department_manager']);
+        else $builder->where('users.role', 'employee')->where('users.department_id', (int)($actorRow['department_id'] ?? 0));
     }
 }

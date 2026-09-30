@@ -410,6 +410,10 @@ class EmployeeController extends ResourceController
         $targetRole = $data['role'] ?? 'employee';
         $creatorRole = $user->role ?? 'employee';
 
+        if ($creatorRole === 'department_manager') {
+            return $this->failForbidden('Department Manager does not have permission to create employees.');
+        }
+
         // A Branch Manager may create only staff for their own branch. Keeping
         // this on the server prevents a crafted request from assigning wider roles.
         if ($creatorRole === 'branch_admin') {
@@ -751,15 +755,7 @@ class EmployeeController extends ResourceController
                 return $this->failForbidden('Select a department that belongs to your branch.');
             }
         } elseif ($creatorRole === 'department_manager') {
-            $manager = $this->userModel->find($creatorUser->sub);
-            $managerBranchId = (int) ($manager['branch_id'] ?? 0);
-            $managerDepartmentId = (int) ($manager['department_id'] ?? 0);
-            if ($role !== 'employee'
-                || (int) ($existingUser['branch_id'] ?? 0) !== $managerBranchId
-                || (int) ($existingUser['department_id'] ?? 0) !== $managerDepartmentId
-                || (int) $department_id !== $managerDepartmentId) {
-                return $this->failForbidden('Department Manager can manage only Employees assigned to their department.');
-            }
+            return $this->failForbidden('Department Manager does not have permission to manage employees.');
         }
 
         $userUpdateData = [
@@ -896,17 +892,7 @@ class EmployeeController extends ResourceController
             $branchId = (int)$this->authService->getBranchId();
             $builder->where('users.branch_id', $branchId);
         } elseif ($role === 'department_manager') {
-            // Department Manager: Employees in their branch & department
-            // Use raw DB query to avoid interfering with the main $builder's state
-            $db = \Config\Database::connect();
-            $dmUser = $db->table('users')->where('id', $user->sub)->get()->getRowArray();
-            $builder->where('users.role', 'employee');
-            if (!empty($dmUser['branch_id'])) {
-                $builder->where('users.branch_id', (int)$dmUser['branch_id']);
-            }
-            if (!empty($dmUser['department_id'])) {
-                $builder->where('users.department_id', (int)$dmUser['department_id']);
-            }
+            return $this->failForbidden('Department Manager does not have permission to manage employees.');
         } else {
             return $this->failForbidden('You do not have permission to view employees');
         }
@@ -1925,12 +1911,7 @@ class EmployeeController extends ResourceController
                 return $this->failForbidden('Branch Manager can update status only for staff in their branch.');
             }
         } elseif ($user->role === 'department_manager') {
-            $manager = $this->userModel->find($user->sub);
-            if (($targetUser['role'] ?? '') !== 'employee'
-                || (int) ($targetUser['branch_id'] ?? 0) !== (int) ($manager['branch_id'] ?? 0)
-                || (int) ($targetUser['department_id'] ?? 0) !== (int) ($manager['department_id'] ?? 0)) {
-                return $this->failForbidden('Department Manager can update status only for employees in their department.');
-            }
+            return $this->failForbidden('Department Manager does not have permission to manage employees.');
         } elseif (!in_array($user->role, ['admin', 'hr'], true)) {
             return $this->failForbidden('You do not have permission to update employee status.');
         }

@@ -29,26 +29,17 @@ class SubTaskController extends ResourceController
     {
         $userModel = new \App\Models\UserModel();
         $departmentModel = new \App\Models\DepartmentModel();
+        $actor = $this->authService->check();
+        if (!$actor) return redirect()->to('/login');
 
         // Get the role of the logged-in user
-        $role = session()->get('role');  // Assuming the user's role is stored in the session
+        $role = $actor->role;
 
         // Fetch employees with role 'employee'
-        $employees = $userModel->where('role', 'employee')->findAll();
+        $employees = $this->managedEmployees($actor);
 
         // If the user is an admin, fetch both HR and employees for the dropdown
-        if ($role === 'admin') {
-            $employees = $userModel->whereIn('role', ['employee'])->findAll();
-        } elseif ($role === 'hr') {
-            // If the user is HR, only fetch employees for the dropdown
-            $employees = $userModel->where('role', 'employee')->findAll();
-        } else {
-            // If neither admin nor HR, you can choose to handle it or return an empty array
-            $employees = [];
-        }
-
-        // Fetch departments
-        $departments = $departmentModel->findAll();
+        $departments = $this->managedDepartments($actor);
 
         // Pass the filtered employees and departments to the view
         return view('subtask/create_subtask', [
@@ -59,16 +50,17 @@ class SubTaskController extends ResourceController
 
     public function getTasksByUser($userId)
     {
+        $actor = $this->authService->check();
+        if (!$actor) return $this->failUnauthorized('Unauthorized: Token missing or invalid');
+        if ($actor->role === 'employee' && (int)$actor->sub !== (int)$userId) {
+            return $this->failForbidden('You can access only your own tasks.');
+        }
+        if (!in_array($actor->role, ['admin', 'hr', 'employee'], true) && !$this->canManageEmployee($actor, (int)$userId)) {
+            return $this->failForbidden('You can access only tasks within your permitted scope.');
+        }
         $taskModel = new \App\Models\TaskModel();
 
-        // Check if the user has any tasks assigned
         $assignedTasks = $taskModel->where('user_id', $userId)->findAll();
-
-        if (empty($assignedTasks)) {
-            // If no tasks assigned, return all tasks
-            $assignedTasks = $taskModel->findAll();
-        }
-
         return $this->response->setJSON($assignedTasks);
     }
   public function create()
@@ -78,8 +70,7 @@ class SubTaskController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        // Only 'admin' or 'hr' can create subtasks
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
             return $this->failForbidden('Forbidden: You do not have permission to create tasks');
         }
 
@@ -91,6 +82,10 @@ class SubTaskController extends ResourceController
         $subtasks = json_decode($post['subtasks'], true); // JSON string from JS
         $task_id = $post['task_id'] ?? 0;
         $user_id = $post['user_id'] ?? 0;
+        $task = $this->taskModel->find($task_id);
+        if (!$task || (int)$task['user_id'] !== (int)$user_id || !$this->canManageEmployee($user, (int)$user_id)) {
+            return $this->failForbidden('You can create subtasks only for tasks within your permitted scope.');
+        }
 
         // Loop through each subtask and validate
         foreach ($subtasks as $index => $subtask) {
@@ -236,12 +231,11 @@ class SubTaskController extends ResourceController
             ->join('user_info', 'user_info.user_id = subtasks.user_id')
             ->join('task', 'task.id = subtasks.task_id');
 
-        if ($user->role === 'admin') {
+        if (in_array($user->role, ['admin', 'hr'], true)) {
             $records = $this->subtaskModel->findAll();
-        } elseif ($user->role === 'hr') {
-            $records = $this->subtaskModel
-                ->where('users.role', 'employee')
-                ->findAll();
+        } elseif (in_array($user->role, ['branch_admin', 'department_manager'], true)) {
+            $this->applyManagedScope($this->subtaskModel, $user);
+            $records = $this->subtaskModel->findAll();
         } elseif ($user->role === 'employee') {
             $records = $this->subtaskModel
                 ->where('subtasks.user_id', $user->sub)
@@ -267,7 +261,7 @@ class SubTaskController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
             return $this->failForbidden('Forbidden: You do not have permission to delete subtasks');
         }
 
@@ -276,6 +270,9 @@ class SubTaskController extends ResourceController
 
         if (!$subtask) {
             return $this->failNotFound('Task not found');
+        }
+        if (!$this->canManageEmployee($user, (int)$subtask['user_id'])) {
+            return $this->failForbidden('You can delete subtasks only within your permitted scope.');
         }
 
         // Only allow deletion if the status is "completed"
@@ -304,7 +301,7 @@ class SubTaskController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
             return $this->failForbidden('Forbidden: You do not have permission to update tasks');
         }
 
@@ -321,6 +318,9 @@ class SubTaskController extends ResourceController
 
         if (!$task) {
             return $this->failNotFound('SubTask not found');
+        }
+        if (!$this->canManageEmployee($user, (int)$task['user_id'])) {
+            return $this->failForbidden('You can update subtasks only within your permitted scope.');
         }
 
         $subtaskModel->update($taskId, ['subtask_status' => $newStatus]);
@@ -360,32 +360,33 @@ class SubTaskController extends ResourceController
     }
     public function EditPage($id)
     {
-        $userModel = new \App\Models\UserModel();
-
-        // Get the role of the logged-in user
-        $role = session()->get('role');  // Assuming the user's role is stored in the session
-
-        // Fetch employees with role 'employee'
-        $employees = $userModel->where('role', 'employee')->findAll();
-
-        // If the user is an admin, fetch both HR and employees for the dropdown
-        if ($role === 'admin') {
-            $employees = $userModel->whereIn('role', ['hr', 'employee'])->findAll();
-        } elseif ($role === 'hr') {
-            // If the user is HR, only fetch employees for the dropdown
-            $employees = $userModel->where('role', 'employee')->findAll();
-        } else {
-            // If neither admin nor HR, you can choose to handle it or return an empty array
-            $employees = [];
+        $actor = $this->authService->check();
+        if (!$actor) {
+            return redirect()->to('/login');
         }
 
-        // Fetch departments
-        return view('subtask/edit_subtask', ['id' => $id, 'employees' => $employees,]);
+        $subtask = $this->subtaskModel->find($id);
+        if (!$subtask || !in_array($actor->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)
+            || !$this->canManageEmployee($actor, (int)$subtask['user_id'])) {
+            return redirect()->to('/all_subtask');
+        }
+
+        return view('subtask/edit_subtask', [
+            'id' => $id,
+            'employees' => $this->managedEmployees($actor),
+        ]);
     }
     public function getSubtaskDetail($id)
     {
         $model = new \App\Models\SubtaskModel();
         $data = $model->find($id);
+
+        $actor = $this->authService->check();
+        if (!$actor) return $this->failUnauthorized('Unauthorized: Token missing or invalid');
+        if (!$data || ($actor->role === 'employee' && (int)$data['user_id'] !== (int)$actor->sub)
+            || (!in_array($actor->role, ['admin', 'hr', 'employee'], true) && !$this->canManageEmployee($actor, (int)$data['user_id']))) {
+            return $this->failForbidden('You can access only subtasks within your permitted scope.');
+        }
 
         if ($data) {
             return $this->response->setJSON(['status' => true, 'data' => $data]);
@@ -400,7 +401,7 @@ class SubTaskController extends ResourceController
             return $this->failUnauthorized('Unauthorized');
         }
 
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager'], true)) {
             return $this->failForbidden('Forbidden');
         }
 
@@ -415,6 +416,9 @@ class SubTaskController extends ResourceController
         $existing = $model->find($id);
         if (!$existing) {
             return $this->failNotFound('Subtask not found.');
+        }
+        if (!$this->canManageEmployee($user, (int)$existing['user_id'])) {
+            return $this->failForbidden('You can update subtasks only within your permitted scope.');
         }
 
         $updateData = [
@@ -471,6 +475,8 @@ class SubTaskController extends ResourceController
 
     public function ProfileSubtaskUpdateStatus($id)
     {
+        $user = $this->authService->check();
+        if (!$user) return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         $data = $this->request->getJSON(true);
         $status = $data['subtask_status'] ?? null;
 
@@ -483,6 +489,12 @@ class SubTaskController extends ResourceController
 
         if (!$subtask) {
             return $this->failNotFound('Subtask not found.');
+        }
+        if ($user->role === 'employee' && (int)$subtask['user_id'] !== (int)$user->sub) {
+            return $this->failForbidden('You can update only your own subtask status.');
+        }
+        if (!in_array($user->role, ['admin', 'hr', 'employee'], true) && !$this->canManageEmployee($user, (int)$subtask['user_id'])) {
+            return $this->failForbidden('You can update subtasks only within your permitted scope.');
         }
 
         // Prevent changing status back from 'completed' to 'pending'
@@ -497,5 +509,44 @@ class SubTaskController extends ResourceController
         }
 
         return $this->failServerError('Failed to update subtask status');
+    }
+
+    private function managedEmployees(object $actor): array
+    {
+        $users = new UserModel();
+        if (in_array($actor->role, ['admin', 'hr'], true)) return $users->whereIn('role', ['employee', 'department_manager'])->where('is_deleted', 0)->findAll();
+        $actorRow = $users->find($actor->sub);
+        $query = $users->where('is_deleted', 0)->where('branch_id', (int)($actorRow['branch_id'] ?? 0));
+        if ($actor->role === 'branch_admin') return $query->whereIn('role', ['employee', 'department_manager'])->findAll();
+        if ($actor->role === 'department_manager') return $query->where('role', 'employee')->where('department_id', (int)($actorRow['department_id'] ?? 0))->findAll();
+        return [];
+    }
+
+    private function managedDepartments(object $actor): array
+    {
+        $departments = new DepartmentModel();
+        if (in_array($actor->role, ['admin', 'hr'], true)) return $departments->findAll();
+        $actorRow = (new UserModel())->find($actor->sub);
+        if ($actor->role === 'branch_admin') return $departments->where('branch_id', (int)($actorRow['branch_id'] ?? 0))->findAll();
+        if ($actor->role === 'department_manager') return $departments->where('id', (int)($actorRow['department_id'] ?? 0))->findAll();
+        return [];
+    }
+
+    private function canManageEmployee(object $actor, int $employeeId): bool
+    {
+        if (in_array($actor->role, ['admin', 'hr'], true)) return true;
+        $users = new UserModel(); $actorRow = $users->find($actor->sub); $target = $users->find($employeeId);
+        if (!$actorRow || !$target) return false;
+        if ($actor->role === 'branch_admin') return (int)$target['branch_id'] === (int)$actorRow['branch_id'] && in_array($target['role'], ['employee', 'department_manager'], true);
+        if ($actor->role === 'department_manager') return $target['role'] === 'employee' && (int)$target['branch_id'] === (int)$actorRow['branch_id'] && (int)$target['department_id'] === (int)$actorRow['department_id'];
+        return false;
+    }
+
+    private function applyManagedScope($builder, object $actor): void
+    {
+        $actorRow = (new UserModel())->find($actor->sub);
+        $builder->where('users.branch_id', (int)($actorRow['branch_id'] ?? 0));
+        if ($actor->role === 'branch_admin') $builder->whereIn('users.role', ['employee', 'department_manager']);
+        else $builder->where('users.role', 'employee')->where('users.department_id', (int)($actorRow['department_id'] ?? 0));
     }
 }

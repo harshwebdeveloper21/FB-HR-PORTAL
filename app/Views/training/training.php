@@ -22,19 +22,41 @@
             </div>
             <div class="modal-body">
                 <form id="departmentForm">
+                    <?php
+                        $curUserRole = $currentUserRole ?? session()->get('role') ?? '';
+                        $isAdminOrHr = in_array($curUserRole, ['admin', 'hr']);
+                        $isBranchAdminRole = ($curUserRole === 'branch_admin');
+                        $userBranchId = $currentUserBranchId ?? session()->get('branch_id') ?? '';
+                        $branchesList = $branches ?? (new \App\Models\BranchModel())->getActiveBranches();
+                    ?>
+                    <?php if ($isAdminOrHr): ?>
                     <div class="mb-3">
-                        <label for="country_name" class="form-label">Department Name</label>
+                        <label for="dept_modal_branch_id" class="form-label">Branch <span class="text-danger">*</span></label>
+                        <select class="form-select" name="branch_id" id="dept_modal_branch_id" required>
+                            <option value="">Select Branch</option>
+                            <?php foreach ($branchesList as $branch): ?>
+                                <option value="<?= esc($branch['id']) ?>"><?= esc($branch['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="text-danger mt-1" id="dept_branch_error"></div>
+                    </div>
+                    <?php elseif ($isBranchAdminRole): ?>
+                    <!-- Hidden branch_id auto-filled for branch_admin -->
+                    <input type="hidden" name="branch_id" id="dept_modal_branch_id" value="<?= esc($userBranchId) ?>">
+                    <?php endif; ?>
+                    <div class="mb-3">
+                        <label for="department_name" class="form-label">Department Name</label>
 
                         <div class="input-group">
                             <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="mdi mdi-calendar fs-5"></i></span>
+                                <span class="input-group-text"><i class="mdi mdi-briefcase fs-5"></i></span>
                             </div>
                             <input type="text" class="form-control" name="department_name" id="department_name" placeholder="Enter Department Name" />
                         </div>
                         <div class="text-danger mt-1" id="department_name_error"></div>
                     </div>
 
-                    <button type="submit" class="btn hr-btnbg float-end" id="submitBtn">Submit</button>
+                    <button type="submit" class="btn hr-btnbg float-end" id="departmentSubmitBtn">Submit</button>
                 </form>
             </div>
         </div>
@@ -138,7 +160,7 @@
         <a href="<?= base_url(
             "/trainingview",
         ) ?>" class="btn hr-btnbg interviewsmbtn me-2">Back</a>
-        <button type="submit" class="btn hr-btnbg interviewsmbtn" id="submitBtn">Submit</button>
+        <button type="submit" class="btn hr-btnbg interviewsmbtn" id="trainingSubmitBtn">Submit</button>
     </div>
 
     <div id="responseMessage"></div>
@@ -215,7 +237,7 @@
 
                         $('#trainingForm')[0].reset(); // Reset the form
                         if (isEditMode) {
-                            $('#submitBtn').text('Submit'); // Reset button text after update
+                            $('#trainingSubmitBtn').text('Submit'); // Reset button text after update
                             isEditMode = false;
                         }
                     } else {
@@ -290,7 +312,7 @@
                             $('#location').val(training.location);
 
                             $('#id').val(training.id); // Set hidden input field for ID
-                            $('#submitBtn').text('Update'); // Change button text
+                            $('#trainingSubmitBtn').text('Update'); // Change button text
                             $('.card-title').text('Edit Training');
                             isEditMode = true; // Enable edit mode
                         } else {
@@ -310,10 +332,13 @@
     });
 
     $(document).ready(function() {
+        const departmentToken = localStorage.getItem('token');
+
         $("#departmentForm").submit(function(e) {
             e.preventDefault();
 
             $('#department_name_error').text('');
+            $('#dept_branch_error').text('');
 
             let departmentName = $("#department_name").val().trim();
 
@@ -322,23 +347,51 @@
                 return;
             }
 
+            <?php if ($isAdminOrHr): ?>
+            if (!$("#dept_modal_branch_id").val()) {
+                $('#dept_branch_error').text('Please select a branch.');
+                return;
+            }
+            <?php endif; ?>
+
             // let formData = $(this).serialize();
             let formData = new FormData(this);
-        const csrfName = $('meta[name="csrf-token"]').attr('data-name');
-        const csrfHash = $('meta[name="csrf-token"]').attr('content');
-        formData.append(csrfName, csrfHash); // ✅ Add CSRF to FormData
+            const csrfName = $('meta[name="csrf-token"]').attr('data-name');
+            const csrfHash = $('meta[name="csrf-token"]').attr('content');
+            if (csrfName && csrfHash) {
+                formData.append(csrfName, csrfHash);
+            }
+            let reqHeaders = {};
+            if (departmentToken && departmentToken !== 'null' && departmentToken !== 'undefined') {
+                reqHeaders['Authorization'] = 'Bearer ' + departmentToken;
+            }
             $.ajax({
                 url: "<?= base_url("api/department/add") ?>",
                 type: "POST",
+                headers: reqHeaders,
                 data: formData,
+                processData: false,
+                contentType: false,
                 dataType: "json",
                 success: function(response) {
                     $('#department_name_error').text('');
+                    $('#dept_branch_error').text('');
 
                     if (response.success) {
-                        let newOption = `<option value="${response.department.id}" selected>${response.department.department_name}</option>`;
-                        $("#department_id").append(newOption);
-                        $("#department_id_modal").append(newOption);
+                        $("#department_id").append(new Option(
+                            response.department.department_name,
+                            response.department.id,
+                            true,
+                            true
+                        ));
+                        if ($("#department_id_modal").length) {
+                            $("#department_id_modal").append(new Option(
+                                response.department.department_name,
+                                response.department.id,
+                                true,
+                                true
+                            ));
+                        }
 
                         $("#departmentForm")[0].reset();
                         $("#adddepartementModal").modal("hide");

@@ -325,7 +325,7 @@
             'Content-Type': 'application/json'
         };
 
-        const defaultImagePath = "<?= base_url(env("ImagePath") . "upload/1789966027_54c5a38ccda20f7c2bac.jpg") ?>";
+        const defaultImagePath = "<?= base_url('assets/images/default_avatar.png') ?>";
 
         // Initialize month and year selectors
         const currentDate = new Date();

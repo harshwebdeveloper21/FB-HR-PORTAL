@@ -81,7 +81,7 @@ class StaffTransferController extends ResourceController
             ->join('user_info ui', 'ui.user_id = u.id', 'left')
             ->join('branches b', 'b.id = u.branch_id', 'left')
             ->where('u.is_deleted', 0)
-            ->where('u.role !=', 'admin');
+            ->whereNotIn('u.role', ['admin', 'candidate']);
 
         if ($userRole === 'hr') {
             $hrBranchId = $this->authService->getBranchId();
@@ -243,7 +243,7 @@ class StaffTransferController extends ResourceController
             ->join('user_info ui', 'ui.user_id = u.id', 'left')
             ->join('branches b', 'b.id = u.branch_id', 'left')
             ->where('u.is_deleted', 0)
-            ;
+            ->whereNotIn('u.role', ['admin', 'candidate']);
 
         if ($user->role === 'hr') {
             $hrBranchId = $this->authService->getBranchId();

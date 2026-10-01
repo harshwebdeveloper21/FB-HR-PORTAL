@@ -920,7 +920,7 @@
                         $('#user-lg').val(user.user_id);
                         $('#editOverviewBtn').attr('data-id', user.user_id);
 
-                        let profileImage = user.profile_image ? user.profile_image : '<?= base_url(env('ImagePath') . "upload/1789966027_54c5a38ccda20f7c2bac.jpg"); ?>';
+                        let profileImage = user.profile_image ? user.profile_image : '<?= base_url("assets/images/default_avatar.png"); ?>';
                         $('#profile_image').attr('src', profileImage);
                     } else {
                         showError(data.message);

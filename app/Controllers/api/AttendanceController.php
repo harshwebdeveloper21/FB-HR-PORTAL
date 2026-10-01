@@ -3095,14 +3095,12 @@ class AttendanceController extends ResourceController
             $otHrsStr   = sprintf("%02d:%02d", floor($totalOtSecs / 3600),  floor(($totalOtSecs % 3600) / 60));
             $lateHrsStr = sprintf("%02d:%02d", floor($totalLateMins / 60),  $totalLateMins % 60);
 
-            // ── Create sheet ────────────────────────────────────────────────────
+            // ── Get sheet ────────────────────────────────────────────────────
+            $sheet = $spreadsheet->getActiveSheet();
             if ($sheetIndex === 0) {
-                $sheet = $spreadsheet->getActiveSheet();
-            } else {
-                $sheet = $spreadsheet->createSheet($sheetIndex);
+                $sheet->setTitle("Attendance Report");
+                $rowOffset = 0;
             }
-            $safeSheetName = preg_replace('/[\/\\\?\*\[\]:]/', '', substr($fullName, 0, 28));
-            $sheet->setTitle($safeSheetName ?: "Emp_{$uId}");
 
             // Total column count: col A (label), col B (row-type label), then one col per day
             $dayColStart = 3;  // column index 3 = column C
@@ -3110,58 +3108,58 @@ class AttendanceController extends ResourceController
             $lastColLet  = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalCols);
 
             // ── Row 1: Title ────────────────────────────────────────────────────
-            $sheet->setCellValue('A1', "Employee Attendance Report - {$monthNameStr} {$year}");
-            $sheet->mergeCells("A1:{$lastColLet}1");
-            $sheet->getStyle('A1')->applyFromArray([
+            $sheet->setCellValue('A' . ($rowOffset + 1), "Employee Attendance Report - {$monthNameStr} {$year}");
+            $sheet->mergeCells("A" . ($rowOffset + 1) . ":{$lastColLet}" . ($rowOffset + 1));
+            $sheet->getStyle('A' . ($rowOffset + 1))->applyFromArray([
                 'font'      => ['bold' => true, 'size' => 14, 'color' => ['rgb' => 'FFFFFF']],
                 'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $orangeRGB]],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             ]);
-            $sheet->getRowDimension(1)->setRowHeight(32);
+            $sheet->getRowDimension($rowOffset + 1)->setRowHeight(32);
 
             // ── Rows 2–3: Summary header + values ──────────────────────────────
-            $summaryLabels = ['A2' => 'Emp Code', 'B2' => 'Employee Name', 'C2' => 'Total Days',
-                              'D2' => 'Present',  'E2' => 'Absent',        'F2' => 'HD',
-                              'G2' => 'WO',        'H2' => 'Leave',         'I2' => 'Work Hrs',
-                              'J2' => 'OT Hrs',    'K2' => 'Late Hrs'];
+            $summaryLabels = ['A' . ($rowOffset + 2) => 'Emp Code', 'B' . ($rowOffset + 2) => 'Employee Name', 'C' . ($rowOffset + 2) => 'Total Days',
+                              'D' . ($rowOffset + 2) => 'Present',  'E' . ($rowOffset + 2) => 'Absent',        'F' . ($rowOffset + 2) => 'HD',
+                              'G' . ($rowOffset + 2) => 'WO',        'H' . ($rowOffset + 2) => 'Leave',         'I' . ($rowOffset + 2) => 'Work Hrs',
+                              'J' . ($rowOffset + 2) => 'OT Hrs',    'K' . ($rowOffset + 2) => 'Late Hrs'];
             foreach ($summaryLabels as $cell => $label) {
                 $sheet->setCellValue($cell, $label);
             }
-            $sheet->getStyle('A2:K2')->applyFromArray([
+            $sheet->getStyle("A" . ($rowOffset + 2) . ":K" . ($rowOffset + 2))->applyFromArray([
                 'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 9],
                 'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $darkRGB]],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
                 'borders'   => ['allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN, 'color' => ['rgb' => '374151']]],
             ]);
-            $sheet->getRowDimension(2)->setRowHeight(22);
+            $sheet->getRowDimension($rowOffset + 2)->setRowHeight(22);
 
-            $summaryValues = ['A3' => $empCode, 'B3' => $fullName . ($isInactive ? ' (Inactive)' : ''),
-                              'C3' => $userWorkingDays, 'D3' => $totalPresent, 'E3' => $absentDays,
-                              'F3' => $halfDays,        'G3' => $woDays,       'H3' => $leaveDays,
-                              'I3' => $workHrsStr,      'J3' => $otHrsStr,     'K3' => $lateHrsStr];
+            $summaryValues = ['A' . ($rowOffset + 3) => $empCode, 'B' . ($rowOffset + 3) => $fullName . ($isInactive ? ' (Inactive)' : ''),
+                              'C' . ($rowOffset + 3) => $userWorkingDays, 'D' . ($rowOffset + 3) => $totalPresent, 'E' . ($rowOffset + 3) => $absentDays,
+                              'F' . ($rowOffset + 3) => $halfDays,        'G' . ($rowOffset + 3) => $woDays,       'H' . ($rowOffset + 3) => $leaveDays,
+                              'I' . ($rowOffset + 3) => $workHrsStr,      'J' . ($rowOffset + 3) => $otHrsStr,     'K' . ($rowOffset + 3) => $lateHrsStr];
             foreach ($summaryValues as $cell => $val) {
                 $sheet->setCellValue($cell, $val);
             }
-            $sheet->getStyle('A3:K3')->applyFromArray([
+            $sheet->getStyle("A" . ($rowOffset + 3) . ":K" . ($rowOffset + 3))->applyFromArray([
                 'font'      => ['bold' => true, 'size' => 9, 'color' => ['rgb' => $summaryFg]],
                 'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $summaryBg]],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
                 'borders'   => ['allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN, 'color' => ['rgb' => 'BFD7F5']]],
             ]);
-            $sheet->getStyle('B3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-            $sheet->getStyle('A3')->applyFromArray([
+            $sheet->getStyle('B' . ($rowOffset + 3))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+            $sheet->getStyle('A' . ($rowOffset + 3))->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $orangeRGB]],
             ]);
-            $sheet->getRowDimension(3)->setRowHeight(20);
+            $sheet->getRowDimension($rowOffset + 3)->setRowHeight(20);
 
             // Blank separator row
-            $sheet->getRowDimension(4)->setRowHeight(6);
+            $sheet->getRowDimension($rowOffset + 4)->setRowHeight(6);
 
             // ── Row 5: Day-of-week ──────────────────────────────────────────────
-            $sheet->setCellValue('A5', 'Day');
-            $sheet->setCellValue('B5', '');
-            $sheet->getStyle('A5')->applyFromArray([
+            $sheet->setCellValue('A' . ($rowOffset + 5), 'Day');
+            $sheet->setCellValue('B' . ($rowOffset + 5), '');
+            $sheet->getStyle('A' . ($rowOffset + 5))->applyFromArray([
                 'font'      => ['bold' => true, 'size' => 9, 'color' => ['rgb' => 'FFFFFF']],
                 'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $darkRGB]],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
@@ -3174,8 +3172,8 @@ class AttendanceController extends ResourceController
                 $colLet  = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
                 $dowIdx  = (int)date('w', strtotime($dStr));
                 $isWknd  = ($dowIdx == 0 || $dowIdx == 6);
-                $sheet->setCellValue("{$colLet}5", $dowShort[$dowIdx]);
-                $sheet->getStyle("{$colLet}5")->applyFromArray([
+                $sheet->setCellValue("{$colLet}" . ($rowOffset + 5), $dowShort[$dowIdx]);
+                $sheet->getStyle("{$colLet}" . ($rowOffset + 5))->applyFromArray([
                     'font'      => ['bold' => true, 'size' => 8,
                                     'color' => ['rgb' => $isWknd ? $orangeRGB : '374151']],
                     'fill'      => ['fillType' => Fill::FILL_SOLID,
@@ -3185,12 +3183,12 @@ class AttendanceController extends ResourceController
                 ]);
                 $sheet->getColumnDimension($colLet)->setWidth(7);
             }
-            $sheet->getRowDimension(5)->setRowHeight(18);
+            $sheet->getRowDimension($rowOffset + 5)->setRowHeight(18);
 
             // ── Row 6: Date numbers + Status ────────────────────────────────────
-            $sheet->setCellValue('A6', 'Date');
-            $sheet->setCellValue('B6', 'Status');
-            $sheet->getStyle('A6:B6')->applyFromArray([
+            $sheet->setCellValue('A' . ($rowOffset + 6), 'Date');
+            $sheet->setCellValue('B' . ($rowOffset + 6), 'Status');
+            $sheet->getStyle("A" . ($rowOffset + 6) . ":B" . ($rowOffset + 6))->applyFromArray([
                 'font'      => ['bold' => true, 'size' => 9, 'color' => ['rgb' => 'FFFFFF']],
                 'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $darkRGB]],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
@@ -3216,8 +3214,8 @@ class AttendanceController extends ResourceController
                 $sc     = $statusColors[$sl] ?? $statusColors['-'];
 
                 // Date number in row 6
-                $sheet->setCellValue("{$colLet}6", $day);
-                $sheet->getStyle("{$colLet}6")->applyFromArray([
+                $sheet->setCellValue("{$colLet}" . ($rowOffset + 6), $day);
+                $sheet->getStyle("{$colLet}" . ($rowOffset + 6))->applyFromArray([
                     'font'      => ['bold' => true, 'size' => 9, 'color' => ['rgb' => '374151']],
                     'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F9FAFB']],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
@@ -3225,8 +3223,8 @@ class AttendanceController extends ResourceController
                 ]);
 
                 // Status in row 7
-                $sheet->setCellValue("{$colLet}7", $sl);
-                $sheet->getStyle("{$colLet}7")->applyFromArray([
+                $sheet->setCellValue("{$colLet}" . ($rowOffset + 7), $sl);
+                $sheet->getStyle("{$colLet}" . ($rowOffset + 7))->applyFromArray([
                     'font'      => ['bold' => true, 'size' => 8, 'color' => ['rgb' => $sc['fg']]],
                     'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $sc['bg']]],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
@@ -3234,21 +3232,21 @@ class AttendanceController extends ResourceController
                 ]);
 
                 // Clock In (row 8)
-                $sheet->setCellValue("{$colLet}8", $dd['check_in']);
+                $sheet->setCellValue("{$colLet}" . ($rowOffset + 8), $dd['check_in']);
                 // Clock Out (row 9)
-                $sheet->setCellValue("{$colLet}9", $dd['check_out']);
+                $sheet->setCellValue("{$colLet}" . ($rowOffset + 9), $dd['check_out']);
                 // Working Hrs (row 10)
                 $wStr = $dd['work_secs'] > 0  ? sprintf("%02d:%02d", floor($dd['work_secs'] / 3600),  floor(($dd['work_secs'] % 3600) / 60))  : '';
-                $sheet->setCellValue("{$colLet}10", $wStr);
+                $sheet->setCellValue("{$colLet}" . ($rowOffset + 10), $wStr);
                 // OT Hrs (row 11)
                 $oStr = $dd['ot_secs'] > 0    ? sprintf("%02d:%02d", floor($dd['ot_secs'] / 3600),    floor(($dd['ot_secs'] % 3600) / 60))    : '';
-                $sheet->setCellValue("{$colLet}11", $oStr);
+                $sheet->setCellValue("{$colLet}" . ($rowOffset + 11), $oStr);
                 // Late Hrs (row 12)
                 $lStr = $dd['late_mins'] > 0   ? sprintf("%02d:%02d", floor($dd['late_mins'] / 60),  $dd['late_mins'] % 60)  : '';
-                $sheet->setCellValue("{$colLet}12", $lStr);
+                $sheet->setCellValue("{$colLet}" . ($rowOffset + 12), $lStr);
                 // Early Leave (row 13)
                 $eStr = $dd['early_mins'] > 0  ? sprintf("%02d:%02d", floor($dd['early_mins'] / 60), $dd['early_mins'] % 60) : '';
-                $sheet->setCellValue("{$colLet}13", $eStr);
+                $sheet->setCellValue("{$colLet}" . ($rowOffset + 13), $eStr);
 
                 // Style data cells (rows 8-13)
                 $dowIdx  = (int)date('w', strtotime($dStr));
@@ -3256,7 +3254,7 @@ class AttendanceController extends ResourceController
                 $cellBgs = [8 => 'FFFFFF', 9 => 'F9FAFB', 10 => 'ECFDF5', 11 => 'F0FDF4', 12 => 'FFF7ED', 13 => 'FAFAFA'];
                 foreach ($cellBgs as $rn => $bg) {
                     $cellBg = $isWknd ? 'FFF7F3' : $bg;
-                    $sheet->getStyle("{$colLet}{$rn}")->applyFromArray([
+                    $sheet->getStyle("{$colLet}" . ($rowOffset + $rn))->applyFromArray([
                         'font'      => ['size' => 8, 'color' => ['rgb' => '374151']],
                         'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $cellBg]],
                         'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
@@ -3278,8 +3276,8 @@ class AttendanceController extends ResourceController
             ];
             $labelBgMap = [6 => 'F9FAFB', 7 => $darkRGB, 8 => '1F2937', 9 => '374151', 10 => '1F2937', 11 => '374151', 12 => $orangeRGB, 13 => '1F2937'];
             foreach ($rowLabels as $rn => $rlabel) {
-                $sheet->setCellValue("B{$rn}", $rlabel);
-                $sheet->getStyle("B{$rn}")->applyFromArray([
+                $sheet->setCellValue("B" . ($rowOffset + $rn), $rlabel);
+                $sheet->getStyle("B" . ($rowOffset + $rn))->applyFromArray([
                     'font'      => ['bold' => true, 'size' => 8, 'color' => ['rgb' => $rn == 6 ? '6B7280' : 'FFFFFF']],
                     'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $labelBgMap[$rn]]],
                     'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
@@ -3289,9 +3287,9 @@ class AttendanceController extends ResourceController
             }
 
             // Merge A5:A13 for employee name block
-            $sheet->mergeCells("A5:A13");
-            $sheet->setCellValue('A5', $fullName . "\n" . $empCode);
-            $sheet->getStyle('A5')->applyFromArray([
+            $sheet->mergeCells("A" . ($rowOffset + 5) . ":A" . ($rowOffset + 13));
+            $sheet->setCellValue('A' . ($rowOffset + 5), $fullName . "\n" . $empCode);
+            $sheet->getStyle('A' . ($rowOffset + 5))->applyFromArray([
                 'font'      => ['bold' => true, 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
                 'fill'      => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $orangeRGB]],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
@@ -3303,11 +3301,11 @@ class AttendanceController extends ResourceController
             $sheet->getColumnDimension('B')->setWidth(12);
 
             // Freeze pane at C5
-            $sheet->freezePane('C5');
+            $sheet->freezePane('C' . ($rowOffset + 5));
 
             // Outer border
             $blockEnd = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($dayColStart - 1 + $totalDaysInMonth);
-            $sheet->getStyle("A1:{$blockEnd}13")->applyFromArray([
+            $sheet->getStyle("A" . ($rowOffset + 1) . ":{$blockEnd}" . ($rowOffset + 13))->applyFromArray([
                 'borders' => [
                     'outline' => [
                         'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_MEDIUM,
@@ -3317,6 +3315,7 @@ class AttendanceController extends ResourceController
             ]);
 
             $sheetIndex++;
+            $rowOffset += 14;
         }
 
         // Clean up the initial blank sheet if we created employee sheets after it

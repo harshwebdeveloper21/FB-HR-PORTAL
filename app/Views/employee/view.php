@@ -358,8 +358,7 @@
                                 <th class="desktop-only-col">Email</th>
                                 <th class="desktop-only-col">Department</th>
                                 <th class="desktop-only-col">Role</th>
-                                <th class="desktop-only-col text-center" style="width: 85px;">Rem. Paid</th>
-                                <th class="desktop-only-col text-center" style="width: 85px;">Rem. Sick</th>
+                                <th class="desktop-only-col text-center" style="width: 85px;">Branch</th>
                                 <th class="desktop-only-col text-center" style="width: 90px;">Status</th>
                                 <th class="desktop-only-col text-center action-column" style="width: 95px;">Action</th>
                                 <th class="mobile-expand-col" style="width: 50px;">Details</th>
@@ -750,12 +749,8 @@
                                                         <span class="detail-value">${roleBadgeHtml}</span>
                                                     </div>
                                                     <div class="detail-row">
-                                                        <span class="detail-label">Rem. Paid Leave:</span>
-                                                        <span class="detail-value"><a href="#" class="open-leave-history text-decoration-none fw-bold text-success" data-id="${employee.user.id}" data-name="${empName}">${empRemPaid} <i class="mdi mdi-information-outline small text-muted"></i></a></span>
-                                                    </div>
-                                                    <div class="detail-row">
-                                                        <span class="detail-label">Rem. Sick Leave:</span>
-                                                        <span class="detail-value"><a href="#" class="open-leave-history text-decoration-none fw-bold text-warning" data-id="${employee.user.id}" data-name="${empName}">${empRemSick} <i class="mdi mdi-information-outline small text-muted"></i></a></span>
+                                                        <span class="detail-label">Branch:</span>
+                                                        <span class="detail-value">${employee.user_info?.branch_name || 'N/A'}</span>
                                                     </div>
                                                     <div class="detail-actions">
                                                         <a href="#" data-id="${employee.user.id}" data-name="${empName}" data-status="${empStatus}" data-reason="${empReason}" data-lastday="${empLastDay}" class="btn btn-sm btn-info open-status-modal" title="Change Status"><i class="mdi mdi-account-cog"></i> Status</a>
@@ -778,8 +773,7 @@
                                             <span class="text-truncate d-inline-block" style="max-width: 120px;" title="${empDept}">${empDept}</span>
                                         </td>
                                         <td class="desktop-only-col">${roleBadgeHtml}</td>
-                                        <td class="desktop-only-col text-center"><a href="#" class="open-leave-history text-decoration-none fw-bold text-success" data-id="${employee.user.id}" data-name="${empName}">${empRemPaid} <i class="mdi mdi-information-outline small text-muted"></i></a></td>
-                                        <td class="desktop-only-col text-center"><a href="#" class="open-leave-history text-decoration-none fw-bold text-warning" data-id="${employee.user.id}" data-name="${empName}">${empRemSick} <i class="mdi mdi-information-outline small text-muted"></i></a></td>
+                                        <td class="desktop-only-col text-center">${employee.user_info?.branch_name || 'N/A'}</td>
                                         <td class="desktop-only-col text-center">${statusBadge}</td>
                                         <td class="desktop-only-col text-center">
                                             <div class="d-flex align-items-center justify-content-center gap-1">
@@ -860,8 +854,8 @@
                                 ],
                                 columnDefs: [
                                     { targets: 0, visible: false, searchable: false },
-                                    { targets: 9, orderable: false, searchable: false },
-                                    { targets: 10, orderable: false, searchable: false }
+                                    { targets: 8, orderable: false, searchable: false },
+                                    { targets: 9, orderable: false, searchable: false }
                                 ],
                                 language: {
                                     search: "",

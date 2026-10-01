@@ -146,7 +146,7 @@ class AdminController extends ResourceController
 
             if ($role === 'branch_admin' && !empty($filterBranchId)) {
                 $empQuery->where('users.branch_id', (int)$filterBranchId)
-                         ->whereIn('users.role', ['employee', 'department_manager']);
+                         ->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
             } elseif ($role === 'department_manager') {
                 if (!empty($filterDepartmentId)) {
                     $empQuery->where('user_info.department_id', (int)$filterDepartmentId);
@@ -648,9 +648,9 @@ class AdminController extends ResourceController
         }
 
         if ($role === 'branch_admin') {
-            $staffRoles = ['employee', 'department_manager'];
+            $staffRoles = ['employee', 'department_manager', 'branch_admin'];
         } elseif ($role === 'department_manager') {
-            $staffRoles = ['employee'];
+            $staffRoles = ['employee', 'department_manager'];
         } elseif (in_array($role, ['admin', 'hr'])) {
             $staffRoles = ['employee', 'hr', 'branch_admin', 'department_manager'];
         } else {
@@ -859,7 +859,7 @@ class AdminController extends ResourceController
                 $leaveQWeek->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
-                $leaveQWeek->whereIn('users.role', ['employee', 'department_manager']);
+                $leaveQWeek->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
             } elseif ($role === 'department_manager') {
                 $leaveQWeek->where('users.role', 'employee');
             }
@@ -876,7 +876,7 @@ class AdminController extends ResourceController
                 $leaveQYear->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
-                $leaveQYear->whereIn('users.role', ['employee', 'department_manager']);
+                $leaveQYear->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
             } elseif ($role === 'department_manager') {
                 $leaveQYear->where('users.role', 'employee');
             }
@@ -893,7 +893,7 @@ class AdminController extends ResourceController
                 $leaveQMonth->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
-                $leaveQMonth->whereIn('users.role', ['employee', 'department_manager']);
+                $leaveQMonth->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
             } elseif ($role === 'department_manager') {
                 $leaveQMonth->where('users.role', 'employee');
             }

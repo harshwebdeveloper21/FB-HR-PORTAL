@@ -335,69 +335,51 @@ class AttendanceController extends ResourceController
         $locationStatus = isset($bodyJson['location_status']) ? $bodyJson['location_status'] : null;
 
         // ── Geofencing Enforcement ───────────────────────────────────────────
+        $userRow = (new \App\Models\UserModel())->find($user->sub);
+        $userBranchId = $userRow['branch_id'] ?? null;
+
         if (!$isRemote) {
-            // Use branch-specific rules for this employee
-            $companyRule = $this->getBranchRulesForUser((int)$user->sub);
-            $enableGeofencing = isset($companyRule['enable_geofencing']) && $companyRule['enable_geofencing'] == 1;
+            // HR and Admin roles are global — radius meter restriction is not applicable
+            if (in_array($user->role, ['hr', 'admin'])) {
+                // Global access for HR and Admin: allowed from anywhere without radius check
+            } else {
+                // Compulsory branch radius check for branch_admin, department_manager, employee
+                if ($checkinLat === null || $checkinLng === null) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'Location permission is required for check-in. Please enable location access on your device/browser.'
+                    ], 400);
+                }
 
-            if ($enableGeofencing) {
-                // If user is HR or Admin, check against ALL branches
-                if (in_array($user->role, ['hr', 'admin'])) {
-                    if ($checkinLat === null || $checkinLng === null) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Location access is required to check in.'
-                        ], 400);
-                    }
+                $officeLocation = $this->getOfficeLocationForUser((int)$user->sub);
+                if (!$officeLocation) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'Your branch office location is not configured. Please contact admin.'
+                    ], 400);
+                }
 
-                    $bestDistance = null;
-                    $bestRadius = null;
-                    $matchedAny = $this->isUserAtAnyBranch((float)$checkinLat, (float)$checkinLng, $bestDistance, $bestRadius);
+                $distance = $this->calculateDistance(
+                    $checkinLat, 
+                    $checkinLng, 
+                    (float)$officeLocation['latitude'], 
+                    (float)$officeLocation['longitude']
+                );
 
-                    if (!$matchedAny) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'You are outside the allowed office location range for any branch. Please check in from a branch office.',
-                        ], 400);
-                    }
-                } else {
-                    // Regular employee / manager
-                    $officeLocation = $this->getOfficeLocationForUser((int)$user->sub);
+                $allowedRadius = (float)($officeLocation['radius'] ?? 100);
+                if ($allowedRadius <= 0) {
+                    $allowedRadius = 100;
+                }
 
-                    if (!$officeLocation) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Geofencing is enabled but your branch office location is not configured.'
-                        ], 400);
-                    }
-
-                    if ($checkinLat === null || $checkinLng === null) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Location access is required to check in.'
-                        ], 400);
-                    }
-
-                    $distance = $this->calculateDistance(
-                        $checkinLat, 
-                        $checkinLng, 
-                        (float)$officeLocation['latitude'], 
-                        (float)$officeLocation['longitude']
-                    );
-
-                    $allowedRadius = (float)($officeLocation['radius'] ?? 0);
-
-                    if ($allowedRadius == 0 && $distance > 10) {
-                         return $this->respond([
-                            'status' => 'error',
-                            'message' => 'You are outside the exact office location. Please check in from the office.'
-                        ], 400);
-                    } else if ($allowedRadius > 0 && $distance > $allowedRadius) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => "You are outside the allowed office location range. Please check in from within {$allowedRadius} meters of the office."
-                        ], 400);
-                    }
+                // Compulsory check: distance must be within branch allowed radius
+                if ($distance > $allowedRadius) {
+                    $branchLabel = !empty($officeLocation['branch_name']) ? ' (' . $officeLocation['branch_name'] . ')' : '';
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'You are outside your branch' . $branchLabel . ' check-in radius (' . round($allowedRadius) . ' meters). Current distance: ' . round($distance, 2) . ' meters. Check-in must be done from within branch premises.',
+                        'distance' => round($distance, 2),
+                        'allowed_radius' => round($allowedRadius)
+                    ], 400);
                 }
             }
         }
@@ -423,15 +405,16 @@ class AttendanceController extends ResourceController
         // If user has already checked out or no record exists, create a new check-in record
         // This allows checking in again after checkout
         $data = [
-            'user_id'               => $user->sub,
-            'date'                  => $date,
-            'check_in_time'         => $timeOnly,
-            'status'                => 'present',
-            // New canonical column names
-            'check_in_ip_address'   => $clientIp,
-            'check_in_latitude'     => $checkinLat,
-            'check_in_longitude'    => $checkinLng,
-            'check_in_location_name'=> $locationName,
+            'user_id'                  => $user->sub,
+            'branch_id'                => $userBranchId,
+            'date'                     => $date,
+            'check_in_time'            => $timeOnly,
+            'status'                   => 'present',
+            // Canonical column names
+            'check_in_ip_address'      => $clientIp,
+            'check_in_latitude'        => $checkinLat,
+            'check_in_longitude'       => $checkinLng,
+            'check_in_location_name'   => $locationName,
             'check_in_location_status' => $locationStatus,
         ];
 
@@ -822,67 +805,47 @@ class AttendanceController extends ResourceController
 
         // ── Geofencing Enforcement ───────────────────────────────────────────
         if (!$isRemote) {
-            $enableGeofencing = isset($companyRule['enable_geofencing']) && $companyRule['enable_geofencing'] == 1;
+            // HR and Admin roles are global — radius meter restriction is not applicable
+            if (in_array($user->role, ['hr', 'admin'])) {
+                // Global access for HR and Admin: allowed from anywhere without radius check
+            } else {
+                // Compulsory branch radius check for branch_admin, department_manager, employee
+                if ($coLat === null || $coLng === null) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'Location permission is required to check out. Please enable location access on your device/browser.'
+                    ], 400);
+                }
 
-            if ($enableGeofencing) {
-                // If user is HR or Admin, check against ALL branches
-                if (in_array($user->role, ['hr', 'admin'])) {
-                    if ($coLat === null || $coLng === null) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Location access is required to check out.'
-                        ], 400);
-                    }
+                $officeLocation = $this->getOfficeLocationForUser((int)$user->sub);
+                if (!$officeLocation) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'Your branch office location is not configured. Please contact admin.'
+                    ], 400);
+                }
 
-                    $bestDistance = null;
-                    $bestRadius = null;
-                    $matchedAny = $this->isUserAtAnyBranch((float)$coLat, (float)$coLng, $bestDistance, $bestRadius);
+                $distance = $this->calculateDistance(
+                    $coLat, 
+                    $coLng, 
+                    (float)$officeLocation['latitude'], 
+                    (float)$officeLocation['longitude']
+                );
 
-                    if (!$matchedAny) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'You are outside the allowed office location range for any branch. Please check out from a branch office.',
-                        ], 400);
-                    }
-                } else {
-                    // Regular employee / manager
-                    $officeLocation = $this->getOfficeLocationForUser((int)$user->sub);
+                $allowedRadius = (float)($officeLocation['radius'] ?? 100);
+                if ($allowedRadius <= 0) {
+                    $allowedRadius = 100;
+                }
 
-                    if (!$officeLocation) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Geofencing is enabled but your branch office location is not configured.'
-                        ], 400);
-                    }
-
-                    if ($coLat === null || $coLng === null) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Location access is required to check out.'
-                        ], 400);
-                    }
-
-                    $distance = $this->calculateDistance(
-                        $coLat, 
-                        $coLng, 
-                        (float)$officeLocation['latitude'], 
-                        (float)$officeLocation['longitude']
-                    );
-
-                    $allowedRadius = (float)($officeLocation['radius'] ?? 0);
-
-                    // Add a 10 meter tolerance if exact match is required to account for basic GPS drift
-                    if ($allowedRadius == 0 && $distance > 10) {
-                         return $this->respond([
-                            'status' => 'error',
-                            'message' => 'You are outside the exact office location. Please check out from the office.'
-                        ], 400);
-                    } else if ($allowedRadius > 0 && $distance > $allowedRadius) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => "You are outside the allowed office location range. Please check out from within {$allowedRadius} meters of the office."
-                        ], 400);
-                    }
+                // Compulsory check: distance must be within branch allowed radius
+                if ($distance > $allowedRadius) {
+                    $branchLabel = !empty($officeLocation['branch_name']) ? ' (' . $officeLocation['branch_name'] . ')' : '';
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'You are outside your branch' . $branchLabel . ' checkout radius (' . round($allowedRadius) . ' meters). Current distance: ' . round($distance, 2) . ' meters. Check-out must be done from within branch premises.',
+                        'distance' => round($distance, 2),
+                        'allowed_radius' => round($allowedRadius)
+                    ], 400);
                 }
             }
         }
@@ -1977,9 +1940,6 @@ class AttendanceController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'Face image is required'], 400);
         }
 
-        // Check location if location settings are configured
-        $locationSettings = $this->getOfficeLocationForUser((int)$user->sub);
-
         // Check if this employee is a remote worker — remote employees skip location validation
         $userInfoForLocation = new \App\Models\UserInfoModel();
         $employeeInfo = $userInfoForLocation->where('user_id', $user->sub)->first();
@@ -1987,91 +1947,47 @@ class AttendanceController extends ResourceController
             strtolower(trim($employeeInfo['working_location'])) === 'remote';
 
         if (!$isRemoteEmployee) {
-            // If user is HR or Admin, check against ALL branches
+            // HR and Admin roles are global — radius meter restriction is not applicable
             if (in_array($user->role, ['hr', 'admin'])) {
+                // Global access for HR and Admin: allowed from anywhere without radius check
+            } else {
+                // Compulsory branch radius check for branch_admin, department_manager, employee
                 if ($userLatitude === null || $userLongitude === null) {
                     return $this->respond([
                         'status' => 'error',
-                        'message' => 'Location permission is required for check-in. Please enable location access.'
+                        'message' => 'Location permission is required for check-in. Please enable location access on your device/browser.'
                     ], 400);
                 }
 
-                $bestDistance = null;
-                $bestRadius = null;
-                $matchedAny = $this->isUserAtAnyBranch((float)$userLatitude, (float)$userLongitude, $bestDistance, $bestRadius);
-
-                if (!$matchedAny) {
+                $locationSettings = $this->getOfficeLocationForUser((int)$user->sub);
+                if (!$locationSettings) {
                     return $this->respond([
                         'status' => 'error',
-                        'message' => 'You are outside the allowed office location range for any branch. Please check in from a branch office.',
-                        'distance' => $bestDistance !== null ? round($bestDistance, 2) : null
+                        'message' => 'Your branch office location is not configured. Please contact admin.'
                     ], 400);
                 }
-            } else {
-                // Regular employee / manager - check specific branch
-                $companyRule = $this->getBranchRulesForUser((int)$user->sub);
-                $enableGeofencing = isset($companyRule['enable_geofencing']) && $companyRule['enable_geofencing'] == 1;
 
-                if ($enableGeofencing) {
-                    $locationSettings = $this->getOfficeLocationForUser((int)$user->sub);
-                    
-                    if (!$locationSettings) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Geofencing is enabled but your branch office location is not configured.'
-                        ], 400);
-                    }
+                $officeLat = (float) $locationSettings['latitude'];
+                $officeLng = (float) $locationSettings['longitude'];
+                $userLat   = (float) $userLatitude;
+                $userLng   = (float) $userLongitude;
 
-                    if ($userLatitude === null || $userLongitude === null) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Location permission is required for check-in. Please enable location access.'
-                        ], 400);
-                    }
+                $distance = $this->calculateDistance($officeLat, $officeLng, $userLat, $userLng);
+                $allowedRadius = (float) ($locationSettings['radius'] ?? 100);
+                if ($allowedRadius <= 0) {
+                    $allowedRadius = 100;
+                }
 
-                    $officeLat = (float) $locationSettings['latitude'];
-                    $officeLng = (float) $locationSettings['longitude'];
-                    $userLat = (float) $userLatitude;
-                    $userLng = (float) $userLongitude;
-
-                    $distance = $this->calculateDistance($officeLat, $officeLng, $userLat, $userLng);
-                    $radius = (float) $locationSettings['radius'];
-
-                    // Adjust radius tolerance based on location accuracy (for desktop browsers with poor GPS)
-                    $effectiveRadius = $radius;
-                    if ($locationAccuracy !== null && $locationAccuracy > 1000) {
-                        $maxTotalRadius = 15000;
-                        $tolerance = min($locationAccuracy * 1.5, $maxTotalRadius - $radius);
-                        $effectiveRadius = $radius + $tolerance;
-                    } else if ($locationAccuracy !== null && $locationAccuracy > 500) {
-                        $tolerance = min($locationAccuracy * 0.75, $radius * 1.5);
-                        $effectiveRadius = $radius + $tolerance;
-                    }
-
-                    // If radius is 0, check exact location (within 10 meters tolerance)
-                    if ($radius == 0) {
-                        $tolerance = 10;
-                        if ($locationAccuracy !== null && $locationAccuracy > 100) {
-                            $tolerance = min(50, $locationAccuracy * 0.3);
-                        }
-                        if ($distance > $tolerance) {
-                            return $this->respond([
-                                'status' => 'error',
-                                'message' => 'You are not at the correct location. Please check in from the office location.',
-                                'distance' => round($distance, 2)
-                            ], 400);
-                        }
-                    } else {
-                        // Check if user is within the allowed radius
-                        if ($distance > $effectiveRadius) {
-                            $message = 'You are outside the allowed check-in radius (' . $radius . ' meters). Current distance: ' . round($distance, 2) . ' meters.';
-                            return $this->respond([
-                                'status' => 'error',
-                                'message' => $message,
-                                'distance' => round($distance, 2)
-                            ], 400);
-                        }
-                    }
+                // Compulsory check: distance must be within allowed branch radius
+                if ($distance > $allowedRadius) {
+                    $branchLabel = !empty($locationSettings['branch_name']) ? ' (' . $locationSettings['branch_name'] . ')' : '';
+                    $message = 'You are outside your branch' . $branchLabel . ' check-in radius (' . round($allowedRadius) . ' meters). Current distance: ' . round($distance, 2) . ' meters. Check-in must be done from within branch premises.';
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => $message,
+                        'distance' => round($distance, 2),
+                        'allowed_radius' => round($allowedRadius)
+                    ], 400);
                 }
             }
         }
@@ -2091,6 +2007,9 @@ class AttendanceController extends ResourceController
         // This ensures the date is always correct regardless of client timezone
         $date = date('Y-m-d'); // Today's date in server timezone
         $timeOnly = date('H:i:s'); // Current server time (HH:MM:SS)
+        $clientIp = $this->request->getIPAddress();
+        $userRow = (new \App\Models\UserModel())->find($user->sub);
+        $userBranchId = $userRow['branch_id'] ?? null;
 
         // Get latest attendance for today
         $latestAttendance = $this->attendanceModel
@@ -2102,8 +2021,12 @@ class AttendanceController extends ResourceController
         if ($latestAttendance && !$latestAttendance['check_out_time']) {
 
             $updateData = [
-                'check_in_time' => $timeOnly, // Store only time (HH:MM:SS)
-                'checkin_method' => 'face_recognition'
+                'check_in_time'       => $timeOnly, // Store only time (HH:MM:SS)
+                'checkin_method'      => 'face_recognition',
+                'check_in_latitude'   => $userLatitude,
+                'check_in_longitude'  => $userLongitude,
+                'check_in_ip_address' => $clientIp,
+                'branch_id'           => $userBranchId,
             ];
 
             $this->attendanceModel->update($latestAttendance['id'], $updateData);
@@ -2142,14 +2065,18 @@ class AttendanceController extends ResourceController
 
         // Create new attendance record
         $data = [
-            'user_id' => $user->sub,
-            'date' => $date, // Today's date from server
-            'check_in_time' => $timeOnly, // Current time from server (HH:MM:SS)
-            'meal_break' => $break,
-            'status' => 'present',
-            'checkin_method' => 'face_recognition',
-            'is_late' => $isLate,
-            'late_minutes' => $lateMinutes
+            'user_id'             => $user->sub,
+            'branch_id'           => $userBranchId,
+            'date'                => $date, // Today's date from server
+            'check_in_time'       => $timeOnly, // Current time from server (HH:MM:SS)
+            'meal_break'          => $break,
+            'status'              => 'present',
+            'checkin_method'      => 'face_recognition',
+            'check_in_latitude'   => $userLatitude,
+            'check_in_longitude'  => $userLongitude,
+            'check_in_ip_address' => $clientIp,
+            'is_late'             => $isLate,
+            'late_minutes'        => $lateMinutes
         ];
 
         // Delete any leave record for today if exists
@@ -2753,14 +2680,28 @@ class AttendanceController extends ResourceController
     private function getOfficeLocationForUser($userId)
     {
         $user = (new \App\Models\UserModel())->find($userId);
-        
-        if ($user && !empty($user['branch_id'])) {
-            $branch = (new \App\Models\BranchModel())->find($user['branch_id']);
+        if (!$user) {
+            return null;
+        }
+
+        $branchId = $user['branch_id'] ?? null;
+        if (empty($branchId) && !empty($user['department_id'])) {
+            $dept = (new \App\Models\DepartmentModel())->find($user['department_id']);
+            if ($dept && !empty($dept['branch_id'])) {
+                $branchId = $dept['branch_id'];
+            }
+        }
+
+        if (!empty($branchId)) {
+            $branch = (new \App\Models\BranchModel())->find($branchId);
             if ($branch && !empty($branch['latitude']) && !empty($branch['longitude'])) {
+                $radius = isset($branch['radius']) && (float)$branch['radius'] > 0 ? (float) $branch['radius'] : 100;
                 return [
-                    'latitude'  => (float) $branch['latitude'],
-                    'longitude' => (float) $branch['longitude'],
-                    'radius'    => isset($branch['radius']) && $branch['radius'] !== '' ? (float) $branch['radius'] : 100,
+                    'latitude'    => (float) $branch['latitude'],
+                    'longitude'   => (float) $branch['longitude'],
+                    'radius'      => $radius,
+                    'branch_name' => $branch['name'] ?? 'Branch',
+                    'branch_id'   => (int) $branch['id'],
                 ];
             }
         }
@@ -2768,10 +2709,13 @@ class AttendanceController extends ResourceController
         // Fallback to location_settings if branch has no coordinates configured
         $locationSettings = (new \App\Models\LocationSettingsModel())->first();
         if ($locationSettings && !empty($locationSettings['latitude']) && !empty($locationSettings['longitude'])) {
+            $radius = isset($locationSettings['radius']) && (float)$locationSettings['radius'] > 0 ? (float) $locationSettings['radius'] : 100;
             return [
-                'latitude'  => (float) $locationSettings['latitude'],
-                'longitude' => (float) $locationSettings['longitude'],
-                'radius'    => isset($locationSettings['radius']) && $locationSettings['radius'] !== '' ? (float) $locationSettings['radius'] : 100,
+                'latitude'    => (float) $locationSettings['latitude'],
+                'longitude'   => (float) $locationSettings['longitude'],
+                'radius'      => $radius,
+                'branch_name' => 'Main Office',
+                'branch_id'   => null,
             ];
         }
         

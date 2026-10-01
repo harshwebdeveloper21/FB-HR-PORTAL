@@ -1191,21 +1191,34 @@ $branchesList = $branchModel->getActiveBranches();
                             headers: headers,
                             body: JSON.stringify(payload)
                         })
-                        .then(response => response.json())
-                        .then(data => {
-                            Swal.fire({
-                                title: 'Success',
-                                text: data.message,
-                                icon: 'success',
-                                confirmButtonText: 'OK',
-                                customClass: { confirmButton: 'hr-btnbg' }
-                            });
-                            updateAttendanceStatus();
+                        .then(async response => {
+                            const data = await response.json();
+                            return { ok: response.ok, data };
+                        })
+                        .then(({ ok, data }) => {
+                            if (ok && data.status === 'success') {
+                                Swal.fire({
+                                    title: 'Success',
+                                    text: data.message || 'Checked in successfully.',
+                                    icon: 'success',
+                                    confirmButtonText: 'OK',
+                                    customClass: { confirmButton: 'hr-btnbg' }
+                                });
+                                updateAttendanceStatus();
+                            } else {
+                                Swal.fire({
+                                    title: 'Check-in Failed',
+                                    text: (data && data.message) ? data.message : 'Unable to check in.',
+                                    icon: 'error',
+                                    confirmButtonText: 'OK',
+                                    customClass: { confirmButton: 'hr-btnbg' }
+                                });
+                            }
                         })
                         .catch(err => {
                             Swal.fire({
                                 title: 'Error',
-                                text: 'Unable to check in.',
+                                text: 'Unable to check in. Please check your network or try again.',
                                 icon: 'error',
                                 confirmButtonText: 'OK',
                                 customClass: { confirmButton: 'hr-btnbg' }
@@ -1258,14 +1271,17 @@ $branchesList = $branchModel->getActiveBranches();
                             headers: headers,
                             body: JSON.stringify(payload)
                         })
-                        .then(response => response.json())
-                        .then(data => {
+                        .then(async response => {
+                            const data = await response.json();
+                            return { ok: response.ok, data };
+                        })
+                        .then(({ ok, data }) => {
                             console.log('Checkout response:', data);
 
                             const apiStatus  = data.status  || (data.data && data.data.status);
                             const message = data.message || (data.data && data.data.message) || '';
 
-                            if (apiStatus === 'success') {
+                            if (ok && apiStatus === 'success') {
                                 btn.style.display = 'none';
                                 btn.disabled = false;
                                 if (checkInBtn) {
@@ -1299,13 +1315,12 @@ $branchesList = $branchModel->getActiveBranches();
 
                             } else {
                                 Swal.fire({
-                                    title: 'Checked Out!',
-                                    text: message || 'You have been checked out successfully.',
-                                    icon: 'success',
+                                    title: 'Checkout Failed',
+                                    text: message || 'Unable to check out.',
+                                    icon: 'error',
                                     confirmButtonText: 'OK',
                                     customClass: { confirmButton: 'hr-btnbg' }
                                 });
-                                setTimeout(() => updateAttendanceStatus(), 1000);
                             }
                         })
                         .catch(err => {

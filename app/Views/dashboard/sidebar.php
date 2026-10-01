@@ -449,7 +449,7 @@ $isEmployee = ($role === 'employee');
     <?php endif; ?>
 
     <!-- ── Reports ──────────────────────────────────────────── -->
-    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
+    <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#report" aria-expanded="false" aria-controls="report">
           <i class="menu-icon mdi mdi-image-filter-none"></i>
@@ -463,20 +463,6 @@ $isEmployee = ($role === 'employee');
             <li class="nav-item"> <a class="nav-link" href="/salaryReport">Payrolls Report</a></li>
             <li class="nav-item"> <a class="nav-link" href="/attendanceReport">Attendance Report</a></li>
             <li class="nav-item"> <a class="nav-link" href="/performReport">Performance Report</a></li>
-          </ul>
-        </div>
-      </li>
-    <?php elseif ($isDeptManager): ?>
-      <li class="nav-item">
-        <a class="nav-link" data-bs-toggle="collapse" href="#report" aria-expanded="false" aria-controls="report">
-          <i class="menu-icon mdi mdi-image-filter-none"></i>
-          <span class="menu-title">Reports</span>
-          <i class="menu-arrow"></i>
-        </a>
-        <div class="collapse" id="report">
-          <ul class="nav flex-column sub-menu">
-            <li class="nav-item"> <a class="nav-link" href="/attendanceReport">Attendance Report</a></li>
-            <li class="nav-item"> <a class="nav-link" href="/leaveReport">Leave Report</a></li>
           </ul>
         </div>
       </li>

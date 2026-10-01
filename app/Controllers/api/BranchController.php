@@ -202,17 +202,17 @@ class BranchController extends ResourceController
 
     /**
      * POST api/branches/set-active
-     * Sets the active branch context for admin users
+     * Sets the active branch context for admin and HR users
      */
     public function setActiveBranch()
     {
-        $user = $this->authService->check();
-        if (!$user || $user->role !== 'admin') {
-            return $this->respond(['status' => 'error', 'message' => 'Admin access required.'], 403);
+        $user = $this->requireAdminOrHr();
+        if (!$user) {
+            return $this->respond(['status' => 'error', 'message' => 'Admin or HR access required.'], 403);
         }
 
         $json = $this->request->getJSON();
-        $branchId = isset($json->branch_id) ? $json->branch_id : '';
+        $branchId = isset($json->branch_id) ? $json->branch_id : ($this->request->getPost('branch_id') ?? '');
         
         session()->set('admin_active_branch', $branchId);
         

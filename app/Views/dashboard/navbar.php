@@ -561,12 +561,14 @@ $branchesList = $branchModel->getActiveBranches();
                 <script>
                 document.getElementById('navbarBranchSelect').addEventListener('change', function(e) {
                     const branchId = e.target.value;
+                    const token = localStorage.getItem('token');
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (token) {
+                        headers['Authorization'] = 'Bearer ' + token;
+                    }
                     fetch('/api/branches/set-active', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
-                        },
+                        headers: headers,
                         credentials: 'same-origin',
                         body: JSON.stringify({ branch_id: branchId })
                     })

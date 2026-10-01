@@ -31,11 +31,16 @@ class CompanyRulesController extends BaseController
 
     public function rules()
     {
-        $authService = new \App\Services\AuthService($this->request);
+        $request = $this->request ?? service('request');
+        $response = $this->response ?? service('response');
+        $authService = new \App\Services\AuthService($request);
         $branchId = $authService->getBranchId();
 
-        $builder = $this->rulesModel->select('branch_rules.*, branches.name as branch_name')
-                                    ->join('branches', 'branches.id = branch_rules.branch_id', 'left');
+        $builder = $this->rulesModel->select('branch_rules.*, branches.name as branch_name, branches.code as branch_code')
+                                    ->join('branches', 'branches.id = branch_rules.branch_id', 'inner')
+                                    ->where('branches.deleted_at IS NULL')
+                                    ->groupBy('branch_rules.branch_id')
+                                    ->orderBy('branches.name', 'ASC');
 
         if (!empty($branchId)) {
             $builder = $builder->where('branch_rules.branch_id', $branchId);
@@ -43,7 +48,7 @@ class CompanyRulesController extends BaseController
         
         $rules = $builder->findAll();
 
-        return $this->response->setJSON([
+        return $response->setJSON([
             'status' => 'success',
             'data'   => $rules
         ]);
@@ -51,25 +56,59 @@ class CompanyRulesController extends BaseController
 
     public function rules_get()
     {
-        $branchId = $this->request->getGet('branch_id');
+        $request = $this->request ?? service('request');
+        $response = $this->response ?? service('response');
+        $branchId = $request->getGet('branch_id') ?? ($_GET['branch_id'] ?? null);
 
         if (!empty($branchId)) {
             $rules = $this->rulesModel->where('branch_id', $branchId)->first();
+            $branch = (new \App\Models\BranchModel())->find($branchId);
         } else {
             $rules = $this->rulesModel->groupStart()->where('branch_id', null)->orWhere('branch_id', 0)->groupEnd()->first();
             if (!$rules) {
                 // Fallback for legacy global row
                 $rules = $this->rulesModel->first();
             }
+            $branch = null;
         }
+
         if ($rules) {
-            // Values are already in $rules from company_rules table
-            return $this->response->setJSON([
+            // Ensure office_latitude, office_longitude, office_radius are in sync with branch if branch has values
+            if ($branch) {
+                if ((!isset($rules['office_latitude']) || $rules['office_latitude'] === null || $rules['office_latitude'] === '') && !empty($branch['latitude'])) {
+                    $rules['office_latitude'] = $branch['latitude'];
+                }
+                if ((!isset($rules['office_longitude']) || $rules['office_longitude'] === null || $rules['office_longitude'] === '') && !empty($branch['longitude'])) {
+                    $rules['office_longitude'] = $branch['longitude'];
+                }
+                if ((!isset($rules['office_radius']) || empty($rules['office_radius'])) && !empty($branch['radius'])) {
+                    $rules['office_radius'] = $branch['radius'];
+                }
+                if (!empty($rules['office_latitude']) && !empty($rules['office_longitude'])) {
+                    $rules['enable_geofencing'] = 1;
+                }
+            }
+
+            return $response->setJSON([
                 'status' => 'success',
                 'data'   => $rules
             ]);
+        } elseif ($branch) {
+            // If branch exists but has no rule row yet, return defaults populated with branch geofence
+            $defaultRules = $this->rulesModel->getDefaultRules();
+            $defaultRules['branch_id'] = (int)$branchId;
+            $defaultRules['office_latitude'] = $branch['latitude'] ?? null;
+            $defaultRules['office_longitude'] = $branch['longitude'] ?? null;
+            $defaultRules['office_radius'] = $branch['radius'] ?? 100;
+            if (!empty($defaultRules['office_latitude']) && !empty($defaultRules['office_longitude'])) {
+                $defaultRules['enable_geofencing'] = 1;
+            }
+            return $response->setJSON([
+                'status' => 'success',
+                'data'   => $defaultRules
+            ]);
         } else {
-            return $this->response->setJSON([
+            return $response->setJSON([
                 'status'  => 'error',
                 'message' => 'No rules found.'
             ]);
@@ -78,11 +117,13 @@ class CompanyRulesController extends BaseController
 
     public function store()
     {
-        $data = $this->request->getJSON(true);
+        $request = $this->request ?? service('request');
+        $response = $this->response ?? service('response');
+        $data = $request->getJSON(true) ?? $request->getPost();
 
         // Validate required fields
         if (empty($data['working_hours_per_day'])) {
-            return $this->response->setJSON([
+            return $response->setJSON([
                 'status' => 'error',
                 'message' => 'Validation failed',
                 'errors' => [
@@ -98,7 +139,7 @@ class CompanyRulesController extends BaseController
             'payroll_type' => $data['payroll_type'] ?? 'monthly',
             'working_hours_per_day' => $data['working_hours_per_day'],
             'half_day_hours' => $data['half_day_hours'] ?? null,
-            'enable_overtime' => ($data['enable_overtime'] === false) ? 0 : 1,
+            'enable_overtime' => (!empty($data['enable_overtime']) && $data['enable_overtime'] !== 'false') ? 1 : 0,
             'overtime_multiplier' => $data['overtime_multiplier'] ?? 1.5,
             'min_overtime_count_in_minutes' => $data['min_overtime_count_in_minutes'] ?? 30,
 
@@ -109,11 +150,11 @@ class CompanyRulesController extends BaseController
             'grace_period' => $data['grace_period'] ?? 0,
 
             // Sunday Configuration
-            'sunday_off' => ($data['sunday_off'] === true) ? 1 : 0,
+            'sunday_off' => (!empty($data['sunday_off']) && $data['sunday_off'] !== 'false') ? 1 : 0,
             'sunday_pay_type' => $data['sunday_pay_type'] ?? 'unpaid',
 
             // Saturday Configuration
-            'saturday_off_enabled' => ($data['saturday_off_enabled'] === false) ? 0 : 1,
+            'saturday_off_enabled' => (!empty($data['saturday_off_enabled']) && $data['saturday_off_enabled'] !== 'false') ? 1 : 0,
             'saturday_off_type' => $data['saturday_off_type'] ?? 'all',
             'saturday_off_pattern' => $data['saturday_off_pattern'] ?? null,
             'saturday_pay_type' => $data['saturday_pay_type'] ?? 'regular',
@@ -124,47 +165,24 @@ class CompanyRulesController extends BaseController
             'saturday_working_hours'     => isset($data['saturday_working_hours']) ? (float) $data['saturday_working_hours'] : 4,
             'saturday_full_day_override' => empty($data['saturday_full_day_override']) ? 0 : 1,
 
-            // Leave Management
-            // 'yearly_holidays' => $data['yearly_holidays'] ?? 0,
-            // 'sick_leaves' => $data['sick_leaves'] ?? 0,
-            // 'casual_leaves' => $data['casual_leaves'] ?? 0,
-            // 'carry_forward_leaves' => isset($data['carry_forward_leaves']) ? 1 : 0,
-            // 'max_carry_forward' => $data['max_carry_forward'] ?? 0,
-
             // Tax Configuration
-            'enable_tax' => ($data['enable_tax'] === true) ? 1 : 0,
+            'enable_tax' => (!empty($data['enable_tax']) && $data['enable_tax'] !== 'false') ? 1 : 0,
             'tax_type' => $data['tax_type'] ?? 'fixed',
             'tax' => $data['tax'] ?? 0,
             'salary_above_tax' => $data['salary_above_tax'] ?? 0,
 
             // working days configuration
-            'include_holidays_in_working_days' => ($data['include_holidays_in_working_days'] === true) ? 1 : 0,
-            'sandwich_leave' => ($data['sandwich_leave'] === true) ? 1 : 0,
-
-            // PF Configuration
-            // 'enable_pf' => isset($data['enable_pf']) ? 1 : 0,
-            // 'employee_pf' => $data['employee_pf'] ?? 0,
-            // 'employer_pf' => $data['employer_pf'] ?? 0,
-
-            // ESI Configuration
-            // 'enable_esi' => isset($data['enable_esi']) ? 1 : 0,
-            // 'employee_esi' => $data['employee_esi'] ?? 0,
-            // 'employer_esi' => $data['employer_esi'] ?? 0,
-
-            // Shift Management
-            // 'enable_shifts' => isset($data['enable_shifts']) ? 1 : 0,
-            // 'night_shift_allowance' => $data['night_shift_allowance'] ?? 0,
+            'include_holidays_in_working_days' => (!empty($data['include_holidays_in_working_days']) && $data['include_holidays_in_working_days'] !== 'false') ? 1 : 0,
+            'sandwich_leave' => (!empty($data['sandwich_leave']) && $data['sandwich_leave'] !== 'false') ? 1 : 0,
 
             // Biometric & Attendance
-            // 'enable_biometric' => isset($data['enable_biometric']) ? 1 : 0,
-            'enable_geofencing' => ($data['enable_geofencing'] === true) ? 1 : 0,
-            // 'auto_checkout' => isset($data['auto_checkout']) ? 1 : 0,
+            'enable_geofencing' => (!empty($data['enable_geofencing']) && $data['enable_geofencing'] !== 'false') ? 1 : 0,
 
             // Branch
             'branch_id' => !empty($data['branch_id']) ? (int)$data['branch_id'] : null,
-            'office_latitude'  => isset($data['office_latitude']) && $data['office_latitude'] !== '' ? (float)$data['office_latitude'] : null,
-            'office_longitude' => isset($data['office_longitude']) && $data['office_longitude'] !== '' ? (float)$data['office_longitude'] : null,
-            'office_radius'    => isset($data['office_radius']) && $data['office_radius'] !== '' ? (float)$data['office_radius'] : null,
+            'office_latitude'  => isset($data['office_latitude']) && $data['office_latitude'] !== '' ? (string)$data['office_latitude'] : null,
+            'office_longitude' => isset($data['office_longitude']) && $data['office_longitude'] !== '' ? (string)$data['office_longitude'] : null,
+            'office_radius'    => isset($data['office_radius']) && $data['office_radius'] !== '' ? (int)$data['office_radius'] : 100,
         ];
 
         try {
@@ -190,14 +208,25 @@ class CompanyRulesController extends BaseController
                 $message = 'Company rules created successfully.';
             }
 
-            return $this->response->setJSON([
+            // Bidirectional sync: update branch module with location settings
+            if (!empty($branchId)) {
+                $branchModel = new \App\Models\BranchModel();
+                $branchUpdate = [
+                    'latitude'  => $insertData['office_latitude'],
+                    'longitude' => $insertData['office_longitude'],
+                    'radius'    => $insertData['office_radius'] ?? 100,
+                ];
+                $branchModel->update($branchId, $branchUpdate);
+            }
+
+            return $response->setJSON([
                 'status' => 'success',
                 'message' => $message
             ]);
 
         } catch (\Exception $e) {
             log_message('error', 'Company Rules Store Error: ' . $e->getMessage());
-            return $this->response->setJSON([
+            return $response->setJSON([
                 'status' => 'error',
                 'message' => 'Failed to save company rules: ' . $e->getMessage()
             ])->setStatusCode(500);

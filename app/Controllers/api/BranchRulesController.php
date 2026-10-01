@@ -121,13 +121,14 @@ class BranchRulesController extends ResourceController
         $rules  = $this->branchRulesModel->getRulesForBranch($branchId);
         $branch = $this->branchModel->find($branchId);
 
-        // Append location settings for UI
-        $locationSettingsModel = new \App\Models\LocationSettingsModel();
-        $locationSettings = $locationSettingsModel->first();
-        if ($locationSettings && $rules) {
-            $rules['office_latitude']  = $locationSettings['latitude'];
-            $rules['office_longitude'] = $locationSettings['longitude'];
-            $rules['office_radius']    = $locationSettings['radius'];
+        // Branch-specific location settings
+        if ($rules && $branch) {
+            $rules['office_latitude']  = !empty($rules['office_latitude']) ? $rules['office_latitude'] : ($branch['latitude'] ?? null);
+            $rules['office_longitude'] = !empty($rules['office_longitude']) ? $rules['office_longitude'] : ($branch['longitude'] ?? null);
+            $rules['office_radius']    = !empty($rules['office_radius']) ? $rules['office_radius'] : ($branch['radius'] ?? 100);
+            if (!empty($rules['office_latitude']) && !empty($rules['office_longitude'])) {
+                $rules['enable_geofencing'] = 1;
+            }
         }
 
         return $this->respond([
@@ -138,7 +139,7 @@ class BranchRulesController extends ResourceController
     }
 
     /**
-     * POST api/branch-rules/store â€” save branch rules
+     * POST api/branch-rules/store — save branch rules
      */
     public function store()
     {
@@ -192,6 +193,9 @@ class BranchRulesController extends ResourceController
             'include_holidays_in_working_days'=> ($data['include_holidays_in_working_days'] === true || $data['include_holidays_in_working_days'] == 1) ? 1 : 0,
             'sandwich_leave'                  => ($data['sandwich_leave'] === true || $data['sandwich_leave'] == 1) ? 1 : 0,
             'enable_geofencing'               => ($data['enable_geofencing'] === true || $data['enable_geofencing'] == 1) ? 1 : 0,
+            'office_latitude'                 => isset($data['office_latitude']) && $data['office_latitude'] !== '' ? (string)$data['office_latitude'] : (isset($data['latitude']) && $data['latitude'] !== '' ? (string)$data['latitude'] : null),
+            'office_longitude'                => isset($data['office_longitude']) && $data['office_longitude'] !== '' ? (string)$data['office_longitude'] : (isset($data['longitude']) && $data['longitude'] !== '' ? (string)$data['longitude'] : null),
+            'office_radius'                   => isset($data['office_radius']) && $data['office_radius'] !== '' ? (int)$data['office_radius'] : (isset($data['radius']) && $data['radius'] !== '' ? (int)$data['radius'] : 100),
         ];
 
         try {
@@ -205,6 +209,16 @@ class BranchRulesController extends ResourceController
                 $this->branchRulesModel->insert($insertData);
                 $this->auditLog->log($actorId, 'branch_rules.create', 'BranchRules', null, null, $insertData);
                 $message = 'Branch rules created successfully.';
+            }
+
+            // Bidirectional sync: update branch module
+            if (!empty($branchId)) {
+                $branchUpdate = [
+                    'latitude'  => $insertData['office_latitude'],
+                    'longitude' => $insertData['office_longitude'],
+                    'radius'    => $insertData['office_radius'] ?? 100,
+                ];
+                $this->branchModel->update($branchId, $branchUpdate);
             }
 
             return $this->respond(['status' => 'success', 'message' => $message]);

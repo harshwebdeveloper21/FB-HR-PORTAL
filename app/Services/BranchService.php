@@ -52,7 +52,10 @@ class BranchService
             'enable_overtime' => $globalRules['enable_overtime'] ?? 0,
             'overtime_multiplier' => $globalRules['overtime_multiplier'] ?? 1.5,
             'min_overtime_count_in_minutes' => $globalRules['min_overtime_count_in_minutes'] ?? 30,
-            'enable_geofencing' => $globalRules['enable_geofencing'] ?? 0,
+            'office_latitude' => !empty($data['latitude']) ? (string)$data['latitude'] : null,
+            'office_longitude' => !empty($data['longitude']) ? (string)$data['longitude'] : null,
+            'office_radius' => isset($data['radius']) && $data['radius'] !== '' ? (int)$data['radius'] : 100,
+            'enable_geofencing' => (!empty($data['latitude']) && !empty($data['longitude'])) ? 1 : ($globalRules['enable_geofencing'] ?? 0),
             'enable_tax' => $globalRules['enable_tax'] ?? 0,
             'tax' => $globalRules['tax'] ?? 0,
             'sandwich_leave' => $globalRules['sandwich_leave'] ?? 0
@@ -92,8 +95,8 @@ class BranchService
 
         $this->branchModel->delete($id);
         
-        // Soft delete leaves rules intact just in case, or we could delete them.
-        // We'll leave rules intact for history.
+        // Clean up rules for the deleted branch so orphan rules do not linger in rules view
+        $this->branchRulesModel->where('branch_id', $id)->delete();
 
         $this->auditLog->insert([
             'user_id' => $adminId,

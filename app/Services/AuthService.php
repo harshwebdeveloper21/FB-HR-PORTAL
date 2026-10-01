@@ -132,7 +132,11 @@ class AuthService
             }
         }
 
-        return session()->get("user_token");
+        if (session_status() === PHP_SESSION_ACTIVE || !headers_sent()) {
+            return session()->get("user_token");
+        }
+
+        return null;
     }
 
     private function tryRememberMeLogin()
@@ -217,7 +221,7 @@ class AuthService
 
         // Admin and Global HR check session for active filter branch (null = full cross-branch access)
         if (in_array($row['role'], ['admin', 'hr'])) {
-            $activeBranch = session()->get('admin_active_branch');
+            $activeBranch = (session_status() === PHP_SESSION_ACTIVE || !headers_sent()) ? session()->get('admin_active_branch') : null;
             return !empty($activeBranch) ? (int)$activeBranch : null;
         }
 

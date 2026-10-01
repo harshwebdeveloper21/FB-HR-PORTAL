@@ -42,6 +42,9 @@ class CompanyRulesModel extends Model
         'min_overtime_count_in_minutes',
         'sandwich_leave',
         'branch_id',
+        'office_latitude',
+        'office_longitude',
+        'office_radius',
         'created_at',
         'updated_at',
     ];

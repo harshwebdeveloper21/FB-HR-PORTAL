@@ -343,35 +343,40 @@ class AttendanceController extends ResourceController
             if ($enableGeofencing) {
                 $officeLocation = $this->getOfficeLocationForUser((int)$user->sub);
 
-                if ($officeLocation && $officeLocation['latitude'] && $officeLocation['longitude']) {
-                    if ($checkinLat === null || $checkinLng === null) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Location access is required to check in.'
-                        ], 400);
-                    }
+                if (!$officeLocation) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'Geofencing is enabled but your branch office location is not configured.'
+                    ], 400);
+                }
 
-                    $distance = $this->calculateDistance(
-                        $checkinLat, 
-                        $checkinLng, 
-                        (float)$officeLocation['latitude'], 
-                        (float)$officeLocation['longitude']
-                    );
+                if ($checkinLat === null || $checkinLng === null) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'Location access is required to check in.'
+                    ], 400);
+                }
 
-                    $allowedRadius = (float)($officeLocation['radius'] ?? 0);
+                $distance = $this->calculateDistance(
+                    $checkinLat, 
+                    $checkinLng, 
+                    (float)$officeLocation['latitude'], 
+                    (float)$officeLocation['longitude']
+                );
 
-                    // Add a 10 meter tolerance if exact match is required to account for basic GPS drift
-                    if ($allowedRadius == 0 && $distance > 10) {
-                         return $this->respond([
-                            'status' => 'error',
-                            'message' => 'You are outside the exact office location. Please check in from the office.'
-                        ], 400);
-                    } else if ($allowedRadius > 0 && $distance > $allowedRadius) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => "You are outside the allowed office location range. Please check in from within {$allowedRadius} meters of the office."
-                        ], 400);
-                    }
+                $allowedRadius = (float)($officeLocation['radius'] ?? 0);
+
+                // Add a 10 meter tolerance if exact match is required to account for basic GPS drift
+                if ($allowedRadius == 0 && $distance > 10) {
+                     return $this->respond([
+                        'status' => 'error',
+                        'message' => 'You are outside the exact office location. Please check in from the office.'
+                    ], 400);
+                } else if ($allowedRadius > 0 && $distance > $allowedRadius) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => "You are outside the allowed office location range. Please check in from within {$allowedRadius} meters of the office."
+                    ], 400);
                 }
             }
         }
@@ -801,35 +806,40 @@ class AttendanceController extends ResourceController
             if ($enableGeofencing) {
                 $officeLocation = $this->getOfficeLocationForUser((int)$user->sub);
 
-                if ($officeLocation && $officeLocation['latitude'] && $officeLocation['longitude']) {
-                    if ($coLat === null || $coLng === null) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => 'Location access is required to check out.'
-                        ], 400);
-                    }
+                if (!$officeLocation) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'Geofencing is enabled but your branch office location is not configured.'
+                    ], 400);
+                }
 
-                    $distance = $this->calculateDistance(
-                        $coLat, 
-                        $coLng, 
-                        (float)$officeLocation['latitude'], 
-                        (float)$officeLocation['longitude']
-                    );
+                if ($coLat === null || $coLng === null) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => 'Location access is required to check out.'
+                    ], 400);
+                }
 
-                    $allowedRadius = (float)($officeLocation['radius'] ?? 0);
+                $distance = $this->calculateDistance(
+                    $coLat, 
+                    $coLng, 
+                    (float)$officeLocation['latitude'], 
+                    (float)$officeLocation['longitude']
+                );
 
-                    // Add a 10 meter tolerance if exact match is required to account for basic GPS drift
-                    if ($allowedRadius == 0 && $distance > 10) {
-                         return $this->respond([
-                            'status' => 'error',
-                            'message' => 'You are outside the exact office location. Please check out from the office.'
-                        ], 400);
-                    } else if ($allowedRadius > 0 && $distance > $allowedRadius) {
-                        return $this->respond([
-                            'status' => 'error',
-                            'message' => "You are outside the allowed office location range. Please check out from within {$allowedRadius} meters of the office."
-                        ], 400);
-                    }
+                $allowedRadius = (float)($officeLocation['radius'] ?? 0);
+
+                // Add a 10 meter tolerance if exact match is required to account for basic GPS drift
+                if ($allowedRadius == 0 && $distance > 10) {
+                     return $this->respond([
+                        'status' => 'error',
+                        'message' => 'You are outside the exact office location. Please check out from the office.'
+                    ], 400);
+                } else if ($allowedRadius > 0 && $distance > $allowedRadius) {
+                    return $this->respond([
+                        'status' => 'error',
+                        'message' => "You are outside the allowed office location range. Please check out from within {$allowedRadius} meters of the office."
+                    ], 400);
                 }
             }
         }
@@ -2694,25 +2704,15 @@ class AttendanceController extends ResourceController
         $user = (new \App\Models\UserModel())->find($userId);
         if ($user && !empty($user['branch_id'])) {
             $companyRule = (new \App\Models\CompanyRulesModel())->where('branch_id', $user['branch_id'])->first();
-            if ($companyRule && !empty($companyRule['office_latitude']) && !empty($companyRule['office_longitude'])) {
+            if ($companyRule && $companyRule['office_latitude'] !== null && $companyRule['office_longitude'] !== null) {
                 return [
-                    'latitude' => $companyRule['office_latitude'],
-                    'longitude' => $companyRule['office_longitude'],
-                    'radius' => isset($companyRule['office_radius']) ? $companyRule['office_radius'] : 100,
+                    'latitude' => (float) $companyRule['office_latitude'],
+                    'longitude' => (float) $companyRule['office_longitude'],
+                    'radius' => isset($companyRule['office_radius']) ? (float) $companyRule['office_radius'] : 100,
                 ];
             }
         }
         
-        // Fallback to global rule if branch-specific is missing
-        $globalRule = (new \App\Models\CompanyRulesModel())->groupStart()->where('branch_id', null)->orWhere('branch_id', 0)->groupEnd()->first();
-        if ($globalRule && !empty($globalRule['office_latitude']) && !empty($globalRule['office_longitude'])) {
-            return [
-                'latitude' => $globalRule['office_latitude'],
-                'longitude' => $globalRule['office_longitude'],
-                'radius' => isset($globalRule['office_radius']) ? $globalRule['office_radius'] : 100,
-            ];
-        }
-
         return null;
     }
 

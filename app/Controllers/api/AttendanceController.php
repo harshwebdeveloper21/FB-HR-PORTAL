@@ -2693,18 +2693,27 @@ class AttendanceController extends ResourceController
     {
         $user = (new \App\Models\UserModel())->find($userId);
         if ($user && !empty($user['branch_id'])) {
-            $branch = (new \App\Models\BranchModel())->find($user['branch_id']);
-            if ($branch && !empty($branch['latitude']) && !empty($branch['longitude'])) {
+            $companyRule = (new \App\Models\CompanyRulesModel())->where('branch_id', $user['branch_id'])->first();
+            if ($companyRule && !empty($companyRule['office_latitude']) && !empty($companyRule['office_longitude'])) {
                 return [
-                    'latitude' => $branch['latitude'],
-                    'longitude' => $branch['longitude'],
-                    'radius' => isset($branch['radius']) ? $branch['radius'] : 100,
+                    'latitude' => $companyRule['office_latitude'],
+                    'longitude' => $companyRule['office_longitude'],
+                    'radius' => isset($companyRule['office_radius']) ? $companyRule['office_radius'] : 100,
                 ];
             }
         }
         
-        $locationSettingsModel = new \App\Models\LocationSettingsModel();
-        return $locationSettingsModel->first();
+        // Fallback to global rule if branch-specific is missing
+        $globalRule = (new \App\Models\CompanyRulesModel())->groupStart()->where('branch_id', null)->orWhere('branch_id', 0)->groupEnd()->first();
+        if ($globalRule && !empty($globalRule['office_latitude']) && !empty($globalRule['office_longitude'])) {
+            return [
+                'latitude' => $globalRule['office_latitude'],
+                'longitude' => $globalRule['office_longitude'],
+                'radius' => isset($globalRule['office_radius']) ? $globalRule['office_radius'] : 100,
+            ];
+        }
+
+        return null;
     }
 
     public function exportExcel()

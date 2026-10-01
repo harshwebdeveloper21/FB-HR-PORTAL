@@ -62,17 +62,8 @@ class CompanyRulesController extends BaseController
                 $rules = $this->rulesModel->first();
             }
         }
-        
-        $locationSettingsModel = new \App\Models\LocationSettingsModel();
-        $locationSettings = $locationSettingsModel->first();
-
         if ($rules) {
-            // Append location settings for the UI
-            if ($locationSettings) {
-                $rules['office_latitude'] = $locationSettings['latitude'];
-                $rules['office_longitude'] = $locationSettings['longitude'];
-                $rules['office_radius'] = $locationSettings['radius'];
-            }
+            // Values are already in $rules from company_rules table
             return $this->response->setJSON([
                 'status' => 'success',
                 'data'   => $rules
@@ -171,15 +162,9 @@ class CompanyRulesController extends BaseController
 
             // Branch
             'branch_id' => !empty($data['branch_id']) ? (int)$data['branch_id'] : null,
-        ];
-
-        $locationSettingsModel = new \App\Models\LocationSettingsModel();
-        
-        // Prepare location data
-        $locationData = [
-            'latitude'  => isset($data['office_latitude']) ? (float)$data['office_latitude'] : 0,
-            'longitude' => isset($data['office_longitude']) ? (float)$data['office_longitude'] : 0,
-            'radius'    => isset($data['office_radius']) ? (float)$data['office_radius'] : 0,
+            'office_latitude'  => isset($data['office_latitude']) && $data['office_latitude'] !== '' ? (float)$data['office_latitude'] : null,
+            'office_longitude' => isset($data['office_longitude']) && $data['office_longitude'] !== '' ? (float)$data['office_longitude'] : null,
+            'office_radius'    => isset($data['office_radius']) && $data['office_radius'] !== '' ? (float)$data['office_radius'] : null,
         ];
 
         try {
@@ -203,14 +188,6 @@ class CompanyRulesController extends BaseController
                 // Insert new record
                 $this->rulesModel->insert($insertData);
                 $message = 'Company rules created successfully.';
-            }
-
-            // Also save location settings (single record assumption)
-            $existingLocation = $locationSettingsModel->first();
-            if ($existingLocation) {
-                $locationSettingsModel->update($existingLocation['id'], $locationData);
-            } else {
-                $locationSettingsModel->insert($locationData);
             }
 
             return $this->response->setJSON([

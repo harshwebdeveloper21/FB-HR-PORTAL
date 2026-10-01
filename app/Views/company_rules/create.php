@@ -45,7 +45,7 @@
                             <option value="">Global Rules</option>
                             <?php
                                 $branchModel = new \App\Models\BranchModel();
-                                $allBranches = $branchModel->findAll();
+                                $allBranches = $branchModel->where('status', 'active')->orderBy('name', 'ASC')->findAll();
                                 foreach ($allBranches as $br):
                             ?>
                                 <option value="<?= htmlspecialchars($br['id']) ?>"><?= htmlspecialchars($br['name']) ?> (<?= htmlspecialchars($br['code'] ?? '') ?>)</option>

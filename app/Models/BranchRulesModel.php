@@ -22,6 +22,7 @@ class BranchRulesModel extends Model
         'grace_period', 'grace_minutes',
         'enable_overtime', 'overtime_multiplier', 'overtime_rate_type',
         'min_overtime_count_in_minutes', 'sandwich_leave', 'enable_geofencing',
+        'office_latitude', 'office_longitude', 'office_radius',
         'created_at', 'updated_at',
     ];
 
@@ -55,6 +56,9 @@ class BranchRulesModel extends Model
             'grace_minutes'              => 10,
             'enable_overtime'            => 0,
             'enable_geofencing'          => 0,
+            'office_latitude'            => null,
+            'office_longitude'           => null,
+            'office_radius'              => 100,
             'sandwich_leave'             => 0,
         ];
     }

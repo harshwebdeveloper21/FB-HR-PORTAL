@@ -91,6 +91,21 @@ class BranchController extends ResourceController
         if (!$branch) {
             return redirect()->to('/branches')->with('error', 'Branch not found.');
         }
+
+        // Fallback to branch_rules coordinates if branch coordinates are empty
+        $rules = $this->branchRulesModel->where('branch_id', $id)->first();
+        if ($rules) {
+            if (empty($branch['latitude']) && !empty($rules['office_latitude'])) {
+                $branch['latitude'] = $rules['office_latitude'];
+            }
+            if (empty($branch['longitude']) && !empty($rules['office_longitude'])) {
+                $branch['longitude'] = $rules['office_longitude'];
+            }
+            if ((empty($branch['radius']) || $branch['radius'] == 100) && !empty($rules['office_radius'])) {
+                $branch['radius'] = $rules['office_radius'];
+            }
+        }
+
         return view('branches/form', ['branch' => $branch]);
     }
 
@@ -325,6 +340,25 @@ class BranchController extends ResourceController
 
         $this->branchModel->update($id, $updateData);
         $this->auditLog->log($admin->sub, 'branch.update', 'Branch', (int)$id, $branch, $updateData);
+
+        // Bidirectional sync: synchronize geofence settings to branch_rules
+        $ruleUpdate = [
+            'office_latitude'  => !empty($updateData['latitude']) ? (string)$updateData['latitude'] : null,
+            'office_longitude' => !empty($updateData['longitude']) ? (string)$updateData['longitude'] : null,
+            'office_radius'    => isset($updateData['radius']) && $updateData['radius'] !== '' ? (int)$updateData['radius'] : 100,
+        ];
+        if (!empty($updateData['latitude']) && !empty($updateData['longitude'])) {
+            $ruleUpdate['enable_geofencing'] = 1;
+        }
+
+        $existingRule = $this->branchRulesModel->where('branch_id', $id)->first();
+        if ($existingRule) {
+            $this->branchRulesModel->update($existingRule['id'], $ruleUpdate);
+        } else {
+            $defaultRules = $this->branchRulesModel->getDefaultRules();
+            $mergedRules = array_merge($defaultRules, $ruleUpdate, ['branch_id' => (int)$id]);
+            $this->branchRulesModel->insert($mergedRules);
+        }
 
         return $this->respond(['status' => 'success', 'message' => 'Branch updated successfully.']);
     }

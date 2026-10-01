@@ -127,8 +127,8 @@ class AuthService
         $authorizationHeader = $this->request->getHeaderLine("Authorization");
         if ($authorizationHeader) {
             $arr = explode(" ", $authorizationHeader);
-            if (count($arr) == 2 && strtolower($arr[0]) === "bearer" && $arr[1] !== 'null' && $arr[1] !== 'undefined') {
-                return $arr[1];
+            if (count($arr) == 2 && strtolower($arr[0]) === "bearer" && $arr[1] !== 'null' && $arr[1] !== 'undefined' && trim($arr[1]) !== '') {
+                return trim($arr[1]);
             }
         }
 

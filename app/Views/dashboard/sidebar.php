@@ -97,6 +97,8 @@ $isEmployee = ($role === 'employee');
           </ul>
         </div>
       </li>
+    <?php endif; ?>
+    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#announcementsMenu" aria-expanded="false" aria-controls="announcementsMenu">
           <i class="menu-icon mdi mdi-bullhorn"></i>
@@ -110,19 +112,22 @@ $isEmployee = ($role === 'employee');
           </ul>
         </div>
       </li>
-    <?php elseif ($isBranchAdmin || $isDeptManager || $isEmployee): ?>
+    <?php endif; ?>
+    <?php if ($isBranchAdmin || $isDeptManager || $isEmployee): ?>
       <li class="nav-item">
         <a class="nav-link" href="<?= base_url('complaints') ?>">
           <i class="menu-icon mdi mdi-message-alert"></i>
           <span class="menu-title">Complaints & Feedback</span>
         </a>
       </li>
+      <?php if (!$isBranchAdmin): ?>
       <li class="nav-item">
         <a class="nav-link" href="<?= base_url('announcements') ?>">
           <i class="menu-icon mdi mdi-bullhorn"></i>
           <span class="menu-title">Announcements</span>
         </a>
       </li>
+      <?php endif; ?>
     <?php endif; ?>
 
     <!-- ── Employees Management ─────────────────────────────── -->

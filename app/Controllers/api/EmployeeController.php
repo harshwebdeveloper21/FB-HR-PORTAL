@@ -865,10 +865,11 @@ class EmployeeController extends ResourceController
 
         // Build query with join
         $builder = $this->userModel
-            ->select('users.*, user_info.employee_id, user_info.status, user_info.status_reason, user_info.last_working_day, user_info.firstname, user_info.lastname, user_info.profile_image, user_info.joining_date, user_info.id as user_info_id, user_info.salary, user_info.last_increment_date, user_info.last_increment_amount, department.department_name, users.department_id, employee_leaves.paid_leave, employee_leaves.casual_leave')
+            ->select('users.*, user_info.employee_id, user_info.status, user_info.status_reason, user_info.last_working_day, user_info.firstname, user_info.lastname, user_info.profile_image, user_info.joining_date, user_info.id as user_info_id, user_info.salary, user_info.last_increment_date, user_info.last_increment_amount, department.department_name, users.department_id, employee_leaves.paid_leave, employee_leaves.casual_leave, branches.name as branch_name')
             ->join('user_info', 'user_info.user_id = users.id')
             ->join('department', 'department.id = users.department_id', 'left')
-            ->join('employee_leaves', 'employee_leaves.employee_id = users.id', 'left');
+            ->join('employee_leaves', 'employee_leaves.employee_id = users.id', 'left')
+            ->join('branches', 'branches.id = users.branch_id', 'left');
 
         // Role-based filtering
         if ($role === 'admin') {
@@ -959,6 +960,7 @@ class EmployeeController extends ResourceController
                     'remaining_sick_leave' => (float) ($row['casual_leave'] ?? 0),
                     'department_id' => $row['department_id'],
                     'department_name' => $row['department_name'],
+                    'branch_name' => $row['branch_name'],
                     'salary' => (float) ($row['salary'] ?? 0),
                     'status' => $statusNormalized,
                     'status_reason' => $row['status_reason'] ?? '',

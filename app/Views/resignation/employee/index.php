@@ -92,7 +92,7 @@
             <i class="mdi mdi-undo me-1"></i>Withdraw
           </a>
           <?php endif; ?>
-          <?php if ($resignation['status'] === 'handover'): ?>
+          <?php if (in_array($resignation['status'], ['manager_approved', 'notice_period', 'handover', 'clearance', 'fnf', 'relieved'])): ?>
           <a href="<?= base_url('/resignation/handover/'.$resignation['id']) ?>" class="btn btn-sm" style="background:#E66136;color:#fff;">
             <i class="mdi mdi-swap-horizontal me-1"></i>Manage Handover
           </a>

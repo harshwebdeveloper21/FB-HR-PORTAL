@@ -45,29 +45,42 @@ class AnnouncementController extends ResourceController
         $type = $this->request->getGet('type');
         $date = $this->request->getGet('date');
 
-        $query = $this->announcementModel->where('status', 'Active')
-            ->where('is_deleted', 0);
+        $uRow = $this->userModel->find($userId);
+        $myBranchId = $uRow['branch_id'] ?? 0;
+
+        $query = $this->announcementModel
+            ->select('announcements.*')
+            ->join('users AS creator', 'creator.id = announcements.created_by', 'left')
+            ->where('announcements.status', 'Active')
+            ->where('announcements.is_deleted', 0);
 
         // Filter by target audience
         $query->groupStart()
-                ->where('target_audience', 'All Users')
+                ->where('announcements.target_audience', 'All Users')
                 ->orGroupStart()
-                    ->where('target_audience', 'Specific Role')
-                    ->where("FIND_IN_SET('$userRole', target_roles) >", 0)
+                    ->where('announcements.target_audience', 'Specific Role')
+                    ->where("FIND_IN_SET('$userRole', announcements.target_roles) >", 0)
                 ->groupEnd()
                 ->orGroupStart()
-                    ->where('target_audience', 'Specific Users')
-                    ->where("FIND_IN_SET('$userId', target_users) >", 0)
+                    ->where('announcements.target_audience', 'Specific Users')
+                    ->where("FIND_IN_SET('$userId', announcements.target_users) >", 0)
                 ->groupEnd()
             ->groupEnd();
 
+        // Enforce branch admin isolation
+        $query->groupStart()
+                ->where('creator.role !=', 'branch_admin')
+                ->orWhere('creator.branch_id', $myBranchId)
+                ->orWhere('creator.id IS NULL')
+            ->groupEnd();
+
         if ($type) {
-            $query->where('type', $type);
+            $query->where('announcements.type', $type);
         }
 
         if ($date) {
-            $query->where('start_date <=', $date)
-                  ->where('end_date >=', $date);
+            $query->where('announcements.start_date <=', $date)
+                  ->where('announcements.end_date >=', $date);
         }
 
         $announcements = $query->orderBy('created_at', 'DESC')->findAll();
@@ -93,12 +106,15 @@ class AnnouncementController extends ResourceController
         }
 
         $user = $this->authService->user();
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
             return redirect()->to('/dashboard');
         }
 
-        $announcements = $this->announcementModel->where('is_deleted', 0)
-            ->orderBy('created_at', 'DESC')
+        $query = $this->announcementModel->where('is_deleted', 0);
+        if ($user->role === 'branch_admin') {
+            $query->where('created_by', $user->sub);
+        }
+        $announcements = $query->orderBy('created_at', 'DESC')
             ->findAll();
 
         return view('announcements/admin_index', [
@@ -117,11 +133,16 @@ class AnnouncementController extends ResourceController
         }
 
         $user = $this->authService->user();
-        if (!in_array($user->role, ['admin', 'hr'])) {
+        if (!in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
             return redirect()->to('/dashboard');
         }
 
-        $users = $this->userModel->where('is_deleted', 0)->findAll();
+        $usersQuery = $this->userModel->where('is_deleted', 0);
+        if ($user->role === 'branch_admin') {
+            $uRow = $this->userModel->find($user->sub);
+            $usersQuery->where('branch_id', $uRow['branch_id']);
+        }
+        $users = $usersQuery->findAll();
         
         return view('announcements/create', [
             'users' => $users,
@@ -139,7 +160,7 @@ class AnnouncementController extends ResourceController
         }
 
         $user = $this->authService->user();
-        if (!$user || !in_array($user->role, ['admin', 'hr'])) {
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
             return $this->response->setJSON(['status' => 'error', 'message' => 'Permission denied'])->setStatusCode(403);
         }
         
@@ -231,6 +252,8 @@ class AnnouncementController extends ResourceController
             }
         }
 
+        $senderBranchId = $sender['branch_id'] ?? 0;
+
         foreach ($recipients as $recipient) {
             // Apply exclusion rules
             if ($senderRole === 'admin') {
@@ -241,6 +264,11 @@ class AnnouncementController extends ResourceController
             } elseif ($senderRole === 'hr') {
                 // When HR creates: NOT sent to the HR who created it. Sent to all others (Admin, other HRs, and employees)
                 if ($recipient['id'] == $senderId) {
+                    continue;
+                }
+            } elseif ($senderRole === 'branch_admin') {
+                // Branch admin announcements only notify users in the same branch
+                if (($recipient['branch_id'] ?? 0) != $senderBranchId) {
                     continue;
                 }
             }
@@ -270,7 +298,7 @@ class AnnouncementController extends ResourceController
         }
 
         $user = $this->authService->user();
-        if (!$user || !in_array($user->role, ['admin', 'hr'])) {
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
             return redirect()->to('/dashboard');
         }
 
@@ -279,7 +307,16 @@ class AnnouncementController extends ResourceController
             return redirect()->to('/announcements/admin')->with('error', 'Announcement not found');
         }
 
-        $users = $this->userModel->where('is_deleted', 0)->findAll();
+        if ($user->role === 'branch_admin' && $announcement['created_by'] != $user->sub) {
+            return redirect()->to('/announcements/admin')->with('error', 'Permission denied');
+        }
+
+        $usersQuery = $this->userModel->where('is_deleted', 0);
+        if ($user->role === 'branch_admin') {
+            $uRow = $this->userModel->find($user->sub);
+            $usersQuery->where('branch_id', $uRow['branch_id']);
+        }
+        $users = $usersQuery->findAll();
 
         return view('announcements/edit', [
             'announcement' => $announcement,
@@ -298,7 +335,12 @@ class AnnouncementController extends ResourceController
         }
 
         $user = $this->authService->user();
-        if (!$user || !in_array($user->role, ['admin', 'hr'])) {
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
+            return $this->response->setJSON(['status' => 'error', 'message' => 'Permission denied'])->setStatusCode(403);
+        }
+
+        $announcement = $this->announcementModel->find($id);
+        if ($user->role === 'branch_admin' && $announcement && $announcement['created_by'] != $user->sub) {
             return $this->response->setJSON(['status' => 'error', 'message' => 'Permission denied'])->setStatusCode(403);
         }
 
@@ -373,12 +415,19 @@ class AnnouncementController extends ResourceController
             return $this->response->setJSON(['status' => 'error', 'message' => 'Unauthorized']);
         }
 
-        if (!in_array($userRole, ['admin', 'hr'])) {
+        if (!in_array($userRole, ['admin', 'hr', 'branch_admin'])) {
             return $this->response->setJSON(['status' => 'error', 'message' => 'Permission denied']);
         }
 
         if (empty($id)) {
             return $this->response->setJSON(['status' => 'error', 'message' => 'Invalid announcement ID']);
+        }
+
+        if ($userRole === 'branch_admin') {
+            $ann = $this->announcementModel->find($id);
+            if ($ann && $ann['created_by'] != $user->sub) {
+                return $this->response->setJSON(['status' => 'error', 'message' => 'Permission denied']);
+            }
         }
 
         $this->announcementModel->update($id, ['is_deleted' => 1]);

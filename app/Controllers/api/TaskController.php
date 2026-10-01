@@ -604,7 +604,7 @@ class TaskController extends ResourceController
 
     public function addDepartment()
     {
-        $deptController = new \App\Controllers\Api\DepartmentController();
+        $deptController = new \App\Controllers\api\DepartmentController();
         $deptController->initController($this->request, $this->response, $this->logger);
         return $deptController->addDepartment();
     }

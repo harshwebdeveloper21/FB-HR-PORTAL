@@ -1102,48 +1102,30 @@ class PayrollController extends ResourceController
             }
         }
 
+        $rules = $rules ?? [];
         $workingDays = $daysInMonth;
-        if (
-            isset($rules["include_holidays_in_working_days"]) &&
-            $rules["include_holidays_in_working_days"] == 1
-        ) {
+        if (($rules["include_holidays_in_working_days"] ?? 0) == 1) {
             // Holidays count as working days (paid)
         } else {
-            if ($rules["sunday_off"] == 1) {
+            if (($rules["sunday_off"] ?? 0) == 1) {
                 $workingDays -= $sundays;
             }
 
-            if ($rules["saturday_off_enabled"] == 1) {
-                if ($rules["saturday_off_type"] == "all") {
+            $satOffType = $rules["saturday_off_type"] ?? "";
+            $satOffPattern = $rules["saturday_off_pattern"] ?? "";
+            $satOffCount = empty($satOffPattern) ? 0 : count(explode(",", $satOffPattern));
+
+            if (($rules["saturday_off_enabled"] ?? 0) == 1) {
+                if ($satOffType == "all") {
                     $workingDays -= $saturdays;
-                } elseif ($rules["saturday_off_type"] == "alternate-even") {
-                    $workingDays -= count(
-                        explode(",", $rules["saturday_off_pattern"] ?? ""),
-                    );
-                } elseif ($rules["saturday_off_type"] == "alternate-odd") {
-                    $workingDays -= count(
-                        explode(",", $rules["saturday_off_pattern"] ?? ""),
-                    );
-                } elseif ($rules["saturday_off_type"] == "custom") {
-                    $workingDays -= count(
-                        explode(",", $rules["saturday_off_pattern"] ?? ""),
-                    );
+                } elseif (in_array($satOffType, ["alternate-even", "alternate-odd", "custom"])) {
+                    $workingDays -= $satOffCount;
                 }
             } else {
-                if ($rules["saturday_off_type"] == "all") {
+                if ($satOffType == "all") {
                     $workingDays -= $saturdays;
-                } elseif ($rules["saturday_off_type"] == "alternate-even") {
-                    $workingDays -= count(
-                        explode(",", $rules["saturday_off_pattern"] ?? ""),
-                    );
-                } elseif ($rules["saturday_off_type"] == "alternate-odd") {
-                    $workingDays -= count(
-                        explode(",", $rules["saturday_off_pattern"] ?? ""),
-                    );
-                } elseif ($rules["saturday_off_type"] == "custom") {
-                    $workingDays -= count(
-                        explode(",", $rules["saturday_off_pattern"] ?? ""),
-                    );
+                } elseif (in_array($satOffType, ["alternate-even", "alternate-odd", "custom"])) {
+                    $workingDays -= $satOffCount;
                 }
             }
 
@@ -1944,6 +1926,7 @@ class PayrollController extends ResourceController
         $currentMonth = date("Y-m");
         return redirect()->to("/payroll/salary-details?month=" . $currentMonth);
     }
+    
 
     public function salaryDetails()
     {
@@ -1975,7 +1958,7 @@ class PayrollController extends ResourceController
         $attendanceModel = new \App\Models\AttendanceModel();
         $holidayCalendarModel = new HolidayCalendarModel();
 
-        $rules = $companyRulesModel->first();
+        $rules = $companyRulesModel->first() ?? [];
 
         $holidayRows = $holidayCalendarModel
             ->where("holiday_date >=", $startOfMonth)
@@ -1998,12 +1981,25 @@ class PayrollController extends ResourceController
 
         $authService = new \App\Services\AuthService($this->request);
         $branchId = $authService->getBranchId();
+        $user = $authService->user();
+        $authRole = $user->role ?? 'employee';
+
+        $staffRoles = [];
+        if ($authRole === 'branch_admin') {
+            $staffRoles = ['employee', 'department_manager'];
+        } elseif ($authRole === 'department_manager') {
+            $staffRoles = ['employee'];
+        } elseif (in_array($authRole, ['admin', 'hr'])) {
+            $staffRoles = ['employee', 'hr', 'branch_admin', 'department_manager'];
+        } else {
+            $staffRoles = ['employee'];
+        }
 
         $employeeBuilder = $userInfoModel
             ->select('user_info.*, users.username')
             ->join('users', 'users.id = user_info.user_id')
             ->where('users.is_deleted', 0)
-            ->whereIn('user_info.role', ['employee', 'hr']);
+            ->whereIn('users.role', $staffRoles);
             
         if (!empty($branchId)) {
             $employeeBuilder = $employeeBuilder->where('users.branch_id', $branchId);

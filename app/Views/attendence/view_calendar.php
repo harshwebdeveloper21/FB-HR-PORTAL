@@ -305,6 +305,7 @@
 
     .mobile-employee-info {
         flex: 1;
+        min-width: 0;
     }
 
     .mobile-employee-name {
@@ -816,6 +817,7 @@
         margin-bottom: 1px;
         font-size: 12.5px;
         color: #333;
+        min-width: 0;
     }
 
     .loc-inline-line .loc-time {
@@ -833,7 +835,9 @@
         color: #555;
         font-size: 11.5px;
         flex: 1;
-        word-break: break-word;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     /* Status badge pill */

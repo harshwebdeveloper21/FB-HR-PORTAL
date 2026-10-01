@@ -465,15 +465,15 @@ class CandidateController extends ResourceController
             return $this->failUnauthorized('Unauthorized: Token missing or invalid');
         }
 
-        // Check if the user is an admin
-        if ($user->role !== 'admin') {
-            return $this->failForbidden('Forbidden: Only Admin can delete candidate records');
+        // Check if the user is an admin or hr
+        if (!in_array($user->role, ['admin', 'hr'])) {
+            return $this->failForbidden('Forbidden: Only Admin or HR can delete candidate records');
         }
 
-        // Check if the candidate has any associated interviews
+        // Check if the candidate has any associated interviews and delete them if present
         $interviews = $this->interviewModel->where('candidate_id', $id)->findAll();
         if (!empty($interviews)) {
-            return $this->failForbidden('This candidate has associated interviews and cannot be deleted');
+            $this->interviewModel->where('candidate_id', $id)->delete();
         }
 
         // Attempt to delete the candidate record

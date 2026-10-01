@@ -1281,7 +1281,9 @@
             let allItem = $(`
                 <li class="list-group-item employee-item active" data-id="">
                     <div class="team-member">
-                        <img src="${baseImagePath}upload/group2.jpg" alt="All Employee" class="profile-pic bg-light">
+                        <div class="profile-pic d-flex align-items-center justify-content-center text-white" style="width:40px; height:40px; border-radius:50%; background-color:#e66136;">
+                            <i class="mdi mdi-account-group fs-5"></i>
+                        </div>
                         <div><strong class="employee-name">All</strong></div>
                     </div>
                 </li>
@@ -1332,7 +1334,9 @@
             allItem.dataset.id = '';
             allItem.innerHTML = `
                 <div class="team-member">
-                    <img src="${baseImagePath}upload/group2.jpg" alt="All Employee" class="profile-pic bg-light">
+                    <div class="profile-pic d-flex align-items-center justify-content-center text-white" style="width:40px; height:40px; border-radius:50%; background-color:#e66136;">
+                        <i class="mdi mdi-account-group fs-5"></i>
+                    </div>
                     <div><strong class="employee-name">All</strong></div>
                 </div>
             `;
@@ -1756,7 +1760,9 @@
             allItem.dataset.id = '';
             allItem.innerHTML = `
                 <div class="team-member">
-                    <img src="${baseImagePath}upload/group2.jpg" alt="All Employee" class="profile-pic bg-light">
+                    <div class="profile-pic d-flex align-items-center justify-content-center text-white" style="width:40px; height:40px; border-radius:50%; background-color:#e66136;">
+                        <i class="mdi mdi-account-group fs-5"></i>
+                    </div>
                     <div><strong class="employee-name">All</strong></div>
                 </div>
             `;

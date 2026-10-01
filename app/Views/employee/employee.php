@@ -619,13 +619,18 @@
                                         </div>
                                         <select class="form-select" id="department_id" name="department_id">
                                             <option value="">Select Department</option>
-                                            <?php foreach (
-                                                $departments
-                                                as $department
-                                            ): ?>
-                                                <?php if ($isEmpBranchAdmin && (int) ($department['branch_id'] ?? 0) !== (int) $empBranchId): ?>
-                                                    <?php continue; ?>
-                                                <?php endif; ?>
+                                            <?php foreach ($departments as $department): ?>
+                                                <?php 
+                                                    if ($isEmpBranchAdmin) {
+                                                        if ((int) ($department['branch_id'] ?? 0) !== (int) $empBranchId) {
+                                                            continue;
+                                                        }
+                                                        $deptName = strtolower(trim($department["department_name"]));
+                                                        if (in_array($deptName, ['hr', 'admin', 'superadmin', 'super admin', 'branch admin', 'branch manager', 'barnch manger'])) {
+                                                            continue;
+                                                        }
+                                                    }
+                                                ?>
                                                 <option value="<?= $department["id"] ?>">
                                                     <?= $department["department_name"] ?>
                                                 </option>
@@ -657,10 +662,15 @@
                                         </div>
                                         <select class="form-select" name="designation_id" id="designation_id">
                                             <option value="">Select Designation</option>
-                                            <?php foreach (
-                                                $designations
-                                                as $designation
-                                            ): ?>
+                                            <?php foreach ($designations as $designation): ?>
+                                                <?php 
+                                                    if ($isEmpBranchAdmin) {
+                                                        $dName = strtolower(trim($designation["designation_name"]));
+                                                        if (in_array($dName, ['hr', 'admin', 'superadmin', 'super admin', 'branch admin', 'manager'])) {
+                                                            continue;
+                                                        }
+                                                    }
+                                                ?>
                                                 <option value="<?= $designation["id"] ?>">
                                                     <?= $designation["designation_name"] ?>
                                                 </option>

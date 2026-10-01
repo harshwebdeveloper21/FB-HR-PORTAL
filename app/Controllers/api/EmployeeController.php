@@ -1210,7 +1210,7 @@ class EmployeeController extends ResourceController
         // Handle default profile image
         $user['profile_image'] = !empty($user['profile_image'])
             ? base_url('upload/' . $user['profile_image'])
-            : base_url(env('ImagePath') . 'upload/1789966027_54c5a38ccda20f7c2bac.jpg');
+            : base_url('assets/images/default_avatar.png');
 
         return $this->response->setJSON([
             'success' => true,

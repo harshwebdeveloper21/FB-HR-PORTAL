@@ -983,7 +983,7 @@ class LeaveController extends ResourceController
                 $employeeQuery->where('branch_id', (int)$filterBranchId);
             }
         } elseif ($user->role === 'branch_admin') {
-            $employeeQuery->whereIn('role', ['employee', 'department_manager']);
+            $employeeQuery->whereIn('role', ['employee', 'department_manager', 'branch_admin']);
             $employeeQuery->where('branch_id', (int)$filterBranchId);
         } elseif ($user->role === 'department_manager') {
             $dmUser = $this->userModel->find($user->sub);

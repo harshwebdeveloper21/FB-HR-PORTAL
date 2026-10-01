@@ -1986,7 +1986,7 @@ class PayrollController extends ResourceController
 
         $staffRoles = [];
         if ($authRole === 'branch_admin') {
-            $staffRoles = ['employee', 'department_manager'];
+            $staffRoles = ['employee', 'department_manager', 'branch_admin'];
         } elseif ($authRole === 'department_manager') {
             $staffRoles = ['employee'];
         } elseif (in_array($authRole, ['admin', 'hr'])) {

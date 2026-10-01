@@ -889,7 +889,7 @@ class EmployeeController extends ResourceController
             }
         } elseif ($role === 'branch_admin') {
             // Branch Admin: Employees and Department Managers in their branch
-            $builder->whereIn('users.role', ['employee', 'department_manager']);
+            $builder->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
             $branchId = (int)$this->authService->getBranchId();
             $builder->where('users.branch_id', $branchId);
         } elseif ($role === 'department_manager') {

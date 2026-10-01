@@ -1279,7 +1279,11 @@
                         $('#id').val(user.id);
                         $('#firstname').val(userInfo.firstname);
                         $('#lastname').val(userInfo.lastname);
-                        $('#email').val(user.email).prop('readonly', true);
+                        $('#email').val(user.email).prop('disabled', true);
+                        // Append a hidden input so the value is still submitted in the form
+                        if ($('input[type="hidden"][name="email"]').length === 0) {
+                            $('<input>').attr({ type: 'hidden', name: 'email', value: user.email }).appendTo('#step1');
+                        }
                         $('#password').val(''); // Empty on edit
                         $('input[name="gender"][value="' + (userInfo.gender || 'male') + '"]').prop('checked', true);
                         $('#marital_status').val(userInfo.marital_status);

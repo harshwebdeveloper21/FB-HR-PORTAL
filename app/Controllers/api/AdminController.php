@@ -138,7 +138,7 @@ class AdminController extends ResourceController
             $empQuery = $this->userInfoModel
                 ->select('user_info.*, designation.designation_name, department.department_name')
                 ->join('designation', 'designation.id = user_info.designation_id', 'left')
-                ->join('department', 'department.id = users.department_id', 'left')
+                ->join('department', 'department.id = user_info.department_id', 'left')
                 ->join('users', 'users.id = user_info.user_id', 'inner')
                 ->where('users.is_deleted', 0)
                 ->where('MONTH(user_info.joining_date)', $currentMonth)
@@ -149,7 +149,7 @@ class AdminController extends ResourceController
                          ->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
             } elseif ($role === 'department_manager') {
                 if (!empty($filterDepartmentId)) {
-                    $empQuery->where('users.department_id', (int)$filterDepartmentId);
+                    $empQuery->where('user_info.department_id', (int)$filterDepartmentId);
                 }
                 $empQuery->where('users.role', 'employee');
             } elseif (in_array($role, ['admin', 'hr'])) {
@@ -165,7 +165,7 @@ class AdminController extends ResourceController
             $employees = $this->userInfoModel
                 ->select('user_info.*, designation.designation_name, department.department_name')
                 ->join('designation', 'designation.id = user_info.designation_id', 'left')
-                ->join('department', 'department.id = users.department_id', 'left')
+                ->join('department', 'department.id = user_info.department_id', 'left')
                 ->where('user_info.user_id', $user->sub)
                 ->where('MONTH(user_info.joining_date)', $currentMonth)
                 ->where('YEAR(user_info.joining_date)', $currentYear)
@@ -229,7 +229,7 @@ class AdminController extends ResourceController
         if ($role === 'branch_admin' && !empty($filterBranchId)) {
             $taskQuery->where('users.branch_id', (int)$filterBranchId);
         } elseif ($role === 'department_manager' && !empty($filterDepartmentId)) {
-            $taskQuery->where('users.department_id', (int)$filterDepartmentId);
+            $taskQuery->where('user_info.department_id', (int)$filterDepartmentId);
         } elseif ($role === 'employee') {
             $taskQuery->where('task.user_id', $user->sub);
         } elseif (!empty($filterBranchId)) {
@@ -259,7 +259,7 @@ class AdminController extends ResourceController
         if ($role === 'branch_admin' && !empty($filterBranchId)) {
             $complaintQuery->where('users.branch_id', (int)$filterBranchId);
         } elseif ($role === 'department_manager' && !empty($filterDepartmentId)) {
-            $complaintQuery->where('users.department_id', (int)$filterDepartmentId);
+            $complaintQuery->where('user_info.department_id', (int)$filterDepartmentId);
         } elseif ($role === 'employee') {
             $complaintQuery->where('complaints.user_id', $user->sub);
         } elseif (!empty($filterBranchId)) {
@@ -468,7 +468,7 @@ class AdminController extends ResourceController
     //     if ($role == 'admin' || $role == 'hr') {
     //         $departmentData = $this->userInfoModel
     //             ->select("department.department_name, COUNT(user_info.id) as employee_count")
-    //             ->join('department', 'department.id = users.department_id', 'left')
+    //             ->join('department', 'department.id = user_info.department_id', 'left')
     //             ->join('users', 'users.id = user_info.user_id', 'inner')
     //             ->where('users.is_deleted', 0)
     //             ->where('department.department_name IS NOT NULL') // Remove unassigned
@@ -480,7 +480,7 @@ class AdminController extends ResourceController
 
     //         $departmentData = $this->userInfoModel
     //             ->select("department.department_name, COUNT(user_info.id) as employee_count")
-    //             ->join('department', 'department.id = users.department_id', 'left')
+    //             ->join('department', 'department.id = user_info.department_id', 'left')
     //             ->join('users', 'users.id = user_info.user_id', 'inner')
     //             ->where('users.is_deleted', 0)
     //             ->where('department.department_name IS NOT NULL') // Remove unassigned
@@ -517,7 +517,7 @@ class AdminController extends ResourceController
     //         $employees = $this->userInfoModel
     //             ->select('user_info.*, designation.designation_name, department.department_name')
     //             ->join('designation', 'designation.id = user_info.designation_id', 'left')
-    //             ->join('department', 'department.id = users.department_id', 'left')
+    //             ->join('department', 'department.id = user_info.department_id', 'left')
     //             ->join('users', 'users.id = user_info.user_id', 'inner')
     //             ->where('users.is_deleted', 0)
     //             ->where('user_info.role', 'employee')
@@ -530,7 +530,7 @@ class AdminController extends ResourceController
     //         $employees = $this->userInfoModel
     //             ->select('user_info.*, designation.designation_name, department.department_name')
     //             ->join('designation', 'designation.id = user_info.designation_id', 'left')
-    //             ->join('department', 'department.id = users.department_id', 'left')
+    //             ->join('department', 'department.id = user_info.department_id', 'left')
     //             ->join('users', 'users.id = user_info.user_id', 'inner')
     //             ->where('users.is_deleted', 0)
     //             ->where('user_info.user_id', $user->sub)
@@ -642,7 +642,7 @@ class AdminController extends ResourceController
         }
         $deptFilterSql = "";
         if (!empty($filterDepartmentId)) {
-            $deptFilterSql = " AND (users.department_id = " . (int)$filterDepartmentId . " OR users.department_id = " . (int)$filterDepartmentId . ") ";
+            $deptFilterSql = " AND (user_info.department_id = " . (int)$filterDepartmentId . " OR users.department_id = " . (int)$filterDepartmentId . ") ";
         }
 
         if ($role === 'branch_admin') {
@@ -737,7 +737,7 @@ class AdminController extends ResourceController
             $attendanceQuery->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
         } elseif ($role === 'department_manager') {
             if (!empty($filterDepartmentId)) {
-                $attendanceQuery->where('users.department_id', (int)$filterDepartmentId);
+                $attendanceQuery->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if (!empty($filterBranchId)) {
                 $attendanceQuery->where('users.branch_id', (int)$filterBranchId);
@@ -854,7 +854,7 @@ class AdminController extends ResourceController
                 ->where('((leaves.start_date >= \'' . $startOfWeek . '\' AND leaves.start_date <= \'' . $endOfWeek . '\') OR (leaves.end_date >= \'' . $startOfWeek . '\' AND leaves.end_date <= \'' . $endOfWeek . '\') OR (leaves.start_date <= \'' . $startOfWeek . '\' AND leaves.end_date >= \'' . $endOfWeek . '\'))');
             if (!empty($filterBranchId)) $leaveQWeek->where('users.branch_id', (int)$filterBranchId);
             if (!empty($filterDepartmentId)) {
-                $leaveQWeek->join('user_info', 'user_info.user_id = users.id', 'left')->where('users.department_id', (int)$filterDepartmentId);
+                $leaveQWeek->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $leaveQWeek->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
@@ -871,7 +871,7 @@ class AdminController extends ResourceController
                 ->where('YEAR(leaves.start_date)', date('Y'));
             if (!empty($filterBranchId)) $leaveQYear->where('users.branch_id', (int)$filterBranchId);
             if (!empty($filterDepartmentId)) {
-                $leaveQYear->join('user_info', 'user_info.user_id = users.id', 'left')->where('users.department_id', (int)$filterDepartmentId);
+                $leaveQYear->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $leaveQYear->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
@@ -888,7 +888,7 @@ class AdminController extends ResourceController
                 ->where('((leaves.start_date >= \'' . $startOfMonth . '\' AND leaves.start_date <= \'' . $endOfMonth . '\') OR (leaves.end_date >= \'' . $startOfMonth . '\' AND leaves.end_date <= \'' . $endOfMonth . '\') OR (leaves.start_date <= \'' . $startOfMonth . '\' AND leaves.end_date >= \'' . $endOfMonth . '\'))');
             if (!empty($filterBranchId)) $leaveQMonth->where('users.branch_id', (int)$filterBranchId);
             if (!empty($filterDepartmentId)) {
-                $leaveQMonth->join('user_info', 'user_info.user_id = users.id', 'left')->where('users.department_id', (int)$filterDepartmentId);
+                $leaveQMonth->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $leaveQMonth->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
@@ -906,7 +906,7 @@ class AdminController extends ResourceController
                 ->where('attendance.date <=', $endOfWeek);
             if (!empty($filterBranchId)) $attQWeek->where('users.branch_id', (int)$filterBranchId);
             if (!empty($filterDepartmentId)) {
-                $attQWeek->join('user_info', 'user_info.user_id = users.id', 'left')->where('users.department_id', (int)$filterDepartmentId);
+                $attQWeek->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $attQWeek->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
@@ -925,7 +925,7 @@ class AdminController extends ResourceController
                 ->where('attendance.date <=', $endOfMonth);
             if (!empty($filterBranchId)) $attQMonth->where('users.branch_id', (int)$filterBranchId);
             if (!empty($filterDepartmentId)) {
-                $attQMonth->join('user_info', 'user_info.user_id = users.id', 'left')->where('users.department_id', (int)$filterDepartmentId);
+                $attQMonth->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $attQMonth->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
@@ -943,7 +943,7 @@ class AdminController extends ResourceController
                 ->where('YEAR(attendance.date)', date('Y'));
             if (!empty($filterBranchId)) $attQYear->where('users.branch_id', (int)$filterBranchId);
             if (!empty($filterDepartmentId)) {
-                $attQYear->join('user_info', 'user_info.user_id = users.id', 'left')->where('users.department_id', (int)$filterDepartmentId);
+                $attQYear->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $attQYear->whereIn('users.role', ['employee', 'department_manager', 'branch_admin']);
@@ -961,7 +961,7 @@ class AdminController extends ResourceController
                 ->where('task.assigned_date <=', $endOfWeek);
             if (!empty($filterBranchId)) $taskQWeek->where('users.branch_id', (int)$filterBranchId);
             if (!empty($filterDepartmentId)) {
-                $taskQWeek->join('user_info', 'user_info.user_id = users.id', 'left')->where('users.department_id', (int)$filterDepartmentId);
+                $taskQWeek->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $taskQWeek->whereIn('users.role', ['employee', 'department_manager']);
@@ -978,7 +978,7 @@ class AdminController extends ResourceController
                 ->where('task.assigned_date <=', $endOfMonth);
             if (!empty($filterBranchId)) $taskQMonth->where('users.branch_id', (int)$filterBranchId);
             if (!empty($filterDepartmentId)) {
-                $taskQMonth->join('user_info', 'user_info.user_id = users.id', 'left')->where('users.department_id', (int)$filterDepartmentId);
+                $taskQMonth->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $taskQMonth->whereIn('users.role', ['employee', 'department_manager']);
@@ -995,7 +995,7 @@ class AdminController extends ResourceController
                 ->where('task.assigned_date <=', $endOfYear);
             if (!empty($filterBranchId)) $taskQYear->where('users.branch_id', (int)$filterBranchId);
             if (!empty($filterDepartmentId)) {
-                $taskQYear->join('user_info', 'user_info.user_id = users.id', 'left')->where('users.department_id', (int)$filterDepartmentId);
+                $taskQYear->join('user_info', 'user_info.user_id = users.id', 'left')->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $taskQYear->whereIn('users.role', ['employee', 'department_manager']);
@@ -1008,7 +1008,7 @@ class AdminController extends ResourceController
             $remoteQ = $this->userInfoModel->join('users', 'users.id = user_info.user_id')
                 ->where('users.is_deleted', 0)->where('user_info.working_location', 'remote');
             if (!empty($filterBranchId)) $remoteQ->where('users.branch_id', (int)$filterBranchId);
-            if (!empty($filterDepartmentId)) $remoteQ->where('users.department_id', (int)$filterDepartmentId);
+            if (!empty($filterDepartmentId)) $remoteQ->where('user_info.department_id', (int)$filterDepartmentId);
             if ($role === 'branch_admin') $remoteQ->whereIn('users.role', ['employee', 'department_manager']);
             elseif ($role === 'department_manager') $remoteQ->where('users.role', 'employee');
             $remoteEmployees = $remoteQ->countAllResults();
@@ -1016,7 +1016,7 @@ class AdminController extends ResourceController
             $onSiteQ = $this->userInfoModel->join('users', 'users.id = user_info.user_id')
                 ->where('users.is_deleted', 0)->where('user_info.working_location', 'on-site');
             if (!empty($filterBranchId)) $onSiteQ->where('users.branch_id', (int)$filterBranchId);
-            if (!empty($filterDepartmentId)) $onSiteQ->where('users.department_id', (int)$filterDepartmentId);
+            if (!empty($filterDepartmentId)) $onSiteQ->where('user_info.department_id', (int)$filterDepartmentId);
             if ($role === 'branch_admin') $onSiteQ->whereIn('users.role', ['employee', 'department_manager']);
             elseif ($role === 'department_manager') $onSiteQ->where('users.role', 'employee');
             $onSiteEmployees = $onSiteQ->countAllResults();
@@ -1086,7 +1086,7 @@ class AdminController extends ResourceController
         if (in_array($role, ['admin', 'hr', 'branch_admin', 'department_manager'])) {
             $deptQuery = $this->userInfoModel
                 ->select("department.department_name, COUNT(user_info.id) as employee_count")
-                ->join('department', 'department.id = users.department_id', 'left')
+                ->join('department', 'department.id = user_info.department_id', 'left')
                 ->join('users', 'users.id = user_info.user_id', 'inner')
                 ->where('users.is_deleted', 0)
                 ->where('department.department_name IS NOT NULL')
@@ -1095,7 +1095,7 @@ class AdminController extends ResourceController
                 $deptQuery->where('users.branch_id', (int)$filterBranchId);
             }
             if (!empty($filterDepartmentId)) {
-                $deptQuery->where('users.department_id', (int)$filterDepartmentId);
+                $deptQuery->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if ($role === 'branch_admin') {
                 $deptQuery->whereIn('users.role', ['employee', 'department_manager']);
@@ -1109,7 +1109,7 @@ class AdminController extends ResourceController
         } else {
             $departmentData = $this->userInfoModel
                 ->select("department.department_name, COUNT(user_info.id) as employee_count")
-                ->join('department', 'department.id = users.department_id', 'left')
+                ->join('department', 'department.id = user_info.department_id', 'left')
                 ->join('users', 'users.id = user_info.user_id', 'inner')
                 ->where('users.is_deleted', 0)
                 ->where('department.department_name IS NOT NULL')
@@ -1145,7 +1145,7 @@ class AdminController extends ResourceController
                           ->whereIn('users.role', ['employee', 'department_manager']);
         } elseif ($role === 'department_manager') {
             if (!empty($filterDepartmentId)) {
-                $birthdayQuery->where('users.department_id', (int)$filterDepartmentId);
+                $birthdayQuery->where('user_info.department_id', (int)$filterDepartmentId);
             }
             if (!empty($filterBranchId)) {
                 $birthdayQuery->where('users.branch_id', (int)$filterBranchId);
@@ -1162,7 +1162,7 @@ class AdminController extends ResourceController
             $empQ = $this->userInfoModel
                 ->select('user_info.*, designation.designation_name, department.department_name')
                 ->join('designation', 'designation.id = user_info.designation_id', 'left')
-                ->join('department', 'department.id = users.department_id', 'left')
+                ->join('department', 'department.id = user_info.department_id', 'left')
                 ->join('users', 'users.id = user_info.user_id', 'inner')
                 ->where('users.is_deleted', 0)
                 ->where('MONTH(user_info.joining_date)', $currentMonth)
@@ -1173,7 +1173,7 @@ class AdminController extends ResourceController
                      ->whereIn('users.role', ['employee', 'department_manager']);
             } elseif ($role === 'department_manager') {
                 if (!empty($filterDepartmentId)) {
-                    $empQ->where('users.department_id', (int)$filterDepartmentId);
+                    $empQ->where('user_info.department_id', (int)$filterDepartmentId);
                 }
                 $empQ->where('users.role', 'employee');
             } elseif (in_array($role, ['admin', 'hr'])) {
@@ -1189,7 +1189,7 @@ class AdminController extends ResourceController
             $employees = $this->userInfoModel
                 ->select('user_info.*, designation.designation_name, department.department_name')
                 ->join('designation', 'designation.id = user_info.designation_id', 'left')
-                ->join('department', 'department.id = users.department_id', 'left')
+                ->join('department', 'department.id = user_info.department_id', 'left')
                 ->join('users', 'users.id = user_info.user_id', 'inner')
                 ->where('users.is_deleted', 0)
                 ->where('user_info.user_id', $user->sub)
@@ -1267,7 +1267,7 @@ class AdminController extends ResourceController
         if ($role === 'branch_admin' && !empty($filterBranchId)) {
             $query->where('users.branch_id', (int)$filterBranchId);
         } elseif ($role === 'department_manager' && !empty($filterDepartmentId)) {
-            $query->where('users.department_id', (int)$filterDepartmentId);
+            $query->where('user_info.department_id', (int)$filterDepartmentId);
         } elseif ($role === 'employee') {
             $query->where('complaints.user_id', $userId);
         } elseif (!empty($filterBranchId)) {

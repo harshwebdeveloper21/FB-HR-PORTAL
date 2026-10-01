@@ -1279,7 +1279,7 @@
                         $('#id').val(user.id);
                         $('#firstname').val(userInfo.firstname);
                         $('#lastname').val(userInfo.lastname);
-                        $('#email').val(user.email);
+                        $('#email').val(user.email).prop('readonly', true);
                         $('#password').val(''); // Empty on edit
                         $('input[name="gender"][value="' + (userInfo.gender || 'male') + '"]').prop('checked', true);
                         $('#marital_status').val(userInfo.marital_status);

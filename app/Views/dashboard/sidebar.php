@@ -390,8 +390,8 @@ $isEmployee = ($role === 'employee');
       </li>
     <?php endif; ?>
 
-    <!-- ── Departments (Admin, HR & Branch Admin) ─────────────── -->
-    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
+    <!-- ── Departments (Admin, HR) ─────────────── -->
+    <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#departmentsMenu" aria-expanded="false" aria-controls="departmentsMenu">
           <i class="menu-icon mdi mdi-briefcase"></i>
@@ -417,8 +417,8 @@ $isEmployee = ($role === 'employee');
       </li>
     <?php endif; ?>
 
-    <!-- ── EOM & Experience Letters ─────────────────────────── -->
-    <?php if ($isAdminOrHr || $isBranchAdmin): ?>
+    <!-- ── EOM & Experience Letters (Admin, HR) ─────────────────────────── -->
+    <?php if ($isAdminOrHr): ?>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#eomletter" aria-expanded="false" aria-controls="eomletter">
           <i class="menu-icon mdi mdi-star-circle"></i>

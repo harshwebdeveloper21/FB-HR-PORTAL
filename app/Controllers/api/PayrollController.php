@@ -1926,6 +1926,7 @@ class PayrollController extends ResourceController
         $currentMonth = date("Y-m");
         return redirect()->to("/payroll/salary-details?month=" . $currentMonth);
     }
+    
 
     public function salaryDetails()
     {

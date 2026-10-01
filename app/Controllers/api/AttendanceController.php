@@ -169,8 +169,8 @@ class AttendanceController extends ResourceController
             return $rule;
         }
 
-        // Absolute fallback — global company_rules
-        return $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+        // Absolute fallback — default branch rules without company_rules table
+        return $branchRulesModel->getDefaultRules();
     }
 
     public function display()
@@ -254,8 +254,8 @@ class AttendanceController extends ResourceController
 
         // If found incomplete yesterday's attendance, update it with checkout time
         if ($yesterdayAttendance) {
-            // Get company rules to determine standard checkout time
-            $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+            // Get branch rules to determine standard checkout time
+            $companyRule = $this->getBranchRulesForUser((int)$user->sub);
             $fullDayHours = $companyRule['working_hours_per_day'] ?? 8;
 
             // Calculate standard checkout time based on check-in time + working hours
@@ -522,7 +522,7 @@ class AttendanceController extends ResourceController
         // it doesn't have access to it, we read the global rule here as fallback
         // and let the call sites override per staff.  The branch-aware path is
         // handled in checkIn/checkOut where we pass $userId explicitly.
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+        $companyRule = $branchRulesModel->orderBy('id', 'ASC')->first() ?? $branchRulesModel->getDefaultRules();
         $isSaturdayHalfDay = $this->isSaturdayHalfDay($date, $companyRule);
 
         /* ---------------------------------------------------
@@ -788,8 +788,8 @@ class AttendanceController extends ResourceController
             ->first();
         $firstCheckIn = $firstRecord['check_in_time'] ?? $latestAttendance['check_in_time'];
 
-        // Load company rules for calculateDayStatus
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first();
+        // Load branch rules for calculateDayStatus
+        $companyRule = $this->getBranchRulesForUser((int)$user->sub);
 
         // Calculate status over the full day window
         $dayCalc = $this->calculateDayStatus(
@@ -1330,12 +1330,12 @@ class AttendanceController extends ResourceController
             $leavesByUser[$leave['user_id']][] = $leave;
         }
 
-        // 🔹 Company / Branch rules
+        // 🔹 Branch rules
+        $branchRulesModel = new \App\Models\BranchRulesModel();
         if (!empty($branchId)) {
-            $branchRulesModel = new \App\Models\BranchRulesModel();
             $companyRule = $branchRulesModel->getRulesForBranch((int)$branchId) ?? [];
         } else {
-            $companyRule = $companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+            $companyRule = $branchRulesModel->orderBy('id', 'ASC')->first() ?? $branchRulesModel->getDefaultRules();
         }
         $isIncludedHoliday = $companyRule['include_holidays_in_working_days'] ?? 0;
 
@@ -1448,7 +1448,7 @@ class AttendanceController extends ResourceController
 
             // Company rules (used for calculateDayStatus + late-detection)
             $userBranchRule       = $this->getBranchRulesForUser($userId);
-            $companyRuleForStatus = !empty($userBranchRule) ? $userBranchRule : (!empty($companyRule) ? $companyRule : ($companyRulesModel->orderBy('id', 'DESC')->first() ?? []));
+            $companyRuleForStatus = !empty($userBranchRule) ? $userBranchRule : (!empty($companyRule) ? $companyRule : []);
             $startTimeForStatus   = $companyRuleForStatus['start_time'] ?? '09:30:00';
             $graceMinutes         = (int)($companyRuleForStatus['grace_period'] ?? ($companyRuleForStatus['grace_minutes'] ?? 0));
             $graceSeconds         = $graceMinutes * 60;
@@ -2115,7 +2115,7 @@ class AttendanceController extends ResourceController
             ]);
         }
 
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first();
+        $companyRule = $this->getBranchRulesForUser((int)$user->sub);
         // Defaults
         $break = '00:30:00';
         $isLate = 0;
@@ -2312,8 +2312,8 @@ class AttendanceController extends ResourceController
             return $this->fail('Invalid data');
         }
 
-        // Get company rules
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+        // Get branch rules
+        $companyRule = $this->getBranchRulesForUser((int)$userId);
         $mealBreak = $companyRule['lunch_break'] ?? '00:30:00';
         $startTime = $companyRule['start_time'] ?? '09:00:00';
         $gracePeriod = (int) ($companyRule['grace_period'] ?? 0); // minutes
@@ -2540,8 +2540,8 @@ class AttendanceController extends ResourceController
             return $this->fail('Invalid data');
         }
 
-        // Company rules
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+        // Branch rules
+        $companyRule = $this->getBranchRulesForUser((int)$userId);
         $mealBreak = $companyRule['lunch_break'] ?? '00:30:00';
         $startTime = $companyRule['start_time'] ?? '09:00:00';
         $gracePeriod = (int) ($companyRule['grace_period'] ?? 0);
@@ -2666,8 +2666,8 @@ class AttendanceController extends ResourceController
             $checkOut .= ':00';
         }
 
-        // Company rules for calculations
-        $companyRule = $this->companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+        // Branch rules for calculations
+        $companyRule = $this->getBranchRulesForUser((int)$existing['user_id']);
         $mealBreak = $companyRule['lunch_break'] ?? '00:30:00';
         $startTime = $companyRule['start_time'] ?? '09:00:00';
         $gracePeriod = (int) ($companyRule['grace_period'] ?? 0);
@@ -2748,26 +2748,31 @@ class AttendanceController extends ResourceController
         ]);
     }
     /**
-     * Get office location for a user (prioritizing branch location over global settings)
+     * Get office location for a user from branches table (or location_settings fallback)
      */
     private function getOfficeLocationForUser($userId)
     {
         $user = (new \App\Models\UserModel())->find($userId);
         
-        // If user is HR or Admin, they might not have a branch or they are allowed at ANY branch
-        // For geofencing, we can return a special flag or handle it differently.
-        // Actually, if we return a list of all branches, the validation logic needs to change.
-        // Let's modify the calling methods to handle HR explicitly, so here we just return their assigned branch (if any).
-        
         if ($user && !empty($user['branch_id'])) {
-            $companyRule = (new \App\Models\CompanyRulesModel())->where('branch_id', $user['branch_id'])->first();
-            if ($companyRule && $companyRule['office_latitude'] !== null && $companyRule['office_longitude'] !== null) {
+            $branch = (new \App\Models\BranchModel())->find($user['branch_id']);
+            if ($branch && !empty($branch['latitude']) && !empty($branch['longitude'])) {
                 return [
-                    'latitude' => (float) $companyRule['office_latitude'],
-                    'longitude' => (float) $companyRule['office_longitude'],
-                    'radius' => isset($companyRule['office_radius']) ? (float) $companyRule['office_radius'] : 100,
+                    'latitude'  => (float) $branch['latitude'],
+                    'longitude' => (float) $branch['longitude'],
+                    'radius'    => isset($branch['radius']) && $branch['radius'] !== '' ? (float) $branch['radius'] : 100,
                 ];
             }
+        }
+
+        // Fallback to location_settings if branch has no coordinates configured
+        $locationSettings = (new \App\Models\LocationSettingsModel())->first();
+        if ($locationSettings && !empty($locationSettings['latitude']) && !empty($locationSettings['longitude'])) {
+            return [
+                'latitude'  => (float) $locationSettings['latitude'],
+                'longitude' => (float) $locationSettings['longitude'],
+                'radius'    => isset($locationSettings['radius']) && $locationSettings['radius'] !== '' ? (float) $locationSettings['radius'] : 100,
+            ];
         }
         
         return null;
@@ -2779,23 +2784,37 @@ class AttendanceController extends ResourceController
      */
     private function isUserAtAnyBranch($userLat, $userLng, &$bestDistance = null, &$bestRadius = null)
     {
-        $companyRules = (new \App\Models\CompanyRulesModel())
-            ->where('enable_geofencing', 1)
-            ->where('office_latitude IS NOT NULL')
-            ->where('office_longitude IS NOT NULL')
+        $branchModel = new \App\Models\BranchModel();
+        $branches = $branchModel->where('status', 'active')
+            ->where('deleted_at IS NULL')
+            ->where('latitude IS NOT NULL')
+            ->where('longitude IS NOT NULL')
             ->findAll();
 
-        if (empty($companyRules)) {
-            return false; // No branches have geofencing configured
+        $locationSettings = (new \App\Models\LocationSettingsModel())->first();
+        if ($locationSettings && !empty($locationSettings['latitude']) && !empty($locationSettings['longitude'])) {
+            $branches[] = [
+                'latitude'  => $locationSettings['latitude'],
+                'longitude' => $locationSettings['longitude'],
+                'radius'    => $locationSettings['radius'] ?? 100,
+            ];
+        }
+
+        if (empty($branches)) {
+            // No branches have geofencing configured, allow check-in
+            return true;
         }
 
         $minDistance = PHP_FLOAT_MAX;
         $matched = false;
 
-        foreach ($companyRules as $rule) {
-            $officeLat = (float)$rule['office_latitude'];
-            $officeLng = (float)$rule['office_longitude'];
-            $radius = (float)($rule['office_radius'] ?? 0);
+        foreach ($branches as $b) {
+            if (empty($b['latitude']) || empty($b['longitude'])) {
+                continue;
+            }
+            $officeLat = (float) $b['latitude'];
+            $officeLng = (float) $b['longitude'];
+            $radius = (float) ($b['radius'] ?? 100);
 
             $distance = $this->calculateDistance($userLat, $userLng, $officeLat, $officeLng);
             
@@ -2912,12 +2931,12 @@ class AttendanceController extends ResourceController
                 ->findAll();
         }
 
-        // Company rules & saturday-off dates
+        // Branch rules & saturday-off dates
+        $branchRulesModel = new \App\Models\BranchRulesModel();
         if (!empty($branchId)) {
-            $branchRulesModel = new \App\Models\BranchRulesModel();
             $companyRule = $branchRulesModel->getRulesForBranch((int)$branchId) ?? [];
         } else {
-            $companyRule = $companyRulesModel->orderBy('id', 'DESC')->first() ?? [];
+            $companyRule = $branchRulesModel->orderBy('id', 'ASC')->first() ?? $branchRulesModel->getDefaultRules();
         }
         $isIncludedHoliday = $companyRule['include_holidays_in_working_days'] ?? 0;
 

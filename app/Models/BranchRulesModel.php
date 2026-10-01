@@ -31,16 +31,44 @@ class BranchRulesModel extends Model
     protected $returnType    = 'array';
 
     /**
-     * Get rules for a given branch. Falls back to global company_rules if none set.
+     * Get default rules without querying company_rules
+     */
+    public function getDefaultRules(): array
+    {
+        return [
+            'payroll_type'               => 'monthly',
+            'working_hours_per_day'      => 8,
+            'half_day_hours'             => 4,
+            'sunday_off'                 => 1,
+            'sunday_pay_type'            => 'unpaid',
+            'saturday_off_enabled'       => 0,
+            'saturday_off_type'          => 'all',
+            'saturday_working_hours'     => 4,
+            'saturday_full_day_override' => 1,
+            'yearly_holidays'            => 0,
+            'enable_tax'                 => 0,
+            'lunch_break'                => '01:00:00',
+            'start_time'                 => '09:00:00',
+            'half_time'                  => '13:00:00',
+            'end_time'                   => '18:00:00',
+            'grace_period'               => 10,
+            'grace_minutes'              => 10,
+            'enable_overtime'            => 0,
+            'enable_geofencing'          => 0,
+            'sandwich_leave'             => 0,
+        ];
+    }
+
+    /**
+     * Get rules for a given branch. Falls back to default branch_rules if none set.
      */
     public function getRulesForBranch(int $branchId): ?array
     {
         $rules = $this->where('branch_id', $branchId)->first();
 
         if (!$rules) {
-            // Fallback: copy from global company_rules
-            $global = $this->db->table('company_rules')->orderBy('id', 'DESC')->get()->getRowArray();
-            return $global ?: null;
+            $fallback = $this->orderBy('id', 'ASC')->first();
+            return $fallback ?: $this->getDefaultRules();
         }
 
         return $rules;
@@ -57,16 +85,15 @@ class BranchRulesModel extends Model
             ->get()->getRowArray();
 
         if (!$user || empty($user['branch_id'])) {
-            // Admin or unassigned ? global rules
-            $global = $this->db->table('company_rules')->orderBy('id', 'DESC')->get()->getRowArray();
-            return $global ?: null;
+            $fallback = $this->orderBy('id', 'ASC')->first();
+            return $fallback ?: $this->getDefaultRules();
         }
 
         return $this->getRulesForBranch((int)$user['branch_id']);
     }
 
     /**
-     * Create a branch rules row by copying the current global defaults.
+     * Create a branch rules row by copying existing branch defaults.
      */
     public function createDefaultForBranch(int $branchId): void
     {
@@ -75,24 +102,14 @@ class BranchRulesModel extends Model
             return; // already exists
         }
 
-        $global = $this->db->table('company_rules')->orderBy('id', 'DESC')->get()->getRowArray();
-        $now    = date('Y-m-d H:i:s');
+        $fallback = $this->orderBy('id', 'ASC')->first();
+        $now      = date('Y-m-d H:i:s');
 
-        if ($global) {
-            unset($global['id']);
-            $data = array_intersect_key($global, array_flip($this->allowedFields));
+        if ($fallback) {
+            unset($fallback['id']);
+            $data = array_intersect_key($fallback, array_flip($this->allowedFields));
         } else {
-            $data = [
-                'payroll_type'          => 'monthly',
-                'working_hours_per_day' => 8,
-                'half_day_hours'        => 4,
-                'sunday_off'            => 1,
-                'grace_period'          => 10,
-                'grace_minutes'         => 10,
-                'start_time'            => '09:00:00',
-                'end_time'              => '18:00:00',
-                'lunch_break'           => '01:00:00',
-            ];
+            $data = $this->getDefaultRules();
         }
 
         $data['branch_id']   = $branchId;

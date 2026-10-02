@@ -262,6 +262,23 @@ class ResignationController extends BaseController
                 ->get()->getResultArray();
         } else {
             $tasks = $this->handoverModel->getPendingForUser($user->sub);
+            
+            // Allow the employee to add tasks if they are in notice period
+            $myResignation = \Config\Database::connect()->table('resignations')
+                ->where('employee_id', $user->sub)
+                ->where('status', 'notice_period')
+                ->get()->getRowArray();
+                
+            if ($myResignation) {
+                // If they have an active resignation, we need to populate employees for the handover_to dropdown
+                $employees = $this->userModel->where('is_deleted', 0)->findAll();
+                $activeResignations = [
+                    [
+                        'id' => $myResignation['id'],
+                        'emp_name' => 'Myself' // They are selecting their own resignation
+                    ]
+                ];
+            }
         }
 
         return view('resignation/handover/my_tasks', [

@@ -30,11 +30,13 @@
             <p class="text-muted mb-0">View and manage handover tasks assigned to you or across the company.</p>
           </div>
           <div class="d-flex gap-2">
-            <?php if (in_array($user->role, ['hr', 'admin', 'branch_admin'])): ?>
-            <button class="btn hr-btnbg" data-bs-toggle="modal" data-bs-target="#addTaskModal">
+            <?php
+              $canAddTask = in_array($user->role, ['hr', 'admin', 'branch_admin']) || !empty($activeResignations);
+            ?>
+            <button class="btn <?= $canAddTask ? 'hr-btnbg' : 'btn-secondary' ?>" 
+                    <?= $canAddTask ? 'data-bs-toggle="modal" data-bs-target="#addTaskModal"' : 'disabled title="Available only after Notice Period starts"' ?>>
               <i class="mdi mdi-plus me-1"></i> Add Task
             </button>
-            <?php endif; ?>
           </div>
         </div>
 
@@ -70,7 +72,7 @@
                   
                   <?php if (in_array($user->role, ['admin','hr','branch_admin']) || $t['handover_to'] == $user->sub): ?>
                     <?php if ($t['status'] === 'accepted' || $t['status'] === 'pending'): ?>
-                      <button class="btn btn-sm btn-outline-success task-action-btn" data-id="<?= $t['id'] ?>" data-status="completed">
+                      <button class="btn btn-sm hr-btnbg task-action-btn" data-id="<?= $t['id'] ?>" data-status="completed">
                         <i class="mdi mdi-check-all me-1"></i>Approve & Complete
                       </button>
                     <?php endif; ?>
@@ -88,7 +90,7 @@
 </div>
 </div>
 
-<?php if (in_array($user->role, ['hr', 'admin', 'branch_admin'])): ?>
+<?php if (in_array($user->role, ['hr', 'admin', 'branch_admin']) || !empty($activeResignations)): ?>
 <!-- Add Task Modal -->
 <div class="modal fade" id="addTaskModal" tabindex="-1">
   <div class="modal-dialog">
@@ -138,6 +140,29 @@
 </div>
 <?php endif; ?>
 
+<!-- Complete Task Modal -->
+<div class="modal fade" id="completeTaskModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#E66136;">
+        <h5 class="modal-title text-white"><i class="mdi mdi-check-all me-2"></i>Complete Task</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="completeTaskId">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Remarks / Notes (Optional)</label>
+          <textarea id="completeTaskRemarks" class="form-control" rows="3" placeholder="Add any remarks..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="submitCompleteTaskBtn" class="btn fw-bold" style="background:#E66136;color:#fff;">Approve & Complete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?= $this->section('scripts') ?>
 <script>
 $(document).ready(function() {
@@ -156,14 +181,26 @@ document.querySelectorAll('.task-action-btn').forEach(btn => {
   btn.addEventListener('click', function() {
     const id     = this.dataset.id;
     const status = this.dataset.status;
-    let remarks = '';
     
     if (status === 'completed') {
-        const userRemarks = prompt('Add any remarks/notes (optional):');
-        if (userRemarks === null) return; // cancelled
-        remarks = userRemarks;
+        document.getElementById('completeTaskId').value = id;
+        document.getElementById('completeTaskRemarks').value = '';
+        new bootstrap.Modal(document.getElementById('completeTaskModal')).show();
+        return;
     }
     
+    // For 'accepted' or other statuses
+    submitTaskUpdate(id, status, '');
+  });
+});
+
+document.getElementById('submitCompleteTaskBtn')?.addEventListener('click', function() {
+  const id = document.getElementById('completeTaskId').value;
+  const remarks = document.getElementById('completeTaskRemarks').value;
+  submitTaskUpdate(id, 'completed', remarks);
+});
+
+function submitTaskUpdate(id, status, remarks) {
     const data = new FormData();
     data.append('status',  status);
     data.append('remarks', remarks);
@@ -174,8 +211,7 @@ document.querySelectorAll('.task-action-btn').forEach(btn => {
       if (res.status === 'success') { location.reload(); }
       else { alert(res.message); }
     });
-  });
-});
+}
 
 document.getElementById('addTaskBtn')?.addEventListener('click', function() {
   const resignationId = document.getElementById('resignationId').value;

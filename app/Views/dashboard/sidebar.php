@@ -570,5 +570,13 @@ $isEmployee = ($role === 'employee');
       </div>
     </li>
 
+    <!-- ── Geofence Testing ──────────────────────────────── -->
+    <li class="nav-item">
+      <a class="nav-link" href="<?= base_url('/geofence/test') ?>">
+        <i class="menu-icon mdi mdi-crosshairs-gps text-danger"></i>
+        <span class="menu-title text-danger fw-bold">Geofence Test</span>
+      </a>
+    </li>
+
   </ul>
 </nav>

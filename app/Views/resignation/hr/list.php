@@ -50,7 +50,7 @@
             <tr><td colspan="7" class="text-center py-5 text-muted">No resignations found.</td></tr>
             <?php else: ?>
             <?php foreach ($resignations as $r): ?>
-            <tr data-status="<?= $r['status'] ?>">
+            <tr class="data-row" data-status="<?= $r['status'] ?>">
               <td class="px-4">
                 <div class="fw-semibold"><?= esc($r['employee_name'] ?? '—') ?></div>
                 <small class="text-muted"><?= esc($r['email'] ?? '') ?></small>
@@ -67,6 +67,9 @@
               </td>
             </tr>
             <?php endforeach; ?>
+            <tr id="emptyFilterRow" style="display:none;">
+              <td colspan="7" class="text-center py-5 text-muted">No resignations match the selected filter.</td>
+            </tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -81,10 +84,23 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
   btn.addEventListener('click', function() {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     this.classList.add('active');
+    
     const filter = this.dataset.filter;
-    document.querySelectorAll('#hrResTable tbody tr').forEach(row => {
-      row.style.display = (filter === 'all' || row.dataset.status === filter) ? '' : 'none';
+    let visibleCount = 0;
+    
+    document.querySelectorAll('#hrResTable tbody tr.data-row').forEach(row => {
+      if (filter === 'all' || row.dataset.status === filter) {
+        row.style.display = '';
+        visibleCount++;
+      } else {
+        row.style.display = 'none';
+      }
     });
+
+    const emptyRow = document.getElementById('emptyFilterRow');
+    if (emptyRow) {
+      emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+    }
   });
 });
 </script>

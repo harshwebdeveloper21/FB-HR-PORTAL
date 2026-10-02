@@ -39,8 +39,8 @@
         </div>
 
         <div class="table-responsive">
-          <table class="table table-hover w-100" id="handoverTable">
-            <thead>
+          <table class="table table-striped w-100" id="handoverTable">
+            <thead class="table-light">
               <tr>
               <th>Task</th>
               <th>Description</th>
@@ -185,6 +185,14 @@ document.getElementById('addTaskBtn')?.addEventListener('click', function() {
     if (res.status === 'success') { location.reload(); }
     else { alert(res.message); }
   });
+});
+
+$(document).ready(function() {
+    $('#handoverTable').DataTable({
+        "language": {
+            "emptyTable": "No handover tasks added yet."
+        }
+    });
 });
 
 document.querySelectorAll('.task-action-btn').forEach(btn => {

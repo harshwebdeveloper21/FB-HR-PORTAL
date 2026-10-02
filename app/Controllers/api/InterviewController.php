@@ -223,6 +223,11 @@ class InterviewController extends ResourceController
             //Send welcome email
             $emailService = new EmailService();
             $emailService->sendInterviewEmail($data);
+            
+            if (isset($data['convert_to_employee']) && $data['convert_to_employee'] == 1 && isset($data['branch_id']) && isset($data['department_id'])) {
+                $this->_processEmployeeConversion($interviewId, $data['branch_id'], $data['department_id']);
+            }
+
             return $this->respond([
                 'status'  => 'success',
                 'message' => 'Interview created successfully'
@@ -247,7 +252,7 @@ class InterviewController extends ResourceController
             return $this->failForbidden('Forbidden: You do not have access to this resource');
         }
         // Retrieve onboarding entries
-        $interviews = $this->interviewModel->select('interviews.id, COALESCE(jobs.job_title, interviews.position_applied_for) as job_title, interviews.status , interviews.schedule_date , COALESCE(candidate.candidate_name, interviews.full_name) as candidate_name, interviews.convert_to_employee')
+        $interviews = $this->interviewModel->select('interviews.id, COALESCE(jobs.job_title, interviews.position_applied_for) as job_title, interviews.status, interviews.selection_status, interviews.schedule_date , COALESCE(candidate.candidate_name, interviews.full_name) as candidate_name, interviews.convert_to_employee')
             ->join('candidate', 'interviews.candidate_id = candidate.id', 'left')
             ->join('jobs', 'interviews.job_id = jobs.id', 'left')
             ->orderBy('interviews.created_at', 'DESC')
@@ -354,6 +359,11 @@ class InterviewController extends ResourceController
             //Send welcome email
             $emailService = new EmailService();
             $emailService->sendInterviewEmail($data);
+            
+            if (isset($data['convert_to_employee']) && $data['convert_to_employee'] == 1 && isset($data['branch_id']) && isset($data['department_id'])) {
+                $this->_processEmployeeConversion($id, $data['branch_id'], $data['department_id']);
+            }
+
             return $this->respond(['status' => 'success', 'message' => 'Interview entry updated successfully']);
         }
 
@@ -446,11 +456,15 @@ class InterviewController extends ResourceController
         $departmentModel = new \App\Models\DepartmentModel();
         $departments = $departmentModel->findAll();
 
+        $branchModel = new \App\Models\BranchModel();
+        $branches = $branchModel->findAll();
+
         return view('interview/interviews', [
             'candidates' => $candidates,
             'interviewers' => $interviewers,
             'jobs' => $jobs,
-            'departments' => $departments
+            'departments' => $departments,
+            'branches' => $branches
         ]);
     }
 
@@ -571,59 +585,7 @@ class InterviewController extends ResourceController
             if (!$branchId || !$departmentId) {
                 return $this->respond(['status' => 'error', 'message' => 'Branch and Department are required to convert to employee'], 400);
             }
-
-            $userModel = new \App\Models\UserModel();
-            $userInfoModel = new \App\Models\UserInfoModel();
-
-            // Check if user already exists
-            $existingUser = $userModel->where('email', $interview['email'])->first();
-            
-            $userId = null;
-            if (!$existingUser) {
-                // Insert into users
-                $userData = [
-                    'username' => $interview['full_name'] ?? $interview['candidate_name'] ?? 'Employee',
-                    'email' => $interview['email'],
-                    'password' => password_hash('123456', PASSWORD_DEFAULT),
-                    'role' => 'employee',
-                    'branch_id' => $branchId,
-                    'department_id' => $departmentId
-                ];
-                $userId = $userModel->insert($userData);
-            } else {
-                $userId = $existingUser['id'];
-                // Update their role to employee
-                $userModel->update($userId, [
-                    'role' => 'employee',
-                    'branch_id' => $branchId,
-                    'department_id' => $departmentId
-                ]);
-            }
-
-            // Upsert into user_info
-            $existingInfo = $userInfoModel->where('user_id', $userId)->first();
-            $nameParts = explode(' ', ($interview['full_name'] ?? $interview['candidate_name'] ?? 'Employee'), 2);
-            $userInfoData = [
-                'user_id' => $userId,
-                'firstname' => $nameParts[0] ?? '',
-                'lastname' => $nameParts[1] ?? '',
-                'email' => $interview['email'],
-                'gender' => $interview['gender'] ?? '',
-                'date_of_birth' => $interview['date_of_birth'] ?? null,
-                'address_1' => $interview['current_address'] ?? '',
-                'contact_number' => $interview['mobile_number'] ?? '',
-                'department_id' => $departmentId,
-                'joining_date' => $interview['joining_date'] ?? null,
-                'job_id' => $interview['job_id'] ?? null,
-                'salary' => $interview['offered_salary'] ?? null,
-                'status' => 'active'
-            ];
-            
-            if (!$existingInfo) {
-                $userInfoModel->insert($userInfoData);
-            } else {
-                $userInfoModel->update($existingInfo['id'], $userInfoData);
-            }
+            $this->_processEmployeeConversion($id, $branchId, $departmentId);
         }
 
         if ($this->interviewModel->update($id, ['convert_to_employee' => $convertToEmployee])) {
@@ -631,6 +593,67 @@ class InterviewController extends ResourceController
         }
 
         return $this->respond(['status' => 'error', 'message' => 'Failed to update convert status'], ResponseInterface::HTTP_INTERNAL_SERVER_ERROR);
+    }
+
+    private function _processEmployeeConversion($interviewId, $branchId, $departmentId)
+    {
+        $interview = $this->interviewModel->find($interviewId);
+        if (!$interview) return false;
+
+        $userModel = new \App\Models\UserModel();
+        $userInfoModel = new \App\Models\UserInfoModel();
+
+        // Check if user already exists
+        $existingUser = $userModel->where('email', $interview['email'])->first();
+        
+        $userId = null;
+        if (!$existingUser) {
+            // Insert into users
+            $userData = [
+                'username' => $interview['full_name'] ?? $interview['candidate_name'] ?? 'Employee',
+                'email' => $interview['email'],
+                'password' => password_hash('123456', PASSWORD_DEFAULT),
+                'role' => 'employee',
+                'branch_id' => $branchId,
+                'department_id' => $departmentId
+            ];
+            $userId = $userModel->insert($userData);
+        } else {
+            $userId = $existingUser['id'];
+            // Update their role to employee
+            $userModel->update($userId, [
+                'role' => 'employee',
+                'branch_id' => $branchId,
+                'department_id' => $departmentId
+            ]);
+        }
+
+        // Upsert into user_info
+        $existingInfo = $userInfoModel->where('user_id', $userId)->first();
+        $nameParts = explode(' ', ($interview['full_name'] ?? $interview['candidate_name'] ?? 'Employee'), 2);
+        $userInfoData = [
+            'user_id' => $userId,
+            'firstname' => $nameParts[0] ?? '',
+            'lastname' => $nameParts[1] ?? '',
+            'email' => $interview['email'],
+            'gender' => $interview['gender'] ?? '',
+            'date_of_birth' => $interview['date_of_birth'] ?? null,
+            'address_1' => $interview['current_address'] ?? '',
+            'contact_number' => $interview['mobile_number'] ?? '',
+            'department_id' => $departmentId,
+            'joining_date' => $interview['joining_date'] ?? null,
+            'job_id' => $interview['job_id'] ?? null,
+            'salary' => $interview['offered_salary'] ?? null,
+            'status' => 'active'
+        ];
+        
+        if (!$existingInfo) {
+            $userInfoModel->insert($userInfoData);
+        } else {
+            $userInfoModel->update($existingInfo['id'], $userInfoData);
+        }
+        
+        return true;
     }
 
     /**

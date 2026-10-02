@@ -1056,15 +1056,30 @@ $branchesList = $branchModel->getActiveBranches();
                                 checkInBtn.style.display = 'flex';
                                 checkInBtn.style.alignItems = 'center';
                             }
+                            if (window.geofenceTrackerId) {
+                                clearInterval(window.geofenceTrackerId);
+                                window.geofenceTrackerId = null;
+                            }
                         } else if (data.data === 'checked_in') {
                             // Already checked in - show check out button
                             checkInBtn.style.display = 'none';
                             checkOutBtn.style.display = 'flex';
                             checkOutBtn.style.alignItems = 'center';
+
+                            // Start geofence tracking
+                            if (!window.geofenceTrackerId && !data.is_remote) {
+                                window.geofenceTrackerId = setInterval(pingGeofenceLocation, 60000);
+                                pingGeofenceLocation();
+                            }
                         } else if (data.data === 'checked_out') {
                             // Checked out - need to check in again
                             checkInBtn.style.display = 'none';
                             checkOutBtn.style.display = 'none';
+
+                            if (window.geofenceTrackerId) {
+                                clearInterval(window.geofenceTrackerId);
+                                window.geofenceTrackerId = null;
+                            }
 
                             if (data.is_remote) {
                                 // Remote worker - skip face scan, show normal button
@@ -1081,8 +1096,50 @@ $branchesList = $branchModel->getActiveBranches();
                         // Admin - no check-in required
                         checkInBtn.style.display = 'none';
                         checkOutBtn.style.display = 'none';
+                        if (window.geofenceTrackerId) {
+                            clearInterval(window.geofenceTrackerId);
+                            window.geofenceTrackerId = null;
+                        }
                     }
                 })
+                .catch(error => {
+                    console.error('Error fetching attendance status:', error);
+                });
+        };
+
+        // Geofence ping helper
+        window.pingGeofenceLocation = function() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const payload = {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy
+                };
+                fetch('/api/geofence/ping', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.status === 'alert') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Geofence Alert',
+                            text: res.message,
+                            confirmButtonColor: '#e03a3c'
+                        });
+                    }
+                })
+                .catch(e => console.error('Geofence ping err:', e));
+            }, function(err) {
+                console.warn('Geofence error: ' + err.message);
+            }, { enableHighAccuracy: true });
+        };
                 .catch(err => {
                     console.error('Attendance status error:', err);
                 });

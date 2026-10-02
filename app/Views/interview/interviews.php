@@ -498,6 +498,10 @@
                     </div>
                 </div>
 
+                <!-- Hidden fields for Convert to Employee -->
+                <input type="hidden" name="branch_id" id="form_branch_id">
+                <input type="hidden" name="department_id" id="form_department_id">
+
                 <!-- Footer Buttons: all in one row -->
                 <div class="wizard-footer">
                     <div>
@@ -512,6 +516,42 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Convert To Employee Modal -->
+<div class="modal fade" id="convertToEmployeeModal" tabindex="-1" aria-labelledby="convertToEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="convertToEmployeeModalLabel">Convert to Employee</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Branch *</label>
+                    <select class="form-select shadow-none" id="modal_branch_id" required>
+                        <option value="">Select Branch</option>
+                        <?php if(!empty($branches)): foreach ($branches as $b): ?>
+                            <option value="<?= $b['id'] ?>"><?= htmlspecialchars($b['name']) ?></option>
+                        <?php endforeach; endif; ?>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Department *</label>
+                    <select class="form-select shadow-none" id="modal_department_id" required>
+                        <option value="">Select Department</option>
+                        <?php if(!empty($departments)): foreach ($departments as $d): ?>
+                            <option value="<?= $d['id'] ?>"><?= htmlspecialchars($d['department_name']) ?></option>
+                        <?php endforeach; endif; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn hr-btnbg text-white" id="confirmConvertBtn">Confirm</button>
+            </div>
         </div>
     </div>
 </div>
@@ -713,7 +753,11 @@ $(document).ready(function() {
                     for (const key in data) {
                         if (key === 'educations' || key === 'experiences' || key === 'rounds') continue;
                         if ($('#' + key).length) {
-                            $('#' + key).val(data[key]);
+                            if ($('#' + key).attr('type') === 'checkbox') {
+                                $('#' + key).prop('checked', data[key] == 1 || data[key] === '1');
+                            } else {
+                                $('#' + key).val(data[key]);
+                            }
                         }
                     }
 
@@ -851,6 +895,46 @@ $(document).ready(function() {
             }
         });
     });
+
+    // Handle convert switch
+    $('#convert_to_employee').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#convertToEmployeeModal').modal('show');
+        } else {
+            $('#form_branch_id').val('');
+            $('#form_department_id').val('');
+        }
+    });
+
+    // Handle modal confirmation
+    $('#confirmConvertBtn').on('click', function() {
+        const branch = $('#modal_branch_id').val();
+        const dept = $('#modal_department_id').val();
+        if (!branch || !dept) {
+            Swal.fire('Error', 'Please select both Branch and Department.', 'error');
+            return;
+        }
+        $('#form_branch_id').val(branch);
+        $('#form_department_id').val(dept);
+        $('#convertToEmployeeModal').modal('hide');
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Set to Convert',
+            text: 'Employee will be converted upon form submission.',
+            timer: 2000,
+            showConfirmButton: false,
+            customClass: { confirmButton: 'hr-btnbg' }
+        });
+    });
+
+    // Handle modal cancel (uncheck switch if they don't confirm)
+    $('#convertToEmployeeModal').on('hidden.bs.modal', function () {
+        if (!$('#form_branch_id').val() || !$('#form_department_id').val()) {
+            $('#convert_to_employee').prop('checked', false);
+        }
+    });
+
 
     // Auto-fill Logic
     const candidatesData = <?= isset($candidates) ? json_encode($candidates) : '[]' ?>;

@@ -192,7 +192,7 @@ class ExpenseController extends BaseController
     public function delete($id)
     {
         $user = $this->authService->check();
-        if (!$user || ($user->role !== 'admin' && $user->role !== 'hr')) {
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
             return redirect()->to('/expenses')->with('error', 'Unauthorized.');
         }
 
@@ -203,7 +203,7 @@ class ExpenseController extends BaseController
     public function approve($id)
     {
         $user = $this->authService->check();
-        if (!$user || ($user->role !== 'admin' && $user->role !== 'hr')) {
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
             return redirect()->to('/expenses')->with('error', 'Unauthorized.');
         }
 
@@ -229,7 +229,7 @@ class ExpenseController extends BaseController
     public function reject($id)
     {
         $user = $this->authService->check();
-        if (!$user || ($user->role !== 'admin' && $user->role !== 'hr')) {
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
             return redirect()->to('/expenses')->with('error', 'Unauthorized.');
         }
 
@@ -255,7 +255,7 @@ class ExpenseController extends BaseController
     public function categories()
     {
         $user = $this->authService->check();
-        if (!$user || ($user->role !== 'admin' && $user->role !== 'hr')) {
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
             return redirect()->to('/expenses')->with('error', 'Unauthorized.');
         }
 
@@ -265,6 +265,11 @@ class ExpenseController extends BaseController
 
     public function storeCategory()
     {
+        $user = $this->authService->check();
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
+            return redirect()->to('/expenses')->with('error', 'Unauthorized.');
+        }
+
         $name = $this->request->getPost('name');
         $id = $this->request->getPost('id');
 
@@ -279,7 +284,12 @@ class ExpenseController extends BaseController
 
     public function deleteCategory($id)
     {
+        $user = $this->authService->check();
+        if (!$user || !in_array($user->role, ['admin', 'hr', 'branch_admin'])) {
+            return redirect()->to('/expenses')->with('error', 'Unauthorized.');
+        }
+
         $this->categoryModel->delete($id);
-        return redirect()->to('/expenses/categories')->with('success', 'Category deleted successfully.');
+        return redirect()->to('/expenses')->with('success', 'Category deleted successfully.');
     }
 }

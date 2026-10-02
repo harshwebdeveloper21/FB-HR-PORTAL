@@ -129,8 +129,7 @@ class GeofenceController extends ResourceController
         $isCurrentlyOutside = $state['is_outside'];
         $decision = 'INSIDE';
         
-        // FOR TESTING: Bypass distance check and always trigger
-        if (true || $distance > $threshold) {
+        if ($distance > $threshold) {
             $decision = 'OUTSIDE_BUFFER';
             $state['consecutive_out'] += 1;
             if (!$state['outside_since']) {
@@ -140,8 +139,7 @@ class GeofenceController extends ResourceController
             // Check confirmation criteria
             $timeOut = strtotime(date('Y-m-d H:i:s')) - strtotime($state['outside_since']);
             
-            // FOR TESTING: Bypass confirmation time/readings
-            if (true || (!$isCurrentlyOutside && $state['consecutive_out'] >= $exitConfirmReadings && $timeOut >= $exitConfirmSeconds)) {
+            if (!$isCurrentlyOutside && $state['consecutive_out'] >= $exitConfirmReadings && $timeOut >= $exitConfirmSeconds) {
                 // Confirmed Exit!
                 $state['is_outside'] = true;
                 $decision = 'CONFIRMED_EXIT';
@@ -240,5 +238,11 @@ class GeofenceController extends ResourceController
                 'is_read' => 0
             ]);
         }
+    }
+
+    public function testPage()
+    {
+        $data['title'] = 'Geofence Live Tester';
+        return view('geofence/test', $data);
     }
 }

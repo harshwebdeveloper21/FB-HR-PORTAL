@@ -536,6 +536,12 @@ $branchesList = $branchModel->getActiveBranches();
                     <i class="mdi mdi-alarm-check me-2 fs-5"></i> Check In
                 </button>
 
+                <!-- Lunch Break Button (Single lunch per day) -->
+                <button id="lunch-btn" class="btn chekbtnsm px-2 py-1" style="display: none; background: #fff8e1; color: #b45309; border: 1px solid #fde68a;">
+                    <i class="mdi mdi-silverware-fork-knife me-1 fs-5" id="lunch-btn-icon"></i>
+                    <span id="lunch-btn-text">Lunch Break</span>
+                </button>
+
                 <!-- Check Out Button -->
                 <button id="check-out-btn" class="btn border-0 chekbtnsm px-2 py-1" style="display: none;">
                     <!-- <i class="mdi mdi-alarm-off me-2 fs-2" style="color: #e66136;"></i> Check Out -->
@@ -763,6 +769,25 @@ $branchesList = $branchModel->getActiveBranches();
                                         : 'mdi-calendar-clock';  // pending
                                 break;
                             }
+                            case 'geofence_alert':
+                                message = data.message;
+                                icon = 'mdi-map-marker-radius';
+                                
+                                // Show immediate popup to HR if not shown yet in this session
+                                window.shownGeofenceAlerts = window.shownGeofenceAlerts || {};
+                                if (!window.shownGeofenceAlerts[notification.id]) {
+                                    window.shownGeofenceAlerts[notification.id] = true;
+                                    setTimeout(() => {
+                                        Swal.fire({
+                                            icon: 'warning',
+                                            title: 'Employee Out of Bounds',
+                                            text: data.message,
+                                            confirmButtonColor: '#e03a3c',
+                                            confirmButtonText: 'Acknowledge'
+                                        });
+                                    }, 500);
+                                }
+                                break;
                             default:
                                 message = 'New notification';
                                 icon = 'mdi-bell-ring';
@@ -881,7 +906,7 @@ $branchesList = $branchModel->getActiveBranches();
     // Load on page load and every 30 seconds
     $(document).ready(function() {
         loadNotifications();
-        setInterval(loadNotifications, 30000);
+        setInterval(loadNotifications, 10000);
 
         // Initialize push notifications for all authenticated roles
         <?php if (in_array($role, ['admin', 'employee', 'hr', 'branch_admin', 'department_manager'])) : ?>
@@ -1037,12 +1062,16 @@ $branchesList = $branchModel->getActiveBranches();
                 .then(data => {
                     const checkInBtn = document.getElementById('check-in-btn');
                     const checkOutBtn = document.getElementById('check-out-btn');
+                    const lunchBtn = document.getElementById('lunch-btn');
+                    const lunchBtnText = document.getElementById('lunch-btn-text');
+                    const lunchBtnIcon = document.getElementById('lunch-btn-icon');
 
                     if (['hr', 'branch_admin', 'department_manager', 'employee'].includes(data.role)) {
                         if (data.data === 'not_checked_in') {
                             // User has NOT checked in - open mandatory face check-in modal
                             checkInBtn.style.display = 'none';
                             checkOutBtn.style.display = 'none';
+                            if (lunchBtn) lunchBtn.style.display = 'none';
 
                             if (data.is_remote) {
                                 // Remote worker - skip face scan, show normal button
@@ -1056,9 +1085,20 @@ $branchesList = $branchModel->getActiveBranches();
                                 checkInBtn.style.display = 'flex';
                                 checkInBtn.style.alignItems = 'center';
                             }
-                            if (window.geofenceTrackerId) {
-                                clearInterval(window.geofenceTrackerId);
-                                window.geofenceTrackerId = null;
+                        } else if (data.data === 'on_lunch') {
+                            // Currently ON LUNCH BREAK
+                            checkInBtn.style.display = 'none';
+                            checkOutBtn.style.display = 'none';
+                            if (lunchBtn) {
+                                lunchBtn.style.display = 'flex';
+                                lunchBtn.style.alignItems = 'center';
+                                lunchBtn.style.background = '#dc2626';
+                                lunchBtn.style.color = '#ffffff';
+                                lunchBtn.style.border = '1px solid #b91c1c';
+                                lunchBtn.style.cursor = 'pointer';
+                                lunchBtn.disabled = false;
+                                if (lunchBtnIcon) lunchBtnIcon.className = 'mdi mdi-play-circle me-1 fs-5';
+                                if (lunchBtnText) lunchBtnText.innerText = 'Resume Work';
                             }
                         } else if (data.data === 'checked_in') {
                             // Already checked in - show check out button
@@ -1066,20 +1106,38 @@ $branchesList = $branchModel->getActiveBranches();
                             checkOutBtn.style.display = 'flex';
                             checkOutBtn.style.alignItems = 'center';
 
-                            // Start geofence tracking
-                            if (!window.geofenceTrackerId && !data.is_remote) {
-                                window.geofenceTrackerId = setInterval(pingGeofenceLocation, 60000);
-                                pingGeofenceLocation();
+                            // Lunch button logic
+                            if (lunchBtn) {
+                                if (data.lunch && data.lunch.lunch_taken) {
+                                    // Single lunch already utilized for today
+                                    lunchBtn.style.display = 'flex';
+                                    lunchBtn.style.alignItems = 'center';
+                                    lunchBtn.style.background = '#f1f5f9';
+                                    lunchBtn.style.color = '#64748b';
+                                    lunchBtn.style.border = '1px solid #cbd5e1';
+                                    lunchBtn.style.cursor = 'default';
+                                    lunchBtn.disabled = true;
+                                    if (lunchBtnIcon) lunchBtnIcon.className = 'mdi mdi-check-circle me-1 text-success fs-5';
+                                    const dur = data.lunch.lunch_duration ? data.lunch.lunch_duration.substring(0, 5) : '';
+                                    if (lunchBtnText) lunchBtnText.innerText = 'Lunch Done' + (dur ? ' (' + dur + ')' : '');
+                                } else {
+                                    // Lunch not yet taken - can start lunch
+                                    lunchBtn.style.display = 'flex';
+                                    lunchBtn.style.alignItems = 'center';
+                                    lunchBtn.style.background = '#fff8e1';
+                                    lunchBtn.style.color = '#b45309';
+                                    lunchBtn.style.border = '1px solid #fde68a';
+                                    lunchBtn.style.cursor = 'pointer';
+                                    lunchBtn.disabled = false;
+                                    if (lunchBtnIcon) lunchBtnIcon.className = 'mdi mdi-silverware-fork-knife me-1 fs-5';
+                                    if (lunchBtnText) lunchBtnText.innerText = 'Lunch Break';
+                                }
                             }
                         } else if (data.data === 'checked_out') {
                             // Checked out - need to check in again
                             checkInBtn.style.display = 'none';
                             checkOutBtn.style.display = 'none';
-
-                            if (window.geofenceTrackerId) {
-                                clearInterval(window.geofenceTrackerId);
-                                window.geofenceTrackerId = null;
-                            }
+                            if (lunchBtn) lunchBtn.style.display = 'none';
 
                             if (data.is_remote) {
                                 // Remote worker - skip face scan, show normal button
@@ -1096,50 +1154,9 @@ $branchesList = $branchModel->getActiveBranches();
                         // Admin - no check-in required
                         checkInBtn.style.display = 'none';
                         checkOutBtn.style.display = 'none';
-                        if (window.geofenceTrackerId) {
-                            clearInterval(window.geofenceTrackerId);
-                            window.geofenceTrackerId = null;
-                        }
+                        if (lunchBtn) lunchBtn.style.display = 'none';
                     }
                 })
-                .catch(error => {
-                    console.error('Error fetching attendance status:', error);
-                });
-        };
-
-        // Geofence ping helper
-        window.pingGeofenceLocation = function() {
-            if (!navigator.geolocation) return;
-            navigator.geolocation.getCurrentPosition(function(position) {
-                const payload = {
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                    accuracy: position.coords.accuracy
-                };
-                fetch('/api/geofence/ping', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('token')
-                    },
-                    body: JSON.stringify(payload)
-                })
-                .then(r => r.json())
-                .then(res => {
-                    if (res.status === 'alert') {
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'Geofence Alert',
-                            text: res.message,
-                            confirmButtonColor: '#e03a3c'
-                        });
-                    }
-                })
-                .catch(e => console.error('Geofence ping err:', e));
-            }, function(err) {
-                console.warn('Geofence error: ' + err.message);
-            }, { enableHighAccuracy: true });
-        };
                 .catch(err => {
                     console.error('Attendance status error:', err);
                 });
@@ -1419,6 +1436,120 @@ $branchesList = $branchModel->getActiveBranches();
                 }
             });
         });
+
+        // Lunch Break Button Handler (Single lunch per day)
+        const lunchBtnEl = document.getElementById('lunch-btn');
+        if (lunchBtnEl) {
+            lunchBtnEl.addEventListener('click', function() {
+                if (this.disabled) return;
+                const lunchBtnText = document.getElementById('lunch-btn-text');
+                const isOnLunch = lunchBtnText && lunchBtnText.innerText.trim() === 'Resume Work';
+
+                if (!isOnLunch) {
+                    Swal.fire({
+                        title: 'Start Lunch Break?',
+                        text: 'You can take one lunch break per day. Ready to start your lunch break now?',
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, Start Lunch',
+                        cancelButtonText: 'Cancel',
+                        customClass: {
+                            confirmButton: 'hr-btnbg',
+                            cancelButton: 'btn btn-secondary'
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            lunchBtnEl.disabled = true;
+                            fetch('/api/attendance/lunch-start', {
+                                method: 'POST',
+                                headers: headers
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                lunchBtnEl.disabled = false;
+                                if (data.status === 'success') {
+                                    Swal.fire({
+                                        title: 'Lunch Break Started!',
+                                        text: data.message || 'Enjoy your lunch break!',
+                                        icon: 'success',
+                                        confirmButtonText: 'OK',
+                                        customClass: { confirmButton: 'hr-btnbg' }
+                                    });
+                                    updateAttendanceStatus();
+                                    if (window.location.pathname === '/' || window.location.pathname.includes('dashboard')) {
+                                        setTimeout(() => window.location.reload(), 1200);
+                                    }
+                                } else {
+                                    Swal.fire({
+                                        title: 'Error',
+                                        text: data.message || 'Could not start lunch break.',
+                                        icon: 'error',
+                                        confirmButtonText: 'OK',
+                                        customClass: { confirmButton: 'hr-btnbg' }
+                                    });
+                                }
+                            })
+                            .catch(err => {
+                                lunchBtnEl.disabled = false;
+                                console.error('Lunch start error:', err);
+                            });
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Resume Work?',
+                        text: 'Do you want to end your lunch break and resume working?',
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, Resume Work',
+                        cancelButtonText: 'Cancel',
+                        customClass: {
+                            confirmButton: 'hr-btnbg',
+                            cancelButton: 'btn btn-secondary'
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            lunchBtnEl.disabled = true;
+                            fetch('/api/attendance/lunch-end', {
+                                method: 'POST',
+                                headers: headers
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                lunchBtnEl.disabled = false;
+                                if (data.status === 'success') {
+                                    const iconType = data.is_overdue ? 'warning' : 'success';
+                                    const titleText = data.is_overdue ? 'Welcome Back (Overdue)' : 'Welcome Back!';
+                                    Swal.fire({
+                                        title: titleText,
+                                        text: data.message || 'Lunch break ended successfully.',
+                                        icon: iconType,
+                                        confirmButtonText: 'OK',
+                                        customClass: { confirmButton: 'hr-btnbg' }
+                                    });
+                                    updateAttendanceStatus();
+                                    if (window.location.pathname === '/' || window.location.pathname.includes('dashboard')) {
+                                        setTimeout(() => window.location.reload(), 1200);
+                                    }
+                                } else {
+                                    Swal.fire({
+                                        title: 'Error',
+                                        text: data.message || 'Could not end lunch break.',
+                                        icon: 'error',
+                                        confirmButtonText: 'OK',
+                                        customClass: { confirmButton: 'hr-btnbg' }
+                                    });
+                                }
+                            })
+                            .catch(err => {
+                                lunchBtnEl.disabled = false;
+                                console.error('Lunch end error:', err);
+                            });
+                        }
+                    });
+                }
+            });
+        }
 
         // Initial status update on page load
         updateAttendanceStatus();

@@ -81,7 +81,7 @@ class StaffTransferController extends ResourceController
             ->join('user_info ui', 'ui.user_id = u.id', 'left')
             ->join('branches b', 'b.id = u.branch_id', 'left')
             ->where('u.is_deleted', 0)
-            ->whereNotIn('u.role', ['admin', 'candidate']);
+            ->where('u.role !=', 'admin');
 
         if ($userRole === 'hr') {
             $hrBranchId = $this->authService->getBranchId();
@@ -210,18 +210,106 @@ class StaffTransferController extends ResourceController
 
         $userId   = (int)($this->request->getGet('user_id') ?? 0);
         $branchId = (int)($this->request->getGet('branch_id') ?? 0);
+        
+        $filters = [
+            'search'           => $this->request->getGet('search') ?? '',
+            'filter_branch_id' => $this->request->getGet('filter_branch_id') ?? '',
+            'start_date'       => $this->request->getGet('start_date') ?? '',
+            'end_date'         => $this->request->getGet('end_date') ?? '',
+        ];
+        
+        $page = (int)($this->request->getGet('page') ?? 1);
+        $limit = (int)($this->request->getGet('limit') ?? 0);
+        if ($limit > 0) {
+            $filters['limit'] = $limit;
+            $filters['offset'] = ($page - 1) * $limit;
+        }
 
+        $total = 0;
         if ($userId) {
             $records = $this->transferModel->getHistoryForUser($userId);
+            $total = count($records);
         } elseif ($user->role === 'admin') {
-            $records = $this->transferModel->getAllHistory($branchId ?: null);
+            $records = $this->transferModel->getAllHistory($branchId ?: null, $filters);
+            $total = $this->transferModel->countAllHistory($branchId ?: null, $filters);
         } else {
             // HR sees transfers in their branch
             $hrBranchId = $this->authService->getBranchId();
-            $records = $this->transferModel->getAllHistory($hrBranchId);
+            $records = $this->transferModel->getAllHistory($hrBranchId, $filters);
+            $total = $this->transferModel->countAllHistory($hrBranchId, $filters);
         }
 
-        return $this->respond(['status' => 'success', 'data' => $records]);
+        return $this->respond([
+            'status' => 'success', 
+            'data' => $records,
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit
+        ]);
+    }
+
+    /**
+     * GET api/staff-transfer/export
+     */
+    public function export()
+    {
+        $user = $this->getAuthedUser();
+        if (!$user) {
+            return $this->response->setStatusCode(401)->setBody('Unauthorized');
+        }
+
+        if (!$this->canTransfer($user)) {
+            return $this->response->setStatusCode(403)->setBody('Access denied.');
+        }
+
+        $filters = [
+            'search'           => $this->request->getGet('search') ?? '',
+            'filter_branch_id' => $this->request->getGet('filter_branch_id') ?? '',
+            'start_date'       => $this->request->getGet('start_date') ?? '',
+            'end_date'         => $this->request->getGet('end_date') ?? '',
+        ];
+
+        if ($user->role === 'admin') {
+            $records = $this->transferModel->getAllHistory(null, $filters);
+        } else {
+            $hrBranchId = $this->authService->getBranchId();
+            $records = $this->transferModel->getAllHistory($hrBranchId, $filters);
+        }
+
+        $filename = 'Staff_Transfers_' . date('Ymd_His') . '.csv';
+
+        $output = fopen('php://temp', 'w');
+        
+        // Add UTF-8 BOM
+        fputs($output, "\xEF\xBB\xBF");
+        
+        // Header
+        fputcsv($output, ['Employee ID', 'Employee Name', 'From Branch', 'To Branch', 'Effective Date', 'Reason', 'Transferred By', 'Transferred On']);
+
+        foreach ($records as $r) {
+            $empName = trim(($r['firstname'] ?? '-') . ' ' . ($r['lastname'] ?? ''));
+            $byName = trim(($r['transferred_by_firstname'] ?? '-') . ' ' . ($r['transferred_by_lastname'] ?? ''));
+            
+            fputcsv($output, [
+                $r['employee_id'] ?? '-',
+                $empName,
+                $r['from_branch_name'] ?? '-',
+                $r['to_branch_name'] ?? '-',
+                $r['effective_date'] ? date('d-m-Y', strtotime($r['effective_date'])) : '-',
+                $r['reason'] ?? '',
+                $byName,
+                $r['created_at'] ?? '-'
+            ]);
+        }
+
+        rewind($output);
+        $csvData = stream_get_contents($output);
+        fclose($output);
+
+        return $this->response
+            ->setHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setBody($csvData);
     }
 
     /**
@@ -243,7 +331,7 @@ class StaffTransferController extends ResourceController
             ->join('user_info ui', 'ui.user_id = u.id', 'left')
             ->join('branches b', 'b.id = u.branch_id', 'left')
             ->where('u.is_deleted', 0)
-            ->whereNotIn('u.role', ['admin', 'candidate']);
+            ;
 
         if ($user->role === 'hr') {
             $hrBranchId = $this->authService->getBranchId();

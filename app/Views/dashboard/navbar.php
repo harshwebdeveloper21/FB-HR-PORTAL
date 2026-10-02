@@ -587,6 +587,23 @@ $branchesList = $branchModel->getActiveBranches();
                     <span class="nav-link text-muted fw-semibold" id="currentDateTime" style="white-space: nowrap;"></span>
                 </div>
             </li>
+            <!-- Settings Dropdown -->
+            <?php if (in_array($role, ['admin', 'hr'])): ?>
+            <li class="nav-item dropdown d-lg-block d-block">
+                <a class="nav-link count-indicator" id="settingsDropdown" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="mdi mdi-cog fs-5"></i>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end navbar-dropdown" aria-labelledby="settingsDropdown">
+                    <a href="/view-rules" class="dropdown-item"><i class="dropdown-item-icon mdi mdi-file-document me-2"></i> Company Rules</a>
+                    <a href="/offer-templates-view" class="dropdown-item"><i class="dropdown-item-icon mdi mdi-file-outline me-2"></i> Templates</a>
+                    <a href="/digital-signature" class="dropdown-item"><i class="dropdown-item-icon mdi mdi-pen me-2"></i> Digital Signature</a>
+                    <div class="dropdown-divider"></div>
+                    <a href="/departmentview" class="dropdown-item"><i class="dropdown-item-icon mdi mdi-briefcase me-2"></i> Departments</a>
+                    <a href="/branches" class="dropdown-item"><i class="dropdown-item-icon mdi mdi-office-building me-2"></i> Branches</a>
+                    <a href="/staff-transfer" class="dropdown-item"><i class="dropdown-item-icon mdi mdi-swap-horizontal me-2"></i> Staff Transfer</a>
+                </div>
+            </li>
+            <?php endif; ?>
             <!-- Notification -->
             <li class="nav-item dropdown  d-lg-block d-block notification-dropdown" id="navbarSection">
                 <a class="nav-link count-indicator" id="notificationDropdown" href="#" data-bs-toggle="dropdown">

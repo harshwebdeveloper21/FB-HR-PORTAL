@@ -11,7 +11,7 @@ class StaffTransferModel extends Model
 
     protected $allowedFields = [
         'user_id', 'from_branch_id', 'to_branch_id',
-        'transferred_by', 'reason', 'effective_date', 'created_at',
+        'transferred_by', 'reason', 'effective_date', 'status', 'created_at',
     ];
 
     protected $useTimestamps = false;

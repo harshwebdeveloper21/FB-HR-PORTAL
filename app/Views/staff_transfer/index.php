@@ -298,18 +298,13 @@ $(document).ready(function() {
                 }
             },
             { 
-                "data": "effective_date",
-                "render": function(data) {
-                    if(!data) return '-';
-                    const effectiveDate = new Date(data);
-                    const today = new Date();
-                    today.setHours(0,0,0,0);
-                    
-                    if(effectiveDate > today) {
-                        return `<span class="badge bg-warning text-dark">Pending</span>`;
-                    } else {
+                "data": "status",
+                "render": function(data, type, row) {
+                    // Default to Completed since we removed the pending flow
+                    if(data === 'completed' || !data) {
                         return `<span class="badge bg-success">Completed</span>`;
                     }
+                    return `<span class="badge bg-secondary">${data}</span>`;
                 }
             }
         ],

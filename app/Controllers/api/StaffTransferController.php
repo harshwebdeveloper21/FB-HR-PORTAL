@@ -153,8 +153,14 @@ class StaffTransferController extends ResourceController
             return $this->respond(['status' => 'error', 'message' => 'Target branch not found.'], 404);
         }
 
-        // Use a transaction for atomicity
+        // Ensure status column exists (especially for live server)
         $db = \Config\Database::connect();
+        if (!$db->fieldExists('status', 'staff_transfers')) {
+            $db->query("ALTER TABLE staff_transfers ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'completed'");
+            $db->query("UPDATE staff_transfers SET status = 'completed' WHERE status IS NULL OR status = ''");
+        }
+
+        // Use a transaction for atomicity
         $db->transStart();
 
         try {

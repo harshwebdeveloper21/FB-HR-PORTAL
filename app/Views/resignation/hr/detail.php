@@ -464,6 +464,14 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
+// Select tab from URL if present
+const urlParams = new URLSearchParams(window.location.search);
+const activeTab = urlParams.get('tab');
+if (activeTab) {
+  const targetBtn = document.querySelector(`.tab-btn[data-tab="${activeTab}"]`);
+  if (targetBtn) targetBtn.click();
+}
+
 // Add/remove F&F rows
 let earningIdx  = <?= count(array_filter($fnfItems ?? [], fn($i) => ($i['type'] ?? '') === 'earning')) ?: 5 ?>;
 let deductionIdx= <?= count(array_filter($fnfItems ?? [], fn($i) => ($i['type'] ?? '') === 'deduction')) ?: 4 ?>;

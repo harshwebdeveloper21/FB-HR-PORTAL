@@ -548,6 +548,7 @@
               <thead>
                 <tr>
                   <th>Check In</th>
+                  <th>Lunch Break</th>
                   <th>Check Out</th>
                   <th>Duration</th>
                   <th>Overtime</th>
@@ -959,6 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <td>
                                 <input type="time" class="form-control checkin" data-id="new">
                             </td>
+                            <td>-</td>
                             <td>
                                 <input type="time" class="form-control checkout" data-id="new">
                             </td>
@@ -968,6 +970,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                 } else {
                     currentAttendanceRecords.forEach((r, i) => {
+                        let lunchText = '-';
+                        if (r.lunch_start_time) {
+                            lunchText = r.lunch_start_time.substring(0, 5);
+                            if (r.lunch_end_time) {
+                                lunchText += ' - ' + r.lunch_end_time.substring(0, 5);
+                                if (r.lunch_duration) {
+                                    lunchText += ` (${r.lunch_duration.substring(0, 5)})`;
+                                }
+                            } else {
+                                lunchText += ' (Ongoing)';
+                            }
+                            if (parseInt(r.lunch_is_overdue) === 1) {
+                                lunchText += ` <span class="badge bg-danger text-white p-1" style="font-size:10px;">+${r.lunch_overdue_minutes}m</span>`;
+                            }
+                        }
+
                         rows += `
                             <tr>
                                 <td>
@@ -975,6 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         data-id="${r.id}"
                                         value="${r.check_in_time || ''}">
                                 </td>
+                                <td>${lunchText}</td>
                                 <td>
                                     <input type="time" class="form-control checkout"
                                         data-id="${r.id}"

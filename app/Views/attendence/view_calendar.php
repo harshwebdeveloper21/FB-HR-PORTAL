@@ -1195,6 +1195,7 @@
                             <thead>
                                 <tr>
                                     <th>Check In</th>
+                                    <th>Lunch Break</th>
                                     <th>Check Out</th>
                                     <th>Duration</th>
                                     <th>Overtime</th>
@@ -1852,6 +1853,21 @@
                     attendance?.check_out_location_status ?? null
                 );
 
+                let lunchLine = '';
+                if (attendance?.lunch_start_time) {
+                    let lText = attendance.lunch_start_time.substring(0, 5);
+                    if (attendance.lunch_end_time) {
+                        lText += ' - ' + attendance.lunch_end_time.substring(0, 5);
+                        if (attendance.lunch_duration) lText += ` (${attendance.lunch_duration.substring(0, 5)})`;
+                    } else {
+                        lText += ' (Ongoing)';
+                    }
+                    if (parseInt(attendance.lunch_is_overdue) === 1) {
+                        lText += ` <span class="badge bg-danger text-white p-1" style="font-size:9.5px;">+${attendance.lunch_overdue_minutes}m overdue</span>`;
+                    }
+                    lunchLine = `<div class="loc-line" style="font-size:11.5px;color:#b45309;"><span class="loc-section-label" style="color:#b45309;">Lunch:</span> ${lText}</div>`;
+                }
+
                 const employeeCard = document.createElement('div');
                 employeeCard.className = 'mobile-employee-card';
                 employeeCard.dataset.userId = user.user_id;
@@ -1863,6 +1879,7 @@
                     <div class="mobile-employee-name">${user.employee_name}</div>
                     <div class="loc-info-block">
                         ${checkInLine}
+                        ${lunchLine}
                         ${checkOutLine}
                     </div>
                 </div>
@@ -2210,6 +2227,7 @@
                             <td>
                                 <input type="time" class="form-control checkin" data-id="new">
                             </td>
+                            <td>-</td>
                             <td>
                                 <input type="time" class="form-control checkout" data-id="new">
                             </td>
@@ -2219,10 +2237,26 @@
                     `;
                     } else {
                         currentAttendanceRecords.forEach((r, i) => {
+                            let lunchText = '-';
+                            if (r.lunch_start_time) {
+                                lunchText = r.lunch_start_time.substring(0, 5);
+                                if (r.lunch_end_time) {
+                                    lunchText += ' - ' + r.lunch_end_time.substring(0, 5);
+                                    if (r.lunch_duration) {
+                                        lunchText += ` (${r.lunch_duration.substring(0, 5)})`;
+                                    }
+                                } else {
+                                    lunchText += ' (Ongoing)';
+                                }
+                                if (parseInt(r.lunch_is_overdue) === 1) {
+                                    lunchText += ` <span class="badge bg-danger text-white p-1" style="font-size:10px;">+${r.lunch_overdue_minutes}m</span>`;
+                                }
+                            }
+
                             // Duration: use backend-computed duration field; null means still active
                             const durationDisplay = r.duration
                                 ? r.duration
-                                : '<span style="color:#E66136;font-weight:600;">Activeâ€¦</span>';
+                                : '<span style="color:#E66136;font-weight:600;">Active…</span>';
 
                             rows += `
                             <tr>
@@ -2231,6 +2265,7 @@
                                         data-id="${r.id}"
                                         value="${r.check_in_time || ''}">
                                 </td>
+                                <td>${lunchText}</td>
                                 <td>
                                     <input type="time" class="form-control checkout"
                                         data-id="${r.id}"

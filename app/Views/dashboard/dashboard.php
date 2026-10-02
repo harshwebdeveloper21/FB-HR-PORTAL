@@ -1538,11 +1538,29 @@
                                                             <?= date('d M Y', strtotime($record['date'])) ?>
                                                         </div>
 
-                                                        <div class="d-flex justify-content-between">
+                                                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
                                                             <span class="badge bg-success">
                                                                 Check-in:
                                                                 <?= date('h:i A', strtotime($record['check_in_time'])) ?>
                                                             </span>
+
+                                                            <?php if (!empty($record['lunch_start_time'])) : ?>
+                                                                <?php 
+                                                                    $lunchText = date('h:i A', strtotime($record['lunch_start_time']));
+                                                                    if (!empty($record['lunch_end_time'])) {
+                                                                        $lunchText .= ' - ' . date('h:i A', strtotime($record['lunch_end_time']));
+                                                                        if (!empty($record['lunch_duration'])) {
+                                                                            $lunchText .= ' (' . substr($record['lunch_duration'], 0, 5) . ')';
+                                                                        }
+                                                                    } else {
+                                                                        $lunchText .= ' (Ongoing)';
+                                                                    }
+                                                                    $lunchBadgeClass = !empty($record['lunch_is_overdue']) ? 'bg-danger' : (empty($record['lunch_end_time']) ? 'bg-warning text-dark' : 'bg-info');
+                                                                ?>
+                                                                <span class="badge <?= $lunchBadgeClass ?>" title="<?= !empty($record['lunch_is_overdue']) ? 'Overstay: +' . $record['lunch_overdue_minutes'] . ' mins' : '' ?>">
+                                                                    🍱 Lunch: <?= $lunchText ?>
+                                                                </span>
+                                                            <?php endif; ?>
 
                                                             <span class="badge <?= $record['check_out_time'] ? 'bg-danger' : 'bg-secondary' ?>">
                                                                 Check-out:
@@ -1627,7 +1645,9 @@
                                                 <!-- Status Badge -->
                                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                                     <span class="text-muted small">Status</span>
-                                                    <?php if ($todayHoursData['is_checked_in']) : ?>
+                                                    <?php if (!empty($todayHoursData['is_on_lunch'])) : ?>
+                                                        <span class="badge bg-warning text-dark"><i class="mdi mdi-silverware-fork-knife me-1"></i>On Lunch Break</span>
+                                                    <?php elseif ($todayHoursData['is_checked_in']) : ?>
                                                         <span class="badge bg-success">Currently Working</span>
                                                     <?php else : ?>
                                                         <span class="badge bg-secondary">Shift Ended</span>
@@ -1638,6 +1658,12 @@
                                                 <div class="text-center mt-3 pt-3 border-top">
                                                     <small class="text-muted d-block mb-1">
                                                         Standard Hours: <strong><?= $todayHoursData['standard_hours'] ?></strong>
+                                                        <?php if (!empty($todayHoursData['lunch_duration'])): ?>
+                                                            | Lunch: <strong><?= substr($todayHoursData['lunch_duration'], 0, 5) ?></strong>
+                                                            <?php if (!empty($todayHoursData['lunch_is_overdue'])): ?>
+                                                                <span class="text-danger fw-bold">(+<?= $todayHoursData['lunch_overdue_minutes'] ?>m overdue)</span>
+                                                            <?php endif; ?>
+                                                        <?php endif; ?>
                                                     </small>
                                                     <?php if ($todayHoursData['is_checked_in']) : ?>
                                                         <div class="d-flex align-items-center justify-content-center">
@@ -2954,6 +2980,7 @@
             const elapsedAtLoad      = <?= (int)($todayHoursData['elapsed_seconds_at_load'] ?? 0) ?>;
             const completedSeconds   = <?= (int)($todayHoursData['completed_hours_seconds'] ?? 0) ?>;
             const standardHoursSeconds = <?= (float)($todayHoursData['standard_hours_decimal'] ?? 8.0) ?> * 3600;
+            const isOnLunch          = <?= !empty($todayHoursData['is_on_lunch']) ? 'true' : 'false' ?>;
 
             // Start counting from server-verified elapsed time
             let elapsedSeconds = elapsedAtLoad;
@@ -2966,6 +2993,9 @@
             }
 
             function tick() {
+                if (isOnLunch) {
+                    return; // Pause counter while employee is on lunch break
+                }
                 elapsedSeconds++;
 
                 const totalWorked    = completedSeconds + elapsedSeconds;

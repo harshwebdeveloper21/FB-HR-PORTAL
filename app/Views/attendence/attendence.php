@@ -779,7 +779,7 @@
             validAttendance.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             let html = '<table class="history-table"><thead><tr>';
-            html += '<th>Date</th><th>Check In</th><th>Check Out</th><th>Work Hours</th><th>Overtime</th><th>Late</th><th>Status</th>';
+            html += '<th>Date</th><th>Check In</th><th>Lunch Break</th><th>Check Out</th><th>Work Hours</th><th>Overtime</th><th>Late</th><th>Status</th>';
             html += '</tr></thead><tbody>';
 
             validAttendance.forEach(record => {
@@ -789,9 +789,27 @@
                 const overtime = record.overtime ? formatTimeString(record.overtime) : '-';
                 const workHours = calculateWorkHoursDisplay(record);
 
+                let lunchInfo = '-';
+                if (record.lunch_start_time) {
+                    let lText = record.lunch_start_time.substring(0, 5);
+                    if (record.lunch_end_time) {
+                        lText += ' - ' + record.lunch_end_time.substring(0, 5);
+                        if (record.lunch_duration) {
+                            lText += ` (${record.lunch_duration.substring(0, 5)})`;
+                        }
+                    } else {
+                        lText += ' (Ongoing)';
+                    }
+                    if (parseInt(record.lunch_is_overdue) === 1) {
+                        lText += ` <span class="badge bg-danger p-1 text-white" style="font-size:10.5px;" title="Lunch Overstay">+${record.lunch_overdue_minutes}m</span>`;
+                    }
+                    lunchInfo = lText;
+                }
+
                 html += `<tr>
                     <td>${formatDate(record.date)}</td>
                     <td>${record.check_in_time || '-'}</td>
+                    <td>${lunchInfo}</td>
                     <td>${record.check_out_time || '-'}</td>
                     <td>${workHours}</td>
                     <td>${overtime}</td>
@@ -809,7 +827,11 @@
             if (!record.check_in_time || !record.check_out_time) return 0;
             const checkIn = new Date(`2000-01-01 ${record.check_in_time}`);
             const checkOut = new Date(`2000-01-01 ${record.check_out_time}`);
-            return (checkOut - checkIn) / 1000;
+            let diff = (checkOut - checkIn) / 1000;
+            if (record.lunch_duration_seconds) {
+                diff = Math.max(0, diff - parseInt(record.lunch_duration_seconds));
+            }
+            return diff;
         };
 
         const formatSeconds = (seconds) => {
@@ -844,9 +866,7 @@
 
         const calculateWorkHoursDisplay = (record) => {
             if (!record.check_in_time || !record.check_out_time) return '-';
-            const checkIn = new Date(`2000-01-01 ${record.check_in_time}`);
-            const checkOut = new Date(`2000-01-01 ${record.check_out_time}`);
-            const seconds = (checkOut - checkIn) / 1000;
+            const seconds = calculateWorkHours(record);
             return formatSeconds(seconds);
         };
 

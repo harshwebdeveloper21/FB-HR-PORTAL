@@ -262,11 +262,14 @@ $branchesList = $branchModel->getActiveBranches();
             display: none !important;
         }
 
-        .check-in-out-container:not(.role-admin) #check-out-btn {
+        .check-in-out-container:not(.role-admin) #check-out-btn,
+        .check-in-out-container:not(.role-admin) #check-in-btn {
             align-items: center;
-            padding: 6px 12px !important;
+            justify-content: center;
+            padding: 6px 10px !important;
             font-size: 14px !important;
             height: 36px;
+            min-width: 36px;
             white-space: nowrap;
             border-radius: 18px;
             background: linear-gradient(135deg, #e66136, #ff7b4a) !important;
@@ -274,9 +277,37 @@ $branchesList = $branchModel->getActiveBranches();
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
-        .check-in-out-container:not(.role-admin) #check-out-btn i {
-            font-size: 16px !important;
-            margin-right: 5px !important;
+        .check-in-out-container:not(.role-admin) #check-out-btn #check-out-btn-text,
+        .check-in-out-container:not(.role-admin) #check-in-btn #check-in-btn-text {
+            display: none !important;
+        }
+
+        .check-in-out-container:not(.role-admin) #check-out-btn i,
+        .check-in-out-container:not(.role-admin) #check-in-btn i {
+            font-size: 18px !important;
+            margin-right: 0 !important;
+            margin-left: 0 !important;
+        }
+
+        .check-in-out-container:not(.role-admin) #lunch-btn {
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px !important;
+            font-size: 14px !important;
+            height: 36px;
+            min-width: 36px;
+            white-space: nowrap;
+            border-radius: 18px;
+        }
+
+        .check-in-out-container:not(.role-admin) #lunch-btn #lunch-btn-text {
+            display: none !important;
+        }
+
+        .check-in-out-container:not(.role-admin) #lunch-btn i {
+            font-size: 18px !important;
+            margin-right: 0 !important;
+            margin-left: 0 !important;
         }
 
         .navbar-nav.ms-auto {
@@ -407,14 +438,44 @@ $branchesList = $branchModel->getActiveBranches();
 
         .check-in-out-container:not(.role-admin) #check-out-btn {
             align-items: center;
+            justify-content: center;
             padding: 4px 8px !important;
             font-size: 14px !important;
+            height: 32px;
+            min-width: 32px;
+            border-radius: 16px;
             white-space: nowrap;
+        }
+
+        .check-in-out-container:not(.role-admin) #check-out-btn #check-out-btn-text {
+            display: none !important;
         }
 
         .check-in-out-container:not(.role-admin) #check-out-btn i {
             font-size: 18px !important;
-            margin-right: 4px !important;
+            margin-right: 0 !important;
+            margin-left: 0 !important;
+        }
+
+        .check-in-out-container:not(.role-admin) #lunch-btn {
+            align-items: center;
+            justify-content: center;
+            padding: 4px 8px !important;
+            font-size: 14px !important;
+            height: 32px;
+            min-width: 32px;
+            border-radius: 16px;
+            white-space: nowrap;
+        }
+
+        .check-in-out-container:not(.role-admin) #lunch-btn #lunch-btn-text {
+            display: none !important;
+        }
+
+        .check-in-out-container:not(.role-admin) #lunch-btn i {
+            font-size: 18px !important;
+            margin-right: 0 !important;
+            margin-left: 0 !important;
         }
 
         .navbar-all-sm {
@@ -532,8 +593,15 @@ $branchesList = $branchModel->getActiveBranches();
                 -->
 
                 <!-- Regular Check In Button (Hidden - using face check-in) -->
-                <button id="check-in-btn" class="btn chekbtnsm px-2 py-1" style="display: none;">
-                    <i class="mdi mdi-alarm-check me-2 fs-5"></i> Check In
+                <button id="check-in-btn" class="btn chekbtnsm px-2 py-1" style="display: none;" title="Check In">
+                    <i class="mdi mdi-alarm-check fs-5"></i>
+                    <span id="check-in-btn-text" class="d-none d-md-inline ms-1">Check In</span>
+                </button>
+
+                <!-- Lunch Break Button (Single lunch per day) -->
+                <button id="lunch-btn" class="btn chekbtnsm px-2 py-1" style="display: none; background: #fff8e1; color: #b45309; border: 1px solid #fde68a;" title="Lunch Break">
+                    <i class="mdi mdi-silverware-fork-knife fs-5" id="lunch-btn-icon"></i>
+                    <span id="lunch-btn-text" class="d-none d-md-inline ms-1">Lunch Break</span>
                 </button>
 
                 <!-- Lunch Break Button (Single lunch per day) -->
@@ -543,9 +611,9 @@ $branchesList = $branchModel->getActiveBranches();
                 </button>
 
                 <!-- Check Out Button -->
-                <button id="check-out-btn" class="btn border-0 chekbtnsm px-2 py-1" style="display: none;">
-                    <!-- <i class="mdi mdi-alarm-off me-2 fs-2" style="color: #e66136;"></i> Check Out -->
-                    <i class="mdi mdi-alarm-off me-2 fs-5"></i> Check Out
+                <button id="check-out-btn" class="btn border-0 chekbtnsm px-2 py-1" style="display: none;" title="Check Out">
+                    <i class="mdi mdi-alarm-off fs-5"></i>
+                    <span id="check-out-btn-text" class="d-none d-md-inline ms-1">Check Out</span>
                 </button>
             </li>
             <!-- Branch Dropdown -->
@@ -588,14 +656,14 @@ $branchesList = $branchModel->getActiveBranches();
             </li>
             <?php endif; ?>
 
-            <li class="nav-item d-none d-lg-block d-block" id="datetime-display">
+            <li class="nav-item d-none d-lg-block" id="datetime-display">
                 <div class="input-group date datepicker navbar-date-picker">
                     <span class="nav-link text-muted fw-semibold" id="currentDateTime" style="white-space: nowrap;"></span>
                 </div>
             </li>
-            <!-- Settings Dropdown -->
+            <!-- Settings Dropdown (Hidden on mobile) -->
             <?php if (in_array($role, ['admin', 'hr'])): ?>
-            <li class="nav-item dropdown d-lg-block d-block">
+            <li class="nav-item dropdown d-none d-md-block" id="navbarSettingsItem">
                 <a class="nav-link count-indicator" id="settingsDropdown" href="#" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="mdi mdi-cog fs-5"></i>
                 </a>
@@ -1090,14 +1158,17 @@ $branchesList = $branchModel->getActiveBranches();
                             checkInBtn.style.display = 'none';
                             checkOutBtn.style.display = 'none';
                             if (lunchBtn) {
-                                lunchBtn.style.display = 'flex';
+                                lunchBtn.style.display = 'inline-flex';
                                 lunchBtn.style.alignItems = 'center';
+                                lunchBtn.style.justifyContent = 'center';
                                 lunchBtn.style.background = '#dc2626';
                                 lunchBtn.style.color = '#ffffff';
                                 lunchBtn.style.border = '1px solid #b91c1c';
                                 lunchBtn.style.cursor = 'pointer';
                                 lunchBtn.disabled = false;
-                                if (lunchBtnIcon) lunchBtnIcon.className = 'mdi mdi-play-circle me-1 fs-5';
+                                lunchBtn.dataset.state = 'on_lunch';
+                                lunchBtn.setAttribute('title', 'Resume Work');
+                                if (lunchBtnIcon) lunchBtnIcon.className = 'mdi mdi-play-circle fs-5';
                                 if (lunchBtnText) lunchBtnText.innerText = 'Resume Work';
                             }
                         } else if (data.data === 'checked_in') {
@@ -1109,27 +1180,21 @@ $branchesList = $branchModel->getActiveBranches();
                             // Lunch button logic
                             if (lunchBtn) {
                                 if (data.lunch && data.lunch.lunch_taken) {
-                                    // Single lunch already utilized for today
-                                    lunchBtn.style.display = 'flex';
-                                    lunchBtn.style.alignItems = 'center';
-                                    lunchBtn.style.background = '#f1f5f9';
-                                    lunchBtn.style.color = '#64748b';
-                                    lunchBtn.style.border = '1px solid #cbd5e1';
-                                    lunchBtn.style.cursor = 'default';
-                                    lunchBtn.disabled = true;
-                                    if (lunchBtnIcon) lunchBtnIcon.className = 'mdi mdi-check-circle me-1 text-success fs-5';
-                                    const dur = data.lunch.lunch_duration ? data.lunch.lunch_duration.substring(0, 5) : '';
-                                    if (lunchBtnText) lunchBtnText.innerText = 'Lunch Done' + (dur ? ' (' + dur + ')' : '');
+                                    // Single lunch already utilized for today - do not show lunch button
+                                    lunchBtn.style.display = 'none';
                                 } else {
                                     // Lunch not yet taken - can start lunch
-                                    lunchBtn.style.display = 'flex';
+                                    lunchBtn.style.display = 'inline-flex';
                                     lunchBtn.style.alignItems = 'center';
+                                    lunchBtn.style.justifyContent = 'center';
                                     lunchBtn.style.background = '#fff8e1';
                                     lunchBtn.style.color = '#b45309';
                                     lunchBtn.style.border = '1px solid #fde68a';
                                     lunchBtn.style.cursor = 'pointer';
                                     lunchBtn.disabled = false;
-                                    if (lunchBtnIcon) lunchBtnIcon.className = 'mdi mdi-silverware-fork-knife me-1 fs-5';
+                                    lunchBtn.dataset.state = 'lunch_start';
+                                    lunchBtn.setAttribute('title', 'Lunch Break');
+                                    if (lunchBtnIcon) lunchBtnIcon.className = 'mdi mdi-silverware-fork-knife fs-5';
                                     if (lunchBtnText) lunchBtnText.innerText = 'Lunch Break';
                                 }
                             }
@@ -1443,7 +1508,8 @@ $branchesList = $branchModel->getActiveBranches();
             lunchBtnEl.addEventListener('click', function() {
                 if (this.disabled) return;
                 const lunchBtnText = document.getElementById('lunch-btn-text');
-                const isOnLunch = lunchBtnText && lunchBtnText.innerText.trim() === 'Resume Work';
+                const isOnLunch = (this.dataset.state === 'on_lunch') ||
+                                  (lunchBtnText && (lunchBtnText.textContent.trim() === 'Resume Work' || lunchBtnText.innerText.trim() === 'Resume Work'));
 
                 if (!isOnLunch) {
                     Swal.fire({

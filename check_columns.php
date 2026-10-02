@@ -1,6 +1,11 @@
 <?php
 $db = new mysqli('localhost', 'root', '', 'hr_protal_new_db');
-$res = $db->query("SELECT id, branch_id, enable_geofencing, office_latitude, office_longitude, office_radius FROM branch_rules");
-while($row = $res->fetch_assoc()) {
-    print_r($row);
-}
+
+// Add status column if not exists
+$db->query("ALTER TABLE staff_transfers ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'completed'");
+echo "Column added. " . PHP_EOL;
+
+// Update any NULL or empty status rows to completed
+$db->query("UPDATE staff_transfers SET status = 'completed' WHERE status IS NULL OR status = ''");
+echo "Updated: " . $db->affected_rows . " rows to completed." . PHP_EOL;
+echo "Done.";

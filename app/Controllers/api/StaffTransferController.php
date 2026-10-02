@@ -161,7 +161,7 @@ class StaffTransferController extends ResourceController
             // 1. Update user's branch
             $this->userModel->update($staffId, ['branch_id' => $toBranchId]);
 
-            // 2. Record transfer history
+            // 2. Record transfer history (directly completed — no approval needed)
             $this->transferModel->insert([
                 'user_id'        => $staffId,
                 'from_branch_id' => $fromBranchId,
@@ -169,6 +169,7 @@ class StaffTransferController extends ResourceController
                 'transferred_by' => $actorId,
                 'reason'         => $reason,
                 'effective_date' => $effectiveDate,
+                'status'         => 'completed',
                 'created_at'     => date('Y-m-d H:i:s'),
             ]);
 

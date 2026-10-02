@@ -61,24 +61,24 @@ class GeofenceController extends ResourceController
             return $this->fail('Location missing');
         }
 
-        // Hardcoded Geofence Settings
-        $maxAccuracyM = 25;
+        // Geofence Settings - Relaxed accuracy for mobile GPS
+        $maxAccuracyM = 200;  // Accept GPS up to 200m accuracy (mobile GPS is often 30-100m)
         $gpsBufferM = 10;
-        $exitConfirmReadings = 3;  // 3 readings
-        $exitConfirmSeconds = 30;  // 30 seconds (since we ping every 10s)
+        $exitConfirmReadings = 3;  // Need 3 consecutive readings outside
+        $exitConfirmSeconds = 30;  // Over 30 seconds
 
-        // Ignore poor accuracy
+        // Only skip very poor accuracy readings (e.g. indoor WiFi-only)
         if ($accuracy > $maxAccuracyM) {
             return $this->respond(['status' => 'ignored', 'message' => 'Accuracy too low (' . $accuracy . 'm)']);
         }
 
         $db = \Config\Database::connect();
         
-        // Find active attendance (checked in, not checked out)
-        $builder = $db->table('attendance');
-        $attendance = $builder->where('employee_id', $user->sub)
-            ->where('check_out_time', null)
-            ->where('date', date('Y-m-d')) // Must be today
+        // Find active attendance (checked in, not checked out today) - use correct column: user_id
+        $attendance = $db->table('attendance')
+            ->where('user_id', $user->sub)
+            ->where('check_out_time IS NULL', null, false)
+            ->where('date', date('Y-m-d'))
             ->orderBy('id', 'DESC')
             ->get()->getRowArray();
 
@@ -88,7 +88,7 @@ class GeofenceController extends ResourceController
 
         $branchId = $attendance['branch_id'];
         
-        // Get branch rules
+        // Get branch rules (lat/lon/radius)
         $branchRulesModel = new BranchRuleModel();
         $rules = $branchRulesModel->where('branch_id', $branchId)->first();
         
@@ -96,22 +96,16 @@ class GeofenceController extends ResourceController
             return $this->respond(['status' => 'ignored', 'message' => 'Geofencing not enabled for this branch']);
         }
 
-        // Check if within working hours
-        $currentTime = date('H:i:s');
-        if ($currentTime < $rules['start_time'] || $currentTime > $rules['end_time']) {
-            return $this->respond(['status' => 'ignored', 'message' => 'Outside working hours']);
-        }
-
         // Calculate distance
         $distance = $this->calculateDistanceMeters(
             $latitude, $longitude,
-            $rules['office_latitude'], $rules['office_longitude']
+            (float)$rules['office_latitude'], (float)$rules['office_longitude']
         );
         
-        $radius = (float)($rules['office_radius'] ?? 15);
+        $radius = (float)($rules['office_radius'] ?? 50);
 
-        // Hysteresis threshold
-        $threshold = $radius + max($accuracy, $gpsBufferM);
+        // Threshold = radius + GPS buffer
+        $threshold = $radius + $gpsBufferM;
         
         // Get current state from Session instead of DB
         $session = session();

@@ -1616,6 +1616,7 @@ class AdminController extends ResourceController
         $isCheckedIn = false;
         $isCheckedOut = false;
         $mealBreakSeconds = 0;
+        $elapsedSecondsAtLoad = 0;
 
         // Default meal break (30 minutes)
         if (!empty($companyRule) && isset($companyRule['lunch_break'])) {
@@ -1714,10 +1715,19 @@ class AdminController extends ResourceController
                     // Calculate worked seconds for active session (server-accurate)
                     $activeSessionSeconds = max(0, $currentDt->getTimestamp() - $checkInDt->getTimestamp());
 
+                    // Deduct lunch break from active working time if taken or currently on lunch
+                    $lunchDeduction = 0;
+                    if (!empty($attendance['lunch_duration_seconds']) && $attendance['lunch_duration_seconds'] > 0) {
+                        $lunchDeduction = (int)$attendance['lunch_duration_seconds'];
+                    } elseif (!empty($attendance['lunch_start_time']) && empty($attendance['lunch_end_time'])) {
+                        $lunchStartDt = new \DateTime($today . ' ' . $attendance['lunch_start_time'], $tz);
+                        $lunchDeduction = max(0, $currentDt->getTimestamp() - $lunchStartDt->getTimestamp());
+                    }
+                    $activeSessionSeconds = max(0, $activeSessionSeconds - $lunchDeduction);
+
                     // Store elapsed at page-load for the frontend counter
                     $elapsedSecondsAtLoad = $activeSessionSeconds;
 
-                    // Don't subtract meal break for active session - show actual elapsed time
                     $totalWorkedSeconds += $activeSessionSeconds;
                 }
             }
@@ -1741,15 +1751,6 @@ class AdminController extends ResourceController
         // Format standard hours
         $standardHoursFormatted = sprintf('%02d:%02d:%02d', floor($standardHoursPerDay), floor(($standardHoursPerDay - floor($standardHoursPerDay)) * 60), 0);
 
-        // Compute elapsed seconds using DateTime with IST timezone (fixes UTC system timezone bug)
-        $elapsedSecondsAtLoad = 0;
-        if ($isCheckedIn && !empty($latestCheckInTime)) {
-            $tz = new \DateTimeZone('Asia/Kolkata');
-            $checkInDt = new \DateTime($today . ' ' . $latestCheckInTime, $tz);
-            $currentDt = new \DateTime('now', $tz);
-            $elapsedSecondsAtLoad = max(0, $currentDt->getTimestamp() - $checkInDt->getTimestamp());
-        }
-
 
 
         
@@ -1767,7 +1768,13 @@ class AdminController extends ResourceController
             'is_checked_out' => $isCheckedOut,
             'check_in_time' => $latestCheckInTime,
             'check_out_time' => $latestCheckOutTime,
-            'elapsed_seconds_at_load' => $elapsedSecondsAtLoad  // Pre-calculated by server (IST-accurate)
+            'elapsed_seconds_at_load' => $elapsedSecondsAtLoad,  // Pre-calculated by server (IST-accurate)
+            'is_on_lunch' => (!empty($latestRecord['lunch_start_time']) && empty($latestRecord['lunch_end_time'])),
+            'lunch_start_time' => $latestRecord['lunch_start_time'] ?? null,
+            'lunch_end_time' => $latestRecord['lunch_end_time'] ?? null,
+            'lunch_duration' => $latestRecord['lunch_duration'] ?? null,
+            'lunch_is_overdue' => (int)($latestRecord['lunch_is_overdue'] ?? 0),
+            'lunch_overdue_minutes' => (int)($latestRecord['lunch_overdue_minutes'] ?? 0)
         ];
     }
 }

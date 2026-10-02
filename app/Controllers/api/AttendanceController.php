@@ -211,15 +211,175 @@ class AttendanceController extends ResourceController
             'has_face_photo' => $hasFacePhoto, // Include face photo status
             'is_remote' => $isRemote,
         ];
+        $isOnLunch = false;
+        $lunchTaken = false;
+        if ($attendanceRecord) {
+            $isOnLunch = (!empty($attendanceRecord['lunch_start_time']) && empty($attendanceRecord['lunch_end_time']));
+            $lunchTaken = (!empty($attendanceRecord['lunch_end_time']));
+        }
+
         if (!$attendanceRecord) {
             $response['data'] = 'not_checked_in';
         } elseif ($attendanceRecord['check_in_time'] && !$attendanceRecord['check_out_time']) {
-            $response['data'] = 'checked_in';
+            $response['data'] = $isOnLunch ? 'on_lunch' : 'checked_in';
         } else {
             $response['data'] = 'checked_out';
         }
 
+        $companyRule = $this->getBranchRulesForUser((int)$user->sub);
+        $allowedLunch = $companyRule['lunch_break'] ?? '01:00:00';
+        $response['lunch'] = [
+            'allowed_lunch'          => $allowedLunch,
+            'lunch_start_time'       => $attendanceRecord['lunch_start_time'] ?? null,
+            'lunch_end_time'         => $attendanceRecord['lunch_end_time'] ?? null,
+            'lunch_duration'         => $attendanceRecord['lunch_duration'] ?? null,
+            'lunch_duration_seconds' => (int)($attendanceRecord['lunch_duration_seconds'] ?? 0),
+            'lunch_is_overdue'       => (int)($attendanceRecord['lunch_is_overdue'] ?? 0),
+            'lunch_overdue_minutes'  => (int)($attendanceRecord['lunch_overdue_minutes'] ?? 0),
+            'is_on_lunch'            => $isOnLunch,
+            'lunch_taken'            => $lunchTaken,
+        ];
+
         return $this->respond($response);
+    }
+
+    /**
+     * Start single lunch break for today
+     */
+    public function lunchStart()
+    {
+        date_default_timezone_set('Asia/Kolkata');
+
+        $user = $this->authService->check();
+        if (!$user) {
+            return $this->respond(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        if (!in_array($user->role, ['hr', 'branch_admin', 'department_manager', 'employee'])) {
+            return $this->respond(['status' => 'error', 'message' => 'Access denied for this role'], 403);
+        }
+
+        $date = date('Y-m-d');
+        $currentTime = date('H:i:s');
+
+        // Find today's active attendance session (checked in, not checked out)
+        $activeAttendance = $this->attendanceModel
+            ->where('user_id', $user->sub)
+            ->where('date', $date)
+            ->where('check_out_time', null)
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        if (!$activeAttendance) {
+            return $this->respond(['status' => 'error', 'message' => 'Please check in before taking a lunch break.'], 400);
+        }
+
+        // Single lunch break rule: Check if lunch was already started or completed
+        if (!empty($activeAttendance['lunch_start_time'])) {
+            if (empty($activeAttendance['lunch_end_time'])) {
+                return $this->respond(['status' => 'error', 'message' => 'You are already on lunch break.'], 400);
+            }
+            return $this->respond(['status' => 'error', 'message' => 'Single lunch break allowed. You have already taken your lunch break today.'], 400);
+        }
+
+        $updateData = [
+            'lunch_start_time' => $currentTime,
+            'lunch_end_time'   => null,
+        ];
+
+        if ($this->attendanceModel->update($activeAttendance['id'], $updateData)) {
+            return $this->respond([
+                'status'           => 'success',
+                'message'          => 'Lunch break started at ' . date('h:i A', strtotime($currentTime)),
+                'lunch_start_time' => $currentTime
+            ]);
+        }
+
+        return $this->respond(['status' => 'error', 'message' => 'Failed to start lunch break.'], 500);
+    }
+
+    /**
+     * End single lunch break and resume work
+     */
+    public function lunchEnd()
+    {
+        date_default_timezone_set('Asia/Kolkata');
+
+        $user = $this->authService->check();
+        if (!$user) {
+            return $this->respond(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        if (!in_array($user->role, ['hr', 'branch_admin', 'department_manager', 'employee'])) {
+            return $this->respond(['status' => 'error', 'message' => 'Access denied for this role'], 403);
+        }
+
+        $date = date('Y-m-d');
+        $currentTime = date('H:i:s');
+
+        $activeAttendance = $this->attendanceModel
+            ->where('user_id', $user->sub)
+            ->where('date', $date)
+            ->where('check_out_time', null)
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        if (!$activeAttendance || empty($activeAttendance['lunch_start_time']) || !empty($activeAttendance['lunch_end_time'])) {
+            return $this->respond(['status' => 'error', 'message' => 'No active lunch break found to resume from.'], 400);
+        }
+
+        $startTimeStr = $activeAttendance['lunch_start_time'];
+        $startSec = strtotime($date . ' ' . $startTimeStr);
+        $endSec   = strtotime($date . ' ' . $currentTime);
+        $durationSeconds = max(0, $endSec - $startSec);
+
+        $durationFormatted = sprintf(
+            '%02d:%02d:%02d',
+            floor($durationSeconds / 3600),
+            floor(($durationSeconds % 3600) / 60),
+            $durationSeconds % 60
+        );
+
+        // Punctuality check against allowed duration in branch rules
+        $companyRule = $this->getBranchRulesForUser((int)$user->sub);
+        $allowedLunchStr = $companyRule['lunch_break'] ?? '01:00:00';
+        $allowedParts = explode(':', $allowedLunchStr);
+        $allowedSeconds = ((int)($allowedParts[0] ?? 1) * 3600) + ((int)($allowedParts[1] ?? 0) * 60) + ((int)($allowedParts[2] ?? 0));
+        $graceMinutes = (int)($companyRule['grace_minutes'] ?? $companyRule['grace_period'] ?? 5);
+        $graceSeconds = $graceMinutes * 60;
+
+        $isOverdue = 0;
+        $overdueMinutes = 0;
+        if ($durationSeconds > ($allowedSeconds + $graceSeconds)) {
+            $isOverdue = 1;
+            $overdueMinutes = ceil(($durationSeconds - $allowedSeconds) / 60);
+        }
+
+        $updateData = [
+            'lunch_end_time'         => $currentTime,
+            'lunch_duration'         => $durationFormatted,
+            'lunch_duration_seconds' => $durationSeconds,
+            'lunch_is_overdue'       => $isOverdue,
+            'lunch_overdue_minutes'  => $overdueMinutes,
+            'meal_break'             => $durationFormatted, // Keeps legacy calculation in sync with exact actual break!
+        ];
+
+        if ($this->attendanceModel->update($activeAttendance['id'], $updateData)) {
+            $msg = 'Lunch break ended. Duration: ' . floor($durationSeconds / 60) . ' mins.';
+            if ($isOverdue) {
+                $msg .= ' (Exceeded allowed time by ' . $overdueMinutes . ' mins).';
+            }
+            return $this->respond([
+                'status'                 => 'success',
+                'message'                => $msg,
+                'lunch_duration'         => $durationFormatted,
+                'lunch_duration_minutes' => floor($durationSeconds / 60),
+                'is_overdue'             => (bool)$isOverdue,
+                'overdue_minutes'        => $overdueMinutes
+            ]);
+        }
+
+        return $this->respond(['status' => 'error', 'message' => 'Failed to end lunch break.'], 500);
     }
 
     public function checkIn()
@@ -774,6 +934,29 @@ class AttendanceController extends ResourceController
         // Load branch rules for calculateDayStatus
         $companyRule = $this->getBranchRulesForUser((int)$user->sub);
 
+        // Auto-close lunch break if employee is still on lunch when checking out
+        $lunchAutoClosed = false;
+        if (!empty($latestAttendance['lunch_start_time']) && empty($latestAttendance['lunch_end_time'])) {
+            $lStartSec = strtotime($date . ' ' . $latestAttendance['lunch_start_time']);
+            $lEndSec   = strtotime($date . ' ' . $checkOutTimeOnly);
+            $lDurationSec = max(0, $lEndSec - $lStartSec);
+            $lDurationFormatted = sprintf('%02d:%02d:%02d', floor($lDurationSec / 3600), floor(($lDurationSec % 3600) / 60), $lDurationSec % 60);
+
+            $allowedLunchParts = explode(':', $companyRule['lunch_break'] ?? '01:00:00');
+            $allowedSec = ((int)($allowedLunchParts[0] ?? 1) * 3600) + ((int)($allowedLunchParts[1] ?? 0) * 60) + ((int)($allowedLunchParts[2] ?? 0));
+            $graceSec = ((int)($companyRule['grace_minutes'] ?? $companyRule['grace_period'] ?? 5)) * 60;
+            $isOverdue = ($lDurationSec > ($allowedSec + $graceSec)) ? 1 : 0;
+            $overdueMins = $isOverdue ? ceil(($lDurationSec - $allowedSec) / 60) : 0;
+
+            $latestAttendance['lunch_end_time'] = $checkOutTimeOnly;
+            $latestAttendance['lunch_duration'] = $lDurationFormatted;
+            $latestAttendance['lunch_duration_seconds'] = $lDurationSec;
+            $latestAttendance['lunch_is_overdue'] = $isOverdue;
+            $latestAttendance['lunch_overdue_minutes'] = $overdueMins;
+            $latestAttendance['meal_break'] = $lDurationFormatted;
+            $lunchAutoClosed = true;
+        }
+
         // Calculate status over the full day window
         $dayCalc = $this->calculateDayStatus(
             $date,
@@ -880,6 +1063,14 @@ class AttendanceController extends ResourceController
             'check_out_location_name'   => $coLocationName,
             'check_out_location_status' => $coLocationStatus,
         ];
+
+        if ($lunchAutoClosed) {
+            $data['lunch_end_time']         = $latestAttendance['lunch_end_time'];
+            $data['lunch_duration']         = $latestAttendance['lunch_duration'];
+            $data['lunch_duration_seconds'] = $latestAttendance['lunch_duration_seconds'];
+            $data['lunch_is_overdue']       = $latestAttendance['lunch_is_overdue'];
+            $data['lunch_overdue_minutes']  = $latestAttendance['lunch_overdue_minutes'];
+        }
 
         if ($this->attendanceModel->update($latestAttendance['id'], $data)) {
             // Wrap push notification in try-catch so a VAPID/encryption failure
@@ -1491,6 +1682,12 @@ class AttendanceController extends ResourceController
                     'status'                     => $computedStatus,
                     'is_late'                    => $isLateCalc,
                     'late_minutes'               => $lateMinutesCalc,
+                    'lunch_start_time'           => $baseRec['lunch_start_time'] ?? ($first['lunch_start_time'] ?? null),
+                    'lunch_end_time'             => $baseRec['lunch_end_time'] ?? ($first['lunch_end_time'] ?? null),
+                    'lunch_duration'             => $baseRec['lunch_duration'] ?? ($first['lunch_duration'] ?? null),
+                    'lunch_duration_seconds'     => $baseRec['lunch_duration_seconds'] ?? ($first['lunch_duration_seconds'] ?? 0),
+                    'lunch_is_overdue'           => $baseRec['lunch_is_overdue'] ?? ($first['lunch_is_overdue'] ?? 0),
+                    'lunch_overdue_minutes'      => $baseRec['lunch_overdue_minutes'] ?? ($first['lunch_overdue_minutes'] ?? 0),
                     // ── First check-in location (new column names) ───────
                     'check_in_ip_address'        => $first['check_in_ip_address'] ?? ($first['ip_address'] ?? null),
                     'check_in_latitude'          => $first['check_in_latitude']   ?? ($first['latitude']   ?? null),

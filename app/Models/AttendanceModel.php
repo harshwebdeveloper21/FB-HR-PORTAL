@@ -10,6 +10,7 @@ class AttendanceModel extends Model
     protected $primaryKey = 'id';
     protected $allowedFields = [
         'user_id', 'date', 'check_in_time', 'check_out_time', 'meal_break', 'work_hours', 'overtime',
+        'lunch_start_time', 'lunch_end_time', 'lunch_duration', 'lunch_duration_seconds', 'lunch_is_overdue', 'lunch_overdue_minutes',
         'created_at', 'updated_at', 'status', 'checkin_method', 'is_late', 'late_minutes',
         // Check-in location (old column names – kept for legacy rows)
         'ip_address', 'device_info', 'latitude', 'longitude', 'location_address',

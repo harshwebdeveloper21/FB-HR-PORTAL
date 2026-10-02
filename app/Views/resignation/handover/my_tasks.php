@@ -52,9 +52,6 @@
             </tr>
           </thead>
           <tbody>
-            <?php if (empty($tasks)): ?>
-            <tr><td colspan="7" class="text-center py-4">No pending handover tasks.</td></tr>
-            <?php else: ?>
             <?php foreach ($tasks as $t): ?>
             <tr>
               <td class="fw-bold"><?= esc($t['task']) ?></td>
@@ -82,7 +79,6 @@
               </td>
             </tr>
             <?php endforeach; ?>
-            <?php endif; ?>
           </tbody>
         </table>
       </div>
@@ -149,7 +145,10 @@ $(document).ready(function() {
         "paging": false,
         "searching": false,
         "info": false,
-        "ordering": false
+        "ordering": false,
+        "language": {
+            "emptyTable": "No pending handover tasks."
+        }
     });
 });
 

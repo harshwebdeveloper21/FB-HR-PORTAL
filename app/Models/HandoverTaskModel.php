@@ -14,10 +14,16 @@ class HandoverTaskModel extends Model {
     }
     public function getPendingForUser(int $userId): array {
         return $this->db->table("handover_tasks h")
-            ->select('h.*, r.id as resignation_id, CONCAT(ui.firstname," ",ui.lastname) as from_employee')
+            ->select('h.*, r.id as resignation_id, CONCAT(ui.firstname," ",ui.lastname) as from_employee, CONCAT(ui2.firstname," ",ui2.lastname) as handover_to_name')
             ->join("resignations r","r.id = h.resignation_id","left")
             ->join("user_info ui","ui.user_id = r.employee_id","left")
-            ->where("h.handover_to",$userId)->whereIn("h.status",["pending","accepted"])->get()->getResultArray();
+            ->join("user_info ui2","ui2.user_id = h.handover_to","left")
+            ->groupStart()
+                ->where("h.handover_to",$userId)
+                ->orWhere("r.employee_id",$userId)
+            ->groupEnd()
+            ->whereIn("h.status",["pending","accepted"])
+            ->get()->getResultArray();
     }
     public function getAllPending(?int $branchId = null): array {
         $builder = $this->db->table("handover_tasks h")

@@ -23,10 +23,10 @@
   </div>
 
   <div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
+    <div class="card-body p-4">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead style="background:#1F2937;color:#fff;">
+        <table class="table table-striped w-100" id="managerResTable">
+          <thead class="table-light">
             <tr>
               <th class="py-3 px-4">Employee</th>
               <th>Resignation Date</th>
@@ -36,9 +36,6 @@
             </tr>
           </thead>
           <tbody>
-            <?php if (empty($all)): ?>
-            <tr><td colspan="5" class="text-center py-5 text-muted">No resignations assigned to you.</td></tr>
-            <?php else: ?>
             <?php foreach ($all as $r): ?>
             <tr>
               <td class="px-4">
@@ -50,25 +47,23 @@
               <td><span class="status-badge s-<?= $r['status'] ?>"><?= $r['status'] === 'submitted' ? 'Pending' : ucfirst(str_replace('_',' ',$r['status'])) ?></span></td>
               <td>
                 <?php if ($r['status'] === 'submitted'): ?>
-                <button class="btn btn-sm btn-outline-info me-1" onclick="openViewModal(`<?= htmlspecialchars($r['employee_name']) ?>`, `<?= htmlspecialchars($r['resignation_date']) ?>`, `<?= htmlspecialchars($r['requested_lwd'] ?? 'TBD') ?>`, `<?= htmlspecialchars(nl2br($r['reason'] ?? '')) ?>`)">
-                  <i class="mdi mdi-eye"></i> View
-                </button>
-                <button class="btn btn-sm btn-outline-success me-1" onclick="openActionModal(<?= $r['id'] ?>, 'approve')">
-                  <i class="mdi mdi-check"></i> Approve
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="openActionModal(<?= $r['id'] ?>, 'reject')">
-                  <i class="mdi mdi-close"></i> Reject
-                </button>
+                <a href="javascript:void(0)" class="text-primary text-decoration-none me-2" title="View" onclick="openViewModal(`<?= htmlspecialchars($r['employee_name']) ?>`, `<?= htmlspecialchars($r['resignation_date']) ?>`, `<?= htmlspecialchars($r['requested_lwd'] ?? 'TBD') ?>`, `<?= htmlspecialchars(nl2br($r['reason'] ?? '')) ?>`)">
+                  <i class="mdi mdi-eye" style="font-size: 22px;"></i>
+                </a>
+                <a href="javascript:void(0)" class="text-success text-decoration-none me-2" title="Approve" onclick="openActionModal(<?= $r['id'] ?>, 'approve')">
+                  <i class="mdi mdi-check-circle" style="font-size: 22px;"></i>
+                </a>
+                <a href="javascript:void(0)" class="text-danger text-decoration-none" title="Reject" onclick="openActionModal(<?= $r['id'] ?>, 'reject')">
+                  <i class="mdi mdi-close-circle" style="font-size: 22px;"></i>
+                </a>
                 <?php else: ?>
-                <button class="btn btn-sm btn-outline-info me-1" onclick="openViewModal(`<?= htmlspecialchars($r['employee_name']) ?>`, `<?= htmlspecialchars($r['resignation_date']) ?>`, `<?= htmlspecialchars($r['requested_lwd'] ?? 'TBD') ?>`, `<?= htmlspecialchars(nl2br($r['reason'] ?? '')) ?>`)">
-                  <i class="mdi mdi-eye"></i> View
-                </button>
-                <span class="text-muted small"><?= ucfirst(str_replace('_',' ',$r['status'])) ?></span>
+                <a href="javascript:void(0)" class="text-primary text-decoration-none me-2" title="View" onclick="openViewModal(`<?= htmlspecialchars($r['employee_name']) ?>`, `<?= htmlspecialchars($r['resignation_date']) ?>`, `<?= htmlspecialchars($r['requested_lwd'] ?? 'TBD') ?>`, `<?= htmlspecialchars(nl2br($r['reason'] ?? '')) ?>`)">
+                  <i class="mdi mdi-eye" style="font-size: 22px;"></i>
+                </a>
                 <?php endif; ?>
               </td>
             </tr>
             <?php endforeach; ?>
-            <?php endif; ?>
           </tbody>
         </table>
       </div>
@@ -128,6 +123,14 @@
 
 <?= $this->section('scripts') ?>
 <script>
+$(document).ready(function() {
+    $('#managerResTable').DataTable({
+        "language": {
+            "emptyTable": "No resignations assigned to you."
+        }
+    });
+});
+
 function openActionModal(id, action) {
   document.getElementById('actionInput').value = action;
   document.getElementById('actionModalTitle').textContent = action === 'approve' ? '✅ Approve Resignation' : '❌ Reject Resignation';

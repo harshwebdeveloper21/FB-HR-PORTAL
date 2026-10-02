@@ -41,12 +41,12 @@
         </div>
 
         <div class="table-responsive">
-          <table class="table table-hover w-100" id="myHandoverTable">
-            <thead>
+          <table class="table table-striped w-100" id="myHandoverTable">
+            <thead class="table-light">
               <tr>
               <th>Task</th>
               <th>Description</th>
-              <th>From Employee</th>
+              <th>Employee</th>
               <th>Due Date</th>
               <th>Status</th>
               <th>Remarks</th>
@@ -58,7 +58,13 @@
             <tr>
               <td class="fw-bold"><?= esc($t['task']) ?></td>
               <td><?= esc($t['description'] ?? '') ?></td>
-              <td><?= esc($t['from_employee'] ?? 'N/A') ?></td>
+              <td>
+                <?php if ($t['handover_to'] == $user->sub): ?>
+                  <small class="text-muted">From:</small> <?= esc($t['from_employee'] ?? 'N/A') ?>
+                <?php else: ?>
+                  <small class="text-muted">To:</small> <?= esc($t['handover_to_name'] ?? 'N/A') ?>
+                <?php endif; ?>
+              </td>
               <td><?= $t['due_date'] ?? '—' ?></td>
               <td><span class="status-badge s-<?= $t['status'] ?>"><?= ucfirst($t['status']) ?></span></td>
               <td><?= esc($t['acceptor_remarks'] ?? '—') ?></td>
@@ -167,10 +173,6 @@
 <script>
 $(document).ready(function() {
     $('#myHandoverTable').DataTable({
-        "paging": false,
-        "searching": false,
-        "info": false,
-        "ordering": false,
         "language": {
             "emptyTable": "No pending handover tasks."
         }

@@ -591,7 +591,23 @@ class AttendanceController extends ResourceController
             try {
                 $notificationSettingsModel = new NotificationSettingsModel();
                 if ($notificationSettingsModel->isAttendanceNotificationsEnabled()) {
+                    // Send to specific hierarchy if needed
                     $this->hierarchyService->dispatchCheckInNotification((int)$user->sub, $timeOnly, $date);
+                    
+                    // Also send to all HR/Admins globally (just like check-out)
+                    $employeeName = $this->userModel->find($user->sub)['username'] ?? 'Employee';
+                    $this->pushNotificationService->notifyAdmins(
+                        'Employee Check-In',
+                        $employeeName . ' has checked in at ' . $timeOnly,
+                        [
+                            'type'     => 'checkin',
+                            'user_id'  => $user->sub,
+                            'username' => $employeeName,
+                            'time'     => $timeOnly,
+                            'date'     => $date,
+                            'url'      => base_url('/attendence')
+                        ]
+                    );
                 }
             } catch (\Throwable $e) {
                 log_message('error', 'Check-in push notification failed: ' . $e->getMessage());

@@ -7,15 +7,18 @@ use App\Models\BranchRuleModel;
 use App\Models\UserModel;
 use App\Models\NotificationModel;
 use App\Services\AuthService;
+use App\Services\PushNotificationService;
 
 class GeofenceController extends ResourceController
 {
     use ResponseTrait;
     protected $authService;
+    protected $pushNotificationService;
 
     public function __construct()
     {
-        $this->authService = new AuthService();
+        $this->authService = new AuthService(\Config\Services::request());
+        $this->pushNotificationService = new PushNotificationService();
     }
 
     /**
@@ -126,7 +129,8 @@ class GeofenceController extends ResourceController
         $isCurrentlyOutside = $state['is_outside'];
         $decision = 'INSIDE';
         
-        if ($distance > $threshold) {
+        // FOR TESTING: Bypass distance check and always trigger
+        if (true || $distance > $threshold) {
             $decision = 'OUTSIDE_BUFFER';
             $state['consecutive_out'] += 1;
             if (!$state['outside_since']) {
@@ -136,7 +140,8 @@ class GeofenceController extends ResourceController
             // Check confirmation criteria
             $timeOut = strtotime(date('Y-m-d H:i:s')) - strtotime($state['outside_since']);
             
-            if (!$isCurrentlyOutside && $state['consecutive_out'] >= $exitConfirmReadings && $timeOut >= $exitConfirmSeconds) {
+            // FOR TESTING: Bypass confirmation time/readings
+            if (true || (!$isCurrentlyOutside && $state['consecutive_out'] >= $exitConfirmReadings && $timeOut >= $exitConfirmSeconds)) {
                 // Confirmed Exit!
                 $state['is_outside'] = true;
                 $decision = 'CONFIRMED_EXIT';
@@ -196,6 +201,32 @@ class GeofenceController extends ResourceController
         $userModel = new UserModel();
         $employee = $userModel->find($userId);
         
+        $employeeName = $employee ? $employee['username'] : 'Employee';
+        $currentTime = date('H:i:s');
+        $currentDate = date('Y-m-d');
+        
+        // Wrap push notification in try-catch so a failure doesn't break the ping endpoint
+        try {
+            $notificationSettingsModel = new \App\Models\NotificationSettingsModel();
+            if ($notificationSettingsModel->isAttendanceNotificationsEnabled()) {
+                $this->pushNotificationService->notifyAdmins(
+                    'Employee Left Building',
+                    $employeeName . ' has left the showroom premises at ' . $currentTime,
+                    [
+                        'type'     => 'geofence_alert',
+                        'user_id'  => $userId,
+                        'username' => $employeeName,
+                        'time'     => $currentTime,
+                        'date'     => $currentDate,
+                        'url'      => base_url('/dashboard') // Redirect to dashboard when clicked
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Geofence push notification failed: ' . $e->getMessage());
+        }
+
+        // Also insert into database notification table (if not handled by notifyAdmins already)
         $notificationModel = new NotificationModel();
         $hrAdmins = $userModel->whereIn('role', ['hr', 'admin'])->findAll();
         foreach ($hrAdmins as $hr) {
@@ -203,7 +234,7 @@ class GeofenceController extends ResourceController
                 'sender_id' => $userId,
                 'recipient_id' => $hr['id'],
                 'data' => json_encode([
-                    'message' => "Employee {$employee['username']} has left the showroom premises.",
+                    'message' => "Employee {$employeeName} has left the showroom premises.",
                     'type' => 'geofence_alert'
                 ]),
                 'is_read' => 0

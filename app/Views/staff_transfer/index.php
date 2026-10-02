@@ -345,12 +345,14 @@ $(document).on('change', '#staffSelect', function() {
                 $(this).prop('disabled', false);
             }
         });
-        $('#toBranchSelect').select2({
-            placeholder: 'Select target branch',
-            allowClear: true,
-            width: '100%',
-            dropdownParent: $('#transferModal')
-        });
+        if (typeof jQuery !== 'undefined' && jQuery.fn.select2) {
+            $('#toBranchSelect').select2({
+                placeholder: 'Select target branch',
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $('#transferModal')
+            });
+        }
     } else {
         document.getElementById('currentBranch').textContent = '';
         $('#toBranchSelect option').prop('disabled', false);
@@ -433,68 +435,7 @@ document.getElementById('transferForm').addEventListener('submit', async functio
     btn.innerHTML = '<i class="mdi mdi-swap-horizontal me-1"></i>Transfer Staff';
 });
 
-// Export functionality
-document.getElementById('btnExportTransfers').addEventListener('click', function() {
-    const btn = this;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Exporting...';
-    
-    const search = $('#transfers-Table_filter input').val() || '';
-    const filterBranchId = $('#filterBranch').val();
-    const startDate = $('#filterStartDate').val();
-    const endDate = $('#filterEndDate').val();
-    
-    const queryParams = new URLSearchParams({ 
-        search: search,
-        filter_branch_id: filterBranchId,
-        start_date: startDate,
-        end_date: endDate
-    });
 
-    fetch(`/api/staff-transfer/export?${queryParams.toString()}`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(async response => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="mdi mdi-file-excel iconfontsize"></i> Export';
-        if (!response.ok) {
-            throw new Error('Export failed');
-        }
-        return response.blob();
-    })
-    .then(blob => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const dateStr = new Date().toISOString().slice(0, 10);
-        a.download = `Staff_Transfers_${dateStr}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                icon: 'success',
-                title: 'Exported!',
-                text: 'Staff transfers exported to CSV successfully.',
-                toast: true,
-                position: 'top-end',
-                timer: 3000,
-                showConfirmButton: false
-            });
-        }
-    })
-    .catch(error => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="mdi mdi-file-excel iconfontsize"></i> Export';
-        if (typeof Swal !== 'undefined') {
-            Swal.fire('Export Error', error.message || 'Failed to export transfers', 'error');
-        } else {
-            alert(error.message || 'Failed to export transfers');
-        }
-    });
-});
 
 // Reset modal alert on close
 $('#transferModal').on('hidden.bs.modal', function () {

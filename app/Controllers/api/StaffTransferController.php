@@ -125,7 +125,7 @@ class StaffTransferController extends ResourceController
         }
 
         $staff = $this->userModel->find($staffId);
-        if (!$staff || $staff['is_deleted'] || !in_array($staff['role'], ['employee', 'hr'])) {
+        if (!$staff || $staff['is_deleted']) {
             return $this->respond(['status' => 'error', 'message' => 'Staff member not found.'], 404);
         }
 
@@ -161,8 +161,7 @@ class StaffTransferController extends ResourceController
             // 1. Update user's branch
             $this->userModel->update($staffId, ['branch_id' => $toBranchId]);
 
-            // 2. Record transfer history (directly completed — no approval needed)
-            $this->transferModel->insert([
+            $insertSuccess = $this->transferModel->insert([
                 'user_id'        => $staffId,
                 'from_branch_id' => $fromBranchId,
                 'to_branch_id'   => $toBranchId,
@@ -173,10 +172,15 @@ class StaffTransferController extends ResourceController
                 'created_at'     => date('Y-m-d H:i:s'),
             ]);
 
+            if ($insertSuccess === false) {
+                log_message('error', 'Insert failed: ' . json_encode($this->transferModel->errors()));
+                log_message('error', 'DB Error: ' . json_encode($db->error()));
+            }
+
             $db->transComplete();
 
             if ($db->transStatus() === false) {
-                throw new \RuntimeException('Transaction failed.');
+                throw new \RuntimeException('Transaction failed. Insert success: ' . ($insertSuccess ? 'yes' : 'no') . ' DB Error: ' . json_encode($db->error()));
             }
 
             $this->auditLog->log($actorId, 'staff.transfer', 'StaffTransfer', $staffId,

@@ -3,7 +3,7 @@ namespace App\Controllers\api;
 
 use CodeIgniter\RESTful\ResourceController;
 use CodeIgniter\API\ResponseTrait;
-use App\Models\BranchRuleModel;
+use App\Models\BranchRulesModel;
 use App\Models\UserModel;
 use App\Models\NotificationModel;
 use App\Services\AuthService;
@@ -89,7 +89,7 @@ class GeofenceController extends ResourceController
         $branchId = $attendance['branch_id'];
         
         // Get branch rules (lat/lon/radius)
-        $branchRulesModel = new BranchRuleModel();
+        $branchRulesModel = new BranchRulesModel();
         $rules = $branchRulesModel->where('branch_id', $branchId)->first();
         
         if (!$rules || empty($rules['enable_geofencing']) || empty($rules['office_latitude'])) {

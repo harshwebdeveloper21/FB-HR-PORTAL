@@ -84,7 +84,7 @@ class BranchController extends ResourceController
 
     public function edit($id = null)
     {
-        if (!$this->requireAdmin()) {
+        if (!$this->requireAdminOrHr()) {
             return redirect()->to('/dashboard');
         }
         $branch = $this->branchModel->find($id);
@@ -224,8 +224,8 @@ class BranchController extends ResourceController
      */
     public function show($id = null)
     {
-        if (!$this->requireAdmin()) {
-            return $this->respond(['status' => 'error', 'message' => 'Admin access required.'], 403);
+        if (!$this->requireAdminOrHr()) {
+            return $this->respond(['status' => 'error', 'message' => 'Admin or HR access required.'], 403);
         }
 
         $branch = $this->branchModel->find($id);
@@ -303,9 +303,9 @@ class BranchController extends ResourceController
      */
     public function update($id = null)
     {
-        $admin = $this->requireAdmin();
+        $admin = $this->requireAdminOrHr();
         if (!$admin) {
-            return $this->respond(['status' => 'error', 'message' => 'Admin access required.'], 403);
+            return $this->respond(['status' => 'error', 'message' => 'Admin or HR access required.'], 403);
         }
 
         $branch = $this->branchModel->find($id);

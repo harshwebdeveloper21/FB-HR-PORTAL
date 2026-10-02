@@ -841,10 +841,10 @@ $branchesList = $branchModel->getActiveBranches();
                                 message = data.message;
                                 icon = 'mdi-map-marker-radius';
                                 
-                                // Show immediate popup to HR if not shown yet in this session
-                                window.shownGeofenceAlerts = window.shownGeofenceAlerts || {};
-                                if (!window.shownGeofenceAlerts[notification.id]) {
-                                    window.shownGeofenceAlerts[notification.id] = true;
+                                // Use localStorage so popup is NOT shown again after page refresh
+                                const shownKey = 'geofence_shown_' + notification.id;
+                                if (!localStorage.getItem(shownKey)) {
+                                    localStorage.setItem(shownKey, '1');
                                     setTimeout(() => {
                                         Swal.fire({
                                             icon: 'warning',
@@ -1124,6 +1124,8 @@ $branchesList = $branchModel->getActiveBranches();
         // Geofence background tracking
         window.geofenceTrackerId = null;
 
+        const GEOFENCE_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes cooldown
+
         const pingGeofenceLocation = () => {
             if (!navigator.geolocation) return;
             navigator.geolocation.getCurrentPosition(
@@ -1137,18 +1139,23 @@ $branchesList = $branchModel->getActiveBranches();
                             accuracy: pos.coords.accuracy
                         })
                     }).then(res => res.json()).then(data => {
-                        // If backend responded with alert, trigger the Swal popup
                         if (data.status === 'alert') {
-                            if (!window.shownGeofenceAlerts) window.shownGeofenceAlerts = {};
-                            if (!window.shownGeofenceAlerts['geofence_out']) {
-                                window.shownGeofenceAlerts['geofence_out'] = true;
+                            // Check 10-minute cooldown before showing popup
+                            const lastShown = parseInt(localStorage.getItem('geofence_popup_last_shown') || '0');
+                            const now = Date.now();
+                            if (now - lastShown >= GEOFENCE_COOLDOWN_MS) {
+                                localStorage.setItem('geofence_popup_last_shown', now.toString());
                                 Swal.fire({
                                     icon: 'warning',
                                     title: 'Employee Out of Bounds',
                                     text: data.message,
-                                    confirmButtonText: 'OK'
+                                    confirmButtonText: 'Acknowledge',
+                                    confirmButtonColor: '#e53e3e'
                                 });
                             }
+                        } else if (data.status === 'ok') {
+                            // Employee is back inside — reset so next exit triggers popup again
+                            localStorage.removeItem('geofence_popup_last_shown');
                         }
                     }).catch(e => console.error("Geofence ping error:", e));
                 },

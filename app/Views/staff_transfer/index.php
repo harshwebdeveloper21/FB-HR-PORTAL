@@ -81,9 +81,6 @@
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
                     <h4 class="card-title mb-0">Staff Transfers</h4>
                     <div class="d-flex flex-wrap gap-2">
-                        <button type="button" id="btnExportTransfers" class="btn hr-btnbg attendenceall text-nowrap">
-                            <i class="mdi mdi-file-excel iconfontsize"></i> Export
-                        </button>
                         <button type="button" class="btn hr-btnbg attendenceall text-nowrap" data-bs-toggle="modal" data-bs-target="#transferModal">
                             <i class="mdi mdi-plus iconfontsize"></i> Transfer Staff
                         </button>

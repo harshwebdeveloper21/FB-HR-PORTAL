@@ -42,13 +42,13 @@ class StaffTransferController extends ResourceController
 
     private function canTransfer(object $user): bool
     {
+        // Admin always can transfer
         if ($user->role === 'admin') {
             return true;
         }
+        // All HR can access staff transfer
         if ($user->role === 'hr') {
-            $userId = $user->sub ?? $user->id ?? null;
-            $row = $this->userModel->find($userId);
-            return !empty($row['can_transfer_staff']) && $row['can_transfer_staff'] == 1;
+            return true;
         }
         return false;
     }

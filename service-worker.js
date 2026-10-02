@@ -44,11 +44,31 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+  // Only handle http and https requests (skip chrome-extension://, etc.)
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
+  // Only handle GET requests with cache fallback
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request);
+        if (response) {
+          return response;
+        }
+        return fetch(event.request).catch((error) => {
+          console.warn('Fetch failed for:', event.request.url, error);
+          // Return a simple offline fallback or propagate the error gracefully
+          return new Response('Network error occurred. Please check your connection.', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({ 'Content-Type': 'text/plain' })
+          });
+        });
       })
   );
 });

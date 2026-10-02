@@ -106,7 +106,7 @@ class BranchController extends ResourceController
             }
         }
 
-        return view('branches/form', ['branch' => $branch]);
+        return view('branches/form', ['branch' => $branch, 'rules' => $rules]);
     }
 
     public function assignManagerPage($id = null)
@@ -347,6 +347,7 @@ class BranchController extends ResourceController
             'office_longitude' => !empty($updateData['longitude']) ? (string)$updateData['longitude'] : null,
             'office_radius'    => isset($updateData['radius']) && $updateData['radius'] !== '' ? (int)$updateData['radius'] : 100,
         ];
+
         if (!empty($updateData['latitude']) && !empty($updateData['longitude'])) {
             $ruleUpdate['enable_geofencing'] = 1;
         }

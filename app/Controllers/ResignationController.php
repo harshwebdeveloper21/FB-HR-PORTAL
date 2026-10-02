@@ -184,8 +184,9 @@ class ResignationController extends BaseController
 
         $resignationId = (int)$this->request->getPost('resignation_id');
         $r = $this->resignationModel->find($resignationId);
-        if (!$r || (int)$r['employee_id'] !== (int)$user->sub) {
-            return $this->json(['status' => 'error', 'message' => 'Not found'], 404);
+        $isAdminHr = in_array($user->role, ['admin', 'hr', 'branch_admin', 'department_manager']);
+        if (!$r || (!$isAdminHr && (int)$r['employee_id'] !== (int)$user->sub)) {
+            return $this->json(['status' => 'error', 'message' => 'Not found or Access Denied'], 404);
         }
 
         $taskId = $this->handoverModel->insert([
@@ -222,24 +223,52 @@ class ResignationController extends BaseController
         $this->auditModel->log($task['resignation_id'], $user->sub, "handover_task_{$newStatus}", '', '', $remarks);
 
         // All tasks done → move to clearance
+        $advanced = false;
         if ($newStatus === 'completed' && $this->handoverModel->allCompleted($task['resignation_id'])) {
             $this->resignationModel->update($task['resignation_id'], ['status' => 'clearance']);
             $this->clearanceModel->createDefaults($task['resignation_id']);
             $this->auditModel->log($task['resignation_id'], $user->sub, 'advanced_to_clearance', 'handover', 'clearance');
+            $advanced = true;
         }
 
-        return $this->json(['status' => 'success', 'message' => 'Task updated.']);
+        return $this->json(['status' => 'success', 'message' => 'Task updated.', 'advanced_to_clearance' => $advanced]);
     }
 
-    /** GET /resignation/my-handover — tasks receiver needs to accept/complete */
     public function myHandoverTasks()
     {
         $user = $this->authUser();
         if (!$user) return redirect()->to('/login');
 
+        $activeResignations = [];
+        $employees = [];
+
+        if ($user->role === 'admin') {
+            $tasks = $this->handoverModel->getAllPending();
+            $employees = $this->userModel->where('is_deleted', 0)->findAll();
+            $activeResignations = \Config\Database::connect()->table('resignations r')
+                ->select('r.id, CONCAT(ui.firstname, " ", ui.lastname) as emp_name')
+                ->join('user_info ui', 'ui.user_id = r.employee_id')
+                ->where('r.status', 'notice_period')
+                ->get()->getResultArray();
+        } elseif ($user->role === 'hr') {
+            $tasks = $this->handoverModel->getAllPending($this->authService->getBranchId());
+            $employees = $this->userModel->where('is_deleted', 0)->where('branch_id', $this->authService->getBranchId())->findAll();
+            $activeResignations = \Config\Database::connect()->table('resignations r')
+                ->select('r.id, CONCAT(ui.firstname, " ", ui.lastname) as emp_name')
+                ->join('users u', 'u.id = r.employee_id')
+                ->join('user_info ui', 'ui.user_id = r.employee_id')
+                ->where('r.status', 'notice_period')
+                ->where('u.branch_id', $this->authService->getBranchId())
+                ->get()->getResultArray();
+        } else {
+            $tasks = $this->handoverModel->getPendingForUser($user->sub);
+        }
+
         return view('resignation/handover/my_tasks', [
-            'user'  => $user,
-            'tasks' => $this->handoverModel->getPendingForUser($user->sub),
+            'user'               => $user,
+            'tasks'              => $tasks,
+            'employees'          => $employees,
+            'activeResignations' => $activeResignations,
         ]);
     }
 
@@ -374,6 +403,7 @@ class ResignationController extends BaseController
             ]);
             $this->auditModel->log($id, $user->sub, 'hr_approved', 'manager_approved', 'notice_period', $remarks);
             $msg = 'Approved by HR. Notice period started.';
+            return redirect()->to("/resignation/handover/{$id}")->with('success', $msg);
         } else {
             $this->resignationModel->update($id, [
                 'status'       => 'hr_rejected',

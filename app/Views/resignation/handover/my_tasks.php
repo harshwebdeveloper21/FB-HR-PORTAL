@@ -18,61 +18,141 @@
     <div class="alert alert-danger alert-dismissible fade show"><i class="mdi mdi-alert me-2"></i><?= session()->getFlashdata('error') ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
   <?php endif; ?>
 
-  <div class="d-flex align-items-center justify-content-between mb-4">
-    <div class="d-flex align-items-center gap-3">
-      <h4 class="mb-0 fw-bold"><i class="mdi mdi-swap-horizontal me-2" style="color:#E66136"></i>My Handover Tasks</h4>
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h4 class="card-title mb-1">
+              <i class="mdi mdi-swap-horizontal text-primary me-2"></i>My Handover Tasks
+            </h4>
+            <p class="text-muted mb-0">View and manage handover tasks assigned to you or across the company.</p>
+          </div>
+          <div class="d-flex gap-2">
+            <?php if (in_array($user->role, ['hr', 'admin', 'branch_admin'])): ?>
+            <button class="btn hr-btnbg" data-bs-toggle="modal" data-bs-target="#addTaskModal">
+              <i class="mdi mdi-plus me-1"></i> Add Task
+            </button>
+            <?php endif; ?>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover w-100" id="myHandoverTable">
+            <thead>
+              <tr>
+              <th>Task</th>
+              <th>Description</th>
+              <th>From Employee</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Remarks</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if (empty($tasks)): ?>
+            <tr><td colspan="7" class="text-center py-4">No pending handover tasks.</td></tr>
+            <?php else: ?>
+            <?php foreach ($tasks as $t): ?>
+            <tr>
+              <td class="fw-bold"><?= esc($t['task']) ?></td>
+              <td><?= esc($t['description'] ?? '') ?></td>
+              <td><?= esc($t['from_employee'] ?? 'N/A') ?></td>
+              <td><?= $t['due_date'] ?? '—' ?></td>
+              <td><span class="status-badge s-<?= $t['status'] ?>"><?= ucfirst($t['status']) ?></span></td>
+              <td><?= esc($t['acceptor_remarks'] ?? '—') ?></td>
+              <td>
+                <div class="d-flex gap-2">
+                  <?php if ($t['status'] === 'pending' && $t['handover_to'] == $user->sub): ?>
+                    <button class="btn btn-sm btn-outline-primary task-action-btn" data-id="<?= $t['id'] ?>" data-status="accepted">
+                      <i class="mdi mdi-thumb-up me-1"></i>Accept
+                    </button>
+                  <?php endif; ?>
+                  
+                  <?php if (in_array($user->role, ['admin','hr','branch_admin']) || $t['handover_to'] == $user->sub): ?>
+                    <?php if ($t['status'] === 'accepted' || $t['status'] === 'pending'): ?>
+                      <button class="btn btn-sm btn-outline-success task-action-btn" data-id="<?= $t['id'] ?>" data-status="completed">
+                        <i class="mdi mdi-check-all me-1"></i>Approve & Complete
+                      </button>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                </div>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
-
-  <div class="row g-3">
-    <?php if (empty($tasks)): ?>
-    <div class="col-12">
-      <div class="text-center py-5">
-        <i class="mdi mdi-clipboard-check-outline" style="font-size:3rem;color:#D1D5DB;"></i>
-        <p class="mt-2 text-muted">You have no pending handover tasks assigned to you.</p>
-      </div>
-    </div>
-    <?php else: ?>
-    <?php foreach ($tasks as $t): ?>
-    <div class="col-md-6">
-      <div class="task-card">
-        <div class="d-flex justify-content-between align-items-start">
-          <h6 class="fw-bold mb-1"><?= esc($t['task']) ?></h6>
-          <span class="status-badge s-<?= $t['status'] ?>"><?= ucfirst($t['status']) ?></span>
-        </div>
-        <p class="text-muted small mb-2"><?= esc($t['description'] ?? '') ?></p>
-        <div class="d-flex flex-column gap-1 small mb-2">
-          <span><i class="mdi mdi-account-arrow-left text-primary me-1"></i><strong>From:</strong> <?= esc($t['from_employee'] ?? 'N/A') ?></span>
-          <span><i class="mdi mdi-calendar text-warning me-1"></i><strong>Due:</strong> <?= $t['due_date'] ?? '—' ?></span>
-        </div>
-        
-        <?php if ($t['acceptor_remarks']): ?>
-          <p class="small text-muted mt-2 mb-0 border-top pt-2"><em>Your remarks: "<?= esc($t['acceptor_remarks']) ?>"</em></p>
-        <?php endif; ?>
-        
-        <!-- Action Buttons -->
-        <?php if ($t['status'] === 'pending'): ?>
-        <div class="mt-3 pt-2 border-top d-flex gap-2">
-          <button class="btn btn-sm btn-outline-primary task-action-btn" data-id="<?= $t['id'] ?>" data-status="accepted">
-            <i class="mdi mdi-thumb-up me-1"></i>Accept Task
-          </button>
-        </div>
-        <?php elseif ($t['status'] === 'accepted'): ?>
-        <div class="mt-3 pt-2 border-top d-flex gap-2">
-          <button class="btn btn-sm btn-outline-success task-action-btn" data-id="<?= $t['id'] ?>" data-status="completed">
-            <i class="mdi mdi-check-all me-1"></i>Mark Completed
-          </button>
-        </div>
-        <?php endif; ?>
-      </div>
-    </div>
-    <?php endforeach; ?>
-    <?php endif; ?>
   </div>
 </div>
+</div>
+
+<?php if (in_array($user->role, ['hr', 'admin', 'branch_admin'])): ?>
+<!-- Add Task Modal -->
+<div class="modal fade" id="addTaskModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#E66136;">
+        <h5 class="modal-title text-white"><i class="mdi mdi-plus-circle me-2"></i>Add Handover Task</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Resigning Employee <span class="text-danger">*</span></label>
+          <select id="resignationId" class="form-select">
+            <option value="">— Select Employee —</option>
+            <?php foreach ($activeResignations as $r): ?>
+            <option value="<?= $r['id'] ?>"><?= esc($r['emp_name']) ?> (Resignation #<?= $r['id'] ?>)</option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Task Name <span class="text-danger">*</span></label>
+          <input type="text" id="taskName" class="form-control" placeholder="e.g. Hand over project files">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Description</label>
+          <textarea id="taskDesc" class="form-control" rows="3" placeholder="Details..."></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Handover To <span class="text-danger">*</span></label>
+          <select id="handoverTo" class="form-select">
+            <option value="">— Select Employee —</option>
+            <?php foreach ($employees as $e): ?>
+            <option value="<?= $e['id'] ?>"><?= esc($e['username'] ?? 'User #'.$e['id']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Due Date</label>
+          <input type="date" id="dueDate" class="form-control">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="addTaskBtn" class="btn fw-bold" style="background:#E66136;color:#fff;">Add Task</button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <?= $this->section('scripts') ?>
 <script>
+$(document).ready(function() {
+    $('#myHandoverTable').DataTable({
+        "paging": false,
+        "searching": false,
+        "info": false,
+        "ordering": false
+    });
+});
+
 document.querySelectorAll('.task-action-btn').forEach(btn => {
   btn.addEventListener('click', function() {
     const id     = this.dataset.id;
@@ -95,6 +175,38 @@ document.querySelectorAll('.task-action-btn').forEach(btn => {
       if (res.status === 'success') { location.reload(); }
       else { alert(res.message); }
     });
+  });
+});
+
+document.getElementById('addTaskBtn')?.addEventListener('click', function() {
+  const resignationId = document.getElementById('resignationId').value;
+  const taskName = document.getElementById('taskName').value.trim();
+  const handoverTo = document.getElementById('handoverTo').value;
+
+  if (!resignationId) return alert('Please select a resigning employee.');
+  if (!taskName) return alert('Task Name is required.');
+  if (!handoverTo) return alert('Please select an employee to handover to.');
+
+  const data = new FormData();
+  data.append('resignation_id', resignationId);
+  data.append('task', taskName);
+  data.append('description', document.getElementById('taskDesc').value.trim());
+  data.append('handover_to', handoverTo);
+  data.append('due_date', document.getElementById('dueDate').value);
+
+  this.disabled = true;
+  this.textContent = 'Adding...';
+
+  fetch(`<?= base_url('/api/resignation/handover/add') ?>`, {
+    method: 'POST', body: data
+  }).then(r => r.json()).then(res => {
+    if (res.status === 'success') {
+      location.reload();
+    } else {
+      alert(res.message);
+      this.disabled = false;
+      this.textContent = 'Add Task';
+    }
   });
 });
 </script>

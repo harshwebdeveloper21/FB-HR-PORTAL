@@ -15,72 +15,83 @@
     <div class="alert alert-success alert-dismissible fade show"><i class="mdi mdi-check-circle me-2"></i><?= session()->getFlashdata('success') ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
   <?php endif; ?>
 
-  <div class="d-flex align-items-center justify-content-between mb-4">
-    <div class="d-flex align-items-center gap-3">
-      <a href="<?= base_url('/resignation') ?>" class="btn btn-sm" style="background:#E66136;color:#fff;border-radius:20px;padding:4px 16px;"><i class="mdi mdi-arrow-left me-1"></i>Back</a>
-      <div>
-        <h4 class="mb-0 fw-bold">Handover Tasks</h4>
-        <small class="text-muted">Resignation #<?= $resignation['id'] ?> — LWD: <strong><?= $resignation['final_lwd'] ?? 'TBD' ?></strong></small>
-      </div>
-    </div>
-    <?php if ((int)$resignation['employee_id'] === (int)$user->sub): ?>
-    <button class="btn btn-sm fw-bold" style="background:#E66136;color:#fff;" data-bs-toggle="modal" data-bs-target="#addTaskModal">
-      <i class="mdi mdi-plus me-1"></i>Add Task
-    </button>
-    <?php endif; ?>
-  </div>
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h4 class="card-title mb-1">
+              <i class="mdi mdi-swap-horizontal text-primary me-2"></i>Handover Tasks
+            </h4>
+            <p class="text-muted mb-0">Resignation #<?= $resignation['id'] ?> — LWD: <strong><?= $resignation['final_lwd'] ?? 'TBD' ?></strong></p>
+          </div>
+          <div class="d-flex gap-2">
+            <a href="<?= base_url('/resignation') ?>" class="btn btn-secondary">
+              <i class="mdi mdi-arrow-left me-1"></i> Back
+            </a>
+            <?php if ((int)$resignation['employee_id'] === (int)$user->sub || in_array($user->role, ['hr', 'admin', 'branch_admin'])): ?>
+            <button class="btn hr-btnbg" data-bs-toggle="modal" data-bs-target="#addTaskModal">
+              <i class="mdi mdi-plus me-1"></i> Add Task
+            </button>
+            <?php endif; ?>
+          </div>
+        </div>
 
-  <div class="row g-3">
-    <?php if (empty($tasks)): ?>
-    <div class="col-12">
-      <div class="text-center py-5">
-        <i class="mdi mdi-clipboard-text-outline" style="font-size:3rem;color:#D1D5DB;"></i>
-        <p class="mt-2 text-muted">No handover tasks added yet.</p>
+        <div class="table-responsive">
+          <table class="table table-hover w-100" id="handoverTable">
+            <thead>
+              <tr>
+              <th>Task</th>
+              <th>Description</th>
+              <th>Handover To</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Remarks</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if (empty($tasks)): ?>
+            <tr><td colspan="7" class="text-center py-4">No handover tasks added yet.</td></tr>
+            <?php else: ?>
+            <?php foreach ($tasks as $t): ?>
+            <tr>
+              <td class="fw-bold"><?= esc($t['task']) ?></td>
+              <td><?= esc($t['description'] ?? '') ?></td>
+              <td><?= esc($t['handover_to_name'] ?? 'N/A') ?></td>
+              <td><?= $t['due_date'] ?? '—' ?></td>
+              <td><span class="status-badge s-<?= $t['status'] ?>"><?= ucfirst($t['status']) ?></span></td>
+              <td><?= esc($t['acceptor_remarks'] ?? '—') ?></td>
+              <td>
+                <div class="d-flex gap-2">
+                  <!-- Employee actions -->
+                  <?php if ((int)$resignation['employee_id'] === (int)$user->sub && $t['status'] === 'pending'): ?>
+                    <button class="btn btn-sm btn-outline-primary task-action-btn" data-id="<?= $t['id'] ?>" data-status="accepted">
+                      <i class="mdi mdi-upload me-1"></i>Submit
+                    </button>
+                  <?php endif; ?>
+
+                  <!-- Receiver / HR / Admin actions -->
+                  <?php if (in_array($user->role, ['admin','hr','department_manager','branch_admin']) || $t['handover_to'] == $user->sub): ?>
+                    <?php if ($t['status'] === 'accepted' || $t['status'] === 'pending'): ?>
+                      <button class="btn btn-sm btn-outline-success task-action-btn" data-id="<?= $t['id'] ?>" data-status="completed">
+                        <i class="mdi mdi-check-all me-1"></i>Approve
+                      </button>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                </div>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+            <?php endif; ?>
+          </tbody>
+        </table>
       </div>
     </div>
-    <?php else: ?>
-    <?php foreach ($tasks as $t): ?>
-    <div class="col-md-6">
-      <div class="task-card">
-        <div class="d-flex justify-content-between align-items-start">
-          <h6 class="fw-bold mb-1"><?= esc($t['task']) ?></h6>
-          <span class="status-badge s-<?= $t['status'] ?>"><?= ucfirst($t['status']) ?></span>
-        </div>
-        <p class="text-muted small mb-2"><?= esc($t['description'] ?? '') ?></p>
-        <div class="d-flex gap-3 small">
-          <span><i class="mdi mdi-account-arrow-right text-primary me-1"></i><strong>To:</strong> <?= esc($t['handover_to_name'] ?? 'N/A') ?></span>
-          <span><i class="mdi mdi-calendar text-warning me-1"></i><strong>Due:</strong> <?= $t['due_date'] ?? '—' ?></span>
-        </div>
-        <?php if ($t['acceptor_remarks']): ?>
-          <p class="small text-muted mt-2 mb-0"><em>"<?= esc($t['acceptor_remarks']) ?>"</em></p>
-        <?php endif; ?>
-        <!-- Receiver actions -->
-        <?php if ($t['handover_to'] == $user->sub && $t['status'] === 'pending'): ?>
-        <div class="mt-2 d-flex gap-2">
-          <button class="btn btn-sm btn-outline-primary task-action-btn" data-id="<?= $t['id'] ?>" data-status="accepted">
-            <i class="mdi mdi-thumb-up me-1"></i>Accept
-          </button>
-        </div>
-        <?php elseif ($t['handover_to'] == $user->sub && $t['status'] === 'accepted'): ?>
-        <div class="mt-2 d-flex gap-2">
-          <button class="btn btn-sm btn-outline-success task-action-btn" data-id="<?= $t['id'] ?>" data-status="completed">
-            <i class="mdi mdi-check me-1"></i>Mark Completed
-          </button>
-        </div>
-        <?php endif; ?>
-        <!-- Manager can also mark completed -->
-        <?php if (in_array($user->role, ['admin','hr','department_manager','branch_admin']) && $t['status'] !== 'completed'): ?>
-        <div class="mt-2">
-          <button class="btn btn-xs btn-outline-success task-action-btn" style="font-size:.75rem;padding:2px 8px;" data-id="<?= $t['id'] ?>" data-status="completed">
-            <i class="mdi mdi-check me-1"></i>Force Complete
-          </button>
-        </div>
-        <?php endif; ?>
-      </div>
-    </div>
-    <?php endforeach; ?>
-    <?php endif; ?>
   </div>
+  </div>
+</div>
 </div>
 
 <!-- Add Task Modal -->
@@ -126,6 +137,15 @@
 <script>
 const RESIGNATION_ID = <?= $resignation['id'] ?>;
 
+$(document).ready(function() {
+    $('#handoverTable').DataTable({
+        "paging": false,
+        "searching": false,
+        "info": false,
+        "ordering": false
+    });
+});
+
 document.getElementById('addTaskBtn')?.addEventListener('click', function() {
   const data = new FormData();
   data.append('resignation_id', RESIGNATION_ID);
@@ -159,7 +179,13 @@ document.querySelectorAll('.task-action-btn').forEach(btn => {
     fetch(`<?= base_url('/api/resignation/handover/update/') ?>${id}`, {
       method: 'POST', body: data
     }).then(r => r.json()).then(res => {
-      if (res.status === 'success') { location.reload(); }
+      if (res.status === 'success') {
+        if (res.advanced_to_clearance) {
+          window.location.href = `<?= base_url('/resignation/hr/detail/') ?>${RESIGNATION_ID}?tab=clearance`;
+        } else {
+          location.reload();
+        }
+      }
       else { alert(res.message); }
     });
   });

@@ -1121,6 +1121,42 @@ $branchesList = $branchModel->getActiveBranches();
             'Content-Type': 'application/json'
         };
 
+        // Geofence background tracking
+        window.geofenceTrackerId = null;
+
+        const pingGeofenceLocation = () => {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    fetch('/api/geofence/ping', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({
+                            latitude: pos.coords.latitude,
+                            longitude: pos.coords.longitude,
+                            accuracy: pos.coords.accuracy
+                        })
+                    }).then(res => res.json()).then(data => {
+                        // If backend responded with alert, trigger the Swal popup
+                        if (data.status === 'alert') {
+                            if (!window.shownGeofenceAlerts) window.shownGeofenceAlerts = {};
+                            if (!window.shownGeofenceAlerts['geofence_out']) {
+                                window.shownGeofenceAlerts['geofence_out'] = true;
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Employee Out of Bounds',
+                                    text: data.message,
+                                    confirmButtonText: 'OK'
+                                });
+                            }
+                        }
+                    }).catch(e => console.error("Geofence ping error:", e));
+                },
+                (err) => console.warn("Geofence GPS error:", err),
+                { enableHighAccuracy: true }
+            );
+        };
+
         // Function to check attendance status and update buttons
         const updateAttendanceStatus = () => {
             fetch('/api/attendance/status', {
@@ -1141,6 +1177,11 @@ $branchesList = $branchModel->getActiveBranches();
                             checkOutBtn.style.display = 'none';
                             if (lunchBtn) lunchBtn.style.display = 'none';
 
+                            if (window.geofenceTrackerId) {
+                                clearInterval(window.geofenceTrackerId);
+                                window.geofenceTrackerId = null;
+                            }
+
                             if (data.is_remote) {
                                 // Remote worker - skip face scan, show normal button
                                 checkInBtn.style.display = 'flex';
@@ -1157,6 +1198,13 @@ $branchesList = $branchModel->getActiveBranches();
                             // Currently ON LUNCH BREAK
                             checkInBtn.style.display = 'none';
                             checkOutBtn.style.display = 'none';
+                            
+                            // Pause tracking during lunch
+                            if (window.geofenceTrackerId) {
+                                clearInterval(window.geofenceTrackerId);
+                                window.geofenceTrackerId = null;
+                            }
+
                             if (lunchBtn) {
                                 lunchBtn.style.display = 'inline-flex';
                                 lunchBtn.style.alignItems = 'center';
@@ -1176,6 +1224,12 @@ $branchesList = $branchModel->getActiveBranches();
                             checkInBtn.style.display = 'none';
                             checkOutBtn.style.display = 'flex';
                             checkOutBtn.style.alignItems = 'center';
+                            
+                            // Start background geofence tracking for office workers
+                            if (!window.geofenceTrackerId && !data.is_remote) {
+                                window.geofenceTrackerId = setInterval(pingGeofenceLocation, 10000); // Check every 10s
+                                pingGeofenceLocation(); // Do first check immediately
+                            }
 
                             // Lunch button logic
                             if (lunchBtn) {

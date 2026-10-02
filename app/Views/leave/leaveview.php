@@ -517,6 +517,10 @@
                 <div class="d-md-flex justify-content-between align-items-center mb-3">
                     <h4 class="card-title">Leave Calendar</h4>
                     <div class="d-md-flex gap-2 align-items-center">
+                        <!-- Weekly Off: shown only to admin, hr, branch_admin -->
+                        <button type="button" id="btnWeeklyOff" class="btn hr-btnbg text-nowrap" style="display:none;">
+                            <i class="mdi mdi-calendar-week iconfontsize"></i> Weekly Off
+                        </button>
                         <button type="button" id="btnExportLeaves" class="btn hr-btnbg attendenceall text-nowrap">
                             <i class="mdi mdi-file-excel iconfontsize"></i> Export
                         </button>
@@ -1012,6 +1016,22 @@
         const manageLeavesBtn = document.getElementById('manage-leaves-btn');
         if (manageLeavesBtn && (userRole === 'admin' || userRole === 'hr')) {
             manageLeavesBtn.style.display = 'block';
+        }
+
+        // Show Weekly Off button only for admin, hr, branch_admin
+        const weeklyOffBtn = document.getElementById('btnWeeklyOff');
+        if (weeklyOffBtn && ['admin', 'hr', 'branch_admin'].includes(userRole)) {
+            weeklyOffBtn.style.display = 'inline-flex';
+        }
+
+        // Load weekly off employees for calendar display
+        if (['admin', 'hr', 'branch_admin'].includes(userRole)) {
+            fetch('<?= base_url('api/weekly-off/employees') ?>', {
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+            }).then(r => r.json()).then(res => {
+                window.weeklyOffEmployees = (res.data || []).filter(e => e.weekly_off && e.weekly_off !== 'none');
+                renderDatewiseDateScroll(); // Re-render calendar with weekly off badges
+            }).catch(() => {});
         }
     }
 
@@ -1634,9 +1654,18 @@
             if (dateStr === todayDate) dateCard.classList.add('today');
             if (hasLeave) dateCard.classList.add('has-leave');
 
+            // Check if this day of week matches any employee's weekly off
+            const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+            const dayName = dayNames[dayOfWeek];
+            const weeklyOffEmps = (window.weeklyOffEmployees || []).filter(e => e.weekly_off === dayName);
+            const weeklyOffLabel = weeklyOffEmps.length
+                ? `<div class="date-card-weekly-off" title="${weeklyOffEmps.map(e=>e.firstname||e.username).join(', ')} off">${weeklyOffEmps.length} off</div>`
+                : '';
+
             dateCard.innerHTML = `
                 <div class="date-card-day">${weekdays[dayOfWeek]}</div>
                 <div class="date-card-number">${day}</div>
+                ${weeklyOffLabel}
                 ${hasLeave ? '<div class="date-card-indicator" style="background-color: #007bff;"></div>' : ''}
             `;
 
@@ -1664,7 +1693,43 @@
 
         container.innerHTML = '';
 
-        // Filter events for selected date
+        // --- Weekly Off Section ---
+        if (window.weeklyOffEmployees && window.weeklyOffEmployees.length) {
+            const selectedDayOfWeek = new Date(selectedDate + 'T00:00:00').getDay();
+            const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+            const selectedDayName = dayNames[selectedDayOfWeek];
+
+            const offEmps = window.weeklyOffEmployees.filter(e => e.weekly_off === selectedDayName);
+
+            // Filter by selected employee if one is picked
+            const filteredOffEmps = currentEmployeeId
+                ? offEmps.filter(e => e.id == currentEmployeeId)
+                : offEmps;
+
+            if (filteredOffEmps.length) {
+                const section = document.createElement('div');
+                section.style.cssText = 'margin-bottom:14px;';
+                section.innerHTML = `
+                    <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:#E66136; letter-spacing:0.5px; margin-bottom:8px;">
+                        <i class="mdi mdi-calendar-week me-1"></i>Weekly Off — ${selectedDayName.charAt(0).toUpperCase()+selectedDayName.slice(1)}
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                        ${filteredOffEmps.map(e => {
+                            const name = (e.firstname && e.lastname) ? `${e.firstname} ${e.lastname}` : e.username;
+                            return `<div style="display:flex;align-items:center;gap:6px;background:#fff3ef;border:1px solid #fbd3c7;border-radius:20px;padding:4px 12px 4px 6px;">
+                                <span style="width:28px;height:28px;border-radius:50%;background:#E66136;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;">${name.charAt(0).toUpperCase()}</span>
+                                <span style="font-size:13px;font-weight:600;color:#333;">${name}</span>
+                                <span style="font-size:11px;color:#888;">${e.branch_name || ''}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                    <hr style="margin:12px 0; border-color:#f0e0d8;">
+                `;
+                container.appendChild(section);
+            }
+        }
+
+        // Filter leave events for selected date
         let filteredEvents = allLeaveEvents.filter(event => {
             const eventStart = event.start.substring(0, 10);
             const eventEnd = event.end.substring(0, 10);
@@ -1677,7 +1742,10 @@
         }
 
         if (filteredEvents.length === 0) {
-            container.innerHTML = '<div class="alert alert-info text-center">No leaves on this date</div>';
+            const noLeave = document.createElement('div');
+            noLeave.className = 'alert alert-info text-center';
+            noLeave.textContent = 'No leaves on this date';
+            container.appendChild(noLeave);
             return;
         }
 
@@ -1929,6 +1997,230 @@
             });
         });
     });
+</script>
+
+<!-- ===== Weekly Off Modal ===== -->
+<div class="modal fade" id="weeklyOffModal" tabindex="-1" aria-labelledby="weeklyOffModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable" style="max-width:550px;">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#E66136;">
+        <h5 class="modal-title text-white" id="weeklyOffModalLabel">
+          <i class="mdi mdi-calendar-week me-2"></i>Assign Weekly Off Day
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Day Selection -->
+        <div class="mb-3">
+          <label class="form-label fw-bold">Select Weekly Off Day</label>
+          <div class="d-flex flex-wrap gap-2" id="dayPicker">
+            <?php foreach (['sunday','monday','tuesday','wednesday','thursday','friday','saturday'] as $d): ?>
+            <button type="button" class="btn btn-outline-secondary day-btn" data-day="<?= $d ?>">
+              <?= ucfirst($d) ?>
+            </button>
+            <?php endforeach; ?>
+            <button type="button" class="btn btn-outline-danger day-btn" data-day="none">
+              No Weekly Off
+            </button>
+          </div>
+          <input type="hidden" id="selectedWeeklyOffDay" value="">
+          <div id="selectedDayDisplay" class="mt-2 text-muted small">No day selected</div>
+        </div>
+
+        <hr>
+
+        <!-- Employee Selection -->
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <label class="form-label fw-bold mb-0">Select Employees</label>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="selectAllEmp">Select All</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearAllEmp">Clear All</button>
+          </div>
+        </div>
+
+        <input type="text" class="form-control mb-2" id="empSearchInput" placeholder="Search employee...">
+
+        <div id="weeklyOffEmpList" style="max-height:220px; overflow-y:auto; border:1px solid #ddd; border-radius:8px;">
+          <div class="text-center py-4 text-muted">
+            <div class="spinner-border spinner-border-sm me-2"></div> Loading employees...
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnSaveWeeklyOff">
+          <i class="mdi mdi-content-save me-1"></i>Save Weekly Off
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.day-btn.selected { background-color: #E66136; color: #fff; border-color: #E66136; }
+.emp-item { display:flex; align-items:center; padding:10px 15px; border-bottom:1px solid #f0f0f0; cursor:pointer; }
+.emp-item:hover { background:#f8f9fa; }
+.emp-item input[type=checkbox] { width:18px; height:18px; margin-right:12px; cursor:pointer; }
+.emp-badge { font-size:11px; padding:2px 8px; border-radius:20px; margin-left:6px; }
+.emp-badge.sunday    { background:#fde8e8; color:#c0392b; }
+.emp-badge.monday    { background:#e8f4fd; color:#2980b9; }
+.emp-badge.tuesday   { background:#e8fde8; color:#27ae60; }
+.emp-badge.wednesday { background:#fdf6e8; color:#e67e22; }
+.emp-badge.thursday  { background:#f5e8fd; color:#8e44ad; }
+.emp-badge.friday    { background:#e8fdfd; color:#16a085; }
+.emp-badge.saturday  { background:#fdeee8; color:#d35400; }
+.emp-badge.none      { background:#f0f0f0; color:#888; }
+/* Weekly Off calendar badge */
+.date-card-weekly-off {
+    font-size: 9px;
+    color: #E66136;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-top: 2px;
+    line-height: 1;
+}
+</style>
+
+<script>
+(function() {
+    const token = localStorage.getItem('token');
+    const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+    let allEmployees = [];
+
+    // Open modal
+    document.getElementById('btnWeeklyOff').addEventListener('click', function() {
+        const modal = new bootstrap.Modal(document.getElementById('weeklyOffModal'));
+        modal.show();
+        loadWeeklyOffEmployees();
+    });
+
+    // Day picker
+    document.querySelectorAll('.day-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('selected'));
+            this.classList.add('selected');
+            const day = this.dataset.day;
+            document.getElementById('selectedWeeklyOffDay').value = day;
+            document.getElementById('selectedDayDisplay').innerHTML =
+                `<strong>Selected:</strong> <span class="text-primary">${day === 'none' ? 'No Weekly Off (Remove)' : day.charAt(0).toUpperCase() + day.slice(1)}</span>`;
+        });
+    });
+
+    // Load employees
+    function loadWeeklyOffEmployees() {
+        document.getElementById('weeklyOffEmpList').innerHTML =
+            '<div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm me-2"></div> Loading...</div>';
+
+        fetch('<?= base_url('api/weekly-off/employees') ?>', { headers })
+            .then(r => r.json())
+            .then(res => {
+                allEmployees = res.data || [];
+                renderEmployeeList(allEmployees);
+            })
+            .catch(() => {
+                document.getElementById('weeklyOffEmpList').innerHTML =
+                    '<div class="text-center py-4 text-danger">Failed to load employees.</div>';
+            });
+    }
+
+    function renderEmployeeList(employees) {
+        if (!employees.length) {
+            document.getElementById('weeklyOffEmpList').innerHTML =
+                '<div class="text-center py-4 text-muted">No employees found.</div>';
+            return;
+        }
+
+        let html = '';
+        employees.forEach(emp => {
+            const name = (emp.firstname && emp.lastname)
+                ? `${emp.firstname} ${emp.lastname}`
+                : emp.username;
+            const day = emp.weekly_off && emp.weekly_off !== 'none' ? emp.weekly_off : 'none';
+            const badgeLabel = day === 'none' ? 'No Off' : day.charAt(0).toUpperCase() + day.slice(1);
+            html += `
+            <div class="emp-item" data-id="${emp.id}" data-name="${name.toLowerCase()}">
+                <input type="checkbox" class="emp-checkbox" data-id="${emp.id}">
+                <div>
+                    <div class="fw-semibold">${name}
+                        <span class="emp-badge ${day}">${badgeLabel}</span>
+                    </div>
+                    <small class="text-muted">${emp.branch_name || 'No Branch'} ${emp.employee_id ? '· ' + emp.employee_id : ''}</small>
+                </div>
+            </div>`;
+        });
+        document.getElementById('weeklyOffEmpList').innerHTML = html;
+    }
+
+    // Search filter
+    document.getElementById('empSearchInput').addEventListener('input', function() {
+        const q = this.value.toLowerCase();
+        const filtered = allEmployees.filter(e => {
+            const name = ((e.firstname || '') + ' ' + (e.lastname || '') + ' ' + (e.username || '')).toLowerCase();
+            return name.includes(q);
+        });
+        renderEmployeeList(filtered);
+    });
+
+    // Select All / Clear All
+    document.getElementById('selectAllEmp').addEventListener('click', function() {
+        document.querySelectorAll('.emp-checkbox').forEach(cb => cb.checked = true);
+    });
+    document.getElementById('clearAllEmp').addEventListener('click', function() {
+        document.querySelectorAll('.emp-checkbox').forEach(cb => cb.checked = false);
+    });
+
+    // Click row to toggle checkbox
+    document.getElementById('weeklyOffEmpList').addEventListener('click', function(e) {
+        const item = e.target.closest('.emp-item');
+        if (!item) return;
+        if (e.target.type === 'checkbox') return; // already handled
+        const cb = item.querySelector('.emp-checkbox');
+        if (cb) cb.checked = !cb.checked;
+    });
+
+    // Save
+    document.getElementById('btnSaveWeeklyOff').addEventListener('click', function() {
+        const day = document.getElementById('selectedWeeklyOffDay').value;
+        if (!day) {
+            Swal.fire({ icon: 'warning', title: 'Select a Day', text: 'Please select a weekly off day first.', confirmButtonColor: '#E66136' });
+            return;
+        }
+
+        const checkedIds = Array.from(document.querySelectorAll('.emp-checkbox:checked')).map(cb => parseInt(cb.dataset.id));
+        if (!checkedIds.length) {
+            Swal.fire({ icon: 'warning', title: 'No Employees', text: 'Please select at least one employee.', confirmButtonColor: '#E66136' });
+            return;
+        }
+
+        const btn = document.getElementById('btnSaveWeeklyOff');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+        fetch('<?= base_url('api/weekly-off/assign') ?>', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ employee_ids: checkedIds, weekly_off: day })
+        })
+        .then(r => r.json())
+        .then(res => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="mdi mdi-content-save me-1"></i>Save Weekly Off';
+            if (res.status === 'success') {
+                Swal.fire({ icon: 'success', title: 'Saved!', text: res.message, confirmButtonColor: '#E66136' });
+                bootstrap.Modal.getInstance(document.getElementById('weeklyOffModal')).hide();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: res.message, confirmButtonColor: '#d33' });
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="mdi mdi-content-save me-1"></i>Save Weekly Off';
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not save weekly off. Please try again.', confirmButtonColor: '#d33' });
+        });
+    });
+})();
 </script>
 
 <?= $this->endSection() ?>

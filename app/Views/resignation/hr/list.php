@@ -61,7 +61,11 @@
               <td><?= $r['notice_days'] ?> d<?= $r['notice_waived'] ? ' <span class="badge bg-info text-dark">Waived</span>' : '' ?></td>
               <td><span class="status-badge s-<?= $r['status'] ?>"><?= $r['status'] === 'submitted' ? 'Pending' : ucfirst(str_replace('_',' ',$r['status'])) ?></span></td>
               <td>
-                <a href="<?= base_url('/resignation/hr/detail/'.$r['id']) ?>" class="btn btn-sm" style="background:#E66136;color:#fff;">
+                <?php 
+                  $tabMap = ['notice_period' => 'notice', 'handover' => 'handover', 'clearance' => 'clearance', 'fnf' => 'fnf', 'relieved' => 'fnf'];
+                  $tabQuery = isset($tabMap[$r['status']]) ? '?tab=' . $tabMap[$r['status']] : '';
+                ?>
+                <a href="<?= base_url('/resignation/hr/detail/'.$r['id']) . $tabQuery ?>" class="btn btn-sm" style="background:#E66136;color:#fff;">
                   <i class="mdi mdi-eye me-1"></i>View
                 </a>
               </td>

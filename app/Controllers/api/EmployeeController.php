@@ -610,6 +610,186 @@ class EmployeeController extends ResourceController
         return $this->respondCreated(['message' => 'Employee created successfully!']);
     }
 
+    public function createNewApi()
+    {
+        // Authorize before proceeding with the update
+        $user = $this->authorize();
+        if (!$user) {
+            return $this->failUnauthorized('Unauthorized access');
+        }
+
+        // Fix: Use getJSON to read Raw JSON data from Postman Body, fallback to getPost
+        $data = $this->request->getJSON(true) ?? $this->request->getPost();
+
+        // Default gender if not provided
+        $gender = $data['gender'] ?? 'male';
+
+        // Check if the email is already taken
+        if (empty($data['email'])) {
+             return $this->failValidationErrors(['Email is required.']);
+        }
+
+        $existingUser = $this->userModel->where('email', $data['email'])->where('is_deleted', 0)->first();
+        if ($existingUser) {
+            return $this->failValidationErrors(['This email is already registered. Please use a different one.']);
+        }
+
+        // Ensure employee_id is set and unique among active users
+        $empId = isset($data['employee_id']) ? trim($data['employee_id']) : '';
+        if (empty($empId)) {
+            $empId = $this->getGuaranteedUniqueEmployeeId();
+            $data['employee_id'] = $empId;
+        } else {
+            // Check if this employee_id is taken by another active user
+            $db = \Config\Database::connect();
+            $sql = "SELECT COUNT(*) as cnt FROM user_info
+                    INNER JOIN users ON users.id = user_info.user_id
+                    WHERE users.is_deleted = 0
+                    AND LOWER(TRIM(user_info.employee_id)) = LOWER(TRIM(?))";
+            $query = $db->query($sql, [$empId]);
+            $cnt = (int)($query->getRow()->cnt ?? 0);
+            if ($cnt > 0) {
+                // Auto-resolve to next unique ID so employee creation is always smooth
+                $empId = $this->getGuaranteedUniqueEmployeeId();
+                $data['employee_id'] = $empId;
+            }
+        }
+
+        // Hash password or generate
+        $plainPassword = isset($data['password']) ? $data['password'] : bin2hex(random_bytes(4));
+        $passwordHash = password_hash($plainPassword, PASSWORD_DEFAULT);
+
+        $targetRole = $data['role'] ?? 'employee';
+        $creatorRole = $user->role ?? 'employee';
+
+        if ($creatorRole === 'department_manager') {
+            return $this->failForbidden('Department Manager does not have permission to create employees.');
+        }
+
+        // A Branch Manager may create only staff for their own branch. Keeping
+        // this on the server prevents a crafted request from assigning wider roles.
+        if ($creatorRole === 'branch_admin') {
+            if (!in_array($targetRole, ['employee', 'department_manager'], true)) {
+                return $this->failForbidden('Branch Manager can create only Employees and Department Managers.');
+            }
+
+            $branchId = (int) $this->authService->getBranchId();
+            $departmentId = !empty($data['department_id']) ? (int) $data['department_id'] : null;
+            $department = $departmentId ? clone $this->departmentModel->find($departmentId) : null;
+            if (!$branchId || !$department || (int) ($department['branch_id'] ?? 0) !== $branchId) {
+                return $this->failForbidden('Select a department that belongs to your branch.');
+            }
+        }
+
+        if ($targetRole === 'hr') {
+            $hierarchyService = new HierarchyService();
+            if (!$hierarchyService->canCreateHr()) {
+                return $this->failValidationErrors(['Only one HR account is allowed across all branches in the entire system.']);
+            }
+        }
+
+        $departmentId = !empty($data['department_id']) ? (int)$data['department_id'] : null;
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $userId = $this->userModel->insert([
+            'email'         => $data['email'],
+            'username'      => ($data['firstname'] ?? '') . ' ' . ($data['lastname'] ?? ''),
+            'password'      => $passwordHash,
+            'role'          => $targetRole,
+            'department_id' => $departmentId,
+        ]);
+
+        if (!$userId) {
+            $db->transRollback();
+            return $this->failServerError('Failed to create user.');
+        }
+
+        // ── Branch ID assignment ──────────────────────────────────────────────
+        $creatorUser    = $this->authService->check();
+        $creatorRole    = $creatorUser ? ($creatorUser->role ?? 'employee') : 'employee';
+        $assignBranchId = null;
+
+        if ($creatorRole === 'branch_admin') {
+            $assignBranchId = (new AuthService(service('request')))->getBranchId();
+        } elseif ($creatorRole === 'admin' || $creatorRole === 'hr') {
+            $assignBranchId = !empty($data['branch_id']) ? (int)$data['branch_id'] : (new AuthService(service('request')))->getBranchId();
+        }
+
+        if ($assignBranchId) {
+            $this->userModel->update($userId, ['branch_id' => $assignBranchId, 'department_id' => $departmentId]);
+        }
+
+        // If newly created user is a department manager, link them as manager in department table
+        if ($targetRole === 'department_manager' && !empty($departmentId)) {
+            $this->departmentModel->update($departmentId, ['manager_id' => $userId]);
+        }
+
+        // Prepare user info data
+        $userInfoData = [
+            'user_id' => $userId,
+            'firstname' => $data['firstname'] ?? '',
+            'lastname' => $data['lastname'] ?? '',
+            'email' => $data['email'] ?? '',
+            'gender' => $data['gender'] ?? '',
+            'date_of_birth' => $data['date_of_birth'] ?? '',
+            'address_1' => $data['address_1'] ?? '',
+            'address_2' => $data['address_2'] ?? '',
+            'state_id' => $data['state_id'] ?? '',
+            'postcode' => $data['postcode'] ?? '',
+            'city_id' => $data['city_id'] ?? '',
+            'country_id' => $data['country_id'] ?? '',
+            'contact_number' => $data['contact_number'] ?? '',
+            'employee_id' => isset($data['employee_id']) ? trim($data['employee_id']) : '',
+            'designation_id' => $data['designation_id'] ?? '',
+            'department_id' => $departmentId,
+            'joining_date' => !empty($data['joining_date']) ? $data['joining_date'] : null,
+            'working_location' => $data['working_location'] ?? '',
+            'role' => $targetRole,
+            'salary' => $data['salary'] ?? '',
+        ];
+
+        $userInfo = $this->userInfoModel->insert($userInfoData);
+
+        // ✅ Notify Admins or HRs
+        $notificationModel = new \App\Models\NotificationModel();
+        $userModel = new \App\Models\UserModel();
+
+        $admins = $userModel->whereIn('role', ['admin', 'hr'])->findAll();
+        foreach ($admins as $admin) {
+            $notificationModel->insert([
+                'sender_id' => $user->sub,
+                'recipient_id' => $admin['id'],
+                'data' => json_encode([
+                    'username' => ($data['firstname'] ?? '') . ' ' . ($data['lastname'] ?? ''),
+                    'role' => $data['role'] ?? 'employee',
+                    'type' => 'employee'
+                ]),
+                'is_read' => 0
+            ]);
+        }
+
+        if (!$userInfo) {
+            $db->transRollback();
+            return $this->failServerError('Failed to create user info.');
+        }
+
+        // Initialize employee leaves if provided
+        if (isset($data['remaining_paid_leave']) || isset($data['remaining_sick_leave'])) {
+            $employeeLeaveModel = new \App\Models\EmployeeLeaveModel();
+            $employeeLeaveModel->insert([
+                'employee_id' => $userId,
+                'paid_leave' => $data['remaining_paid_leave'] ?? 0,
+                'casual_leave' => $data['remaining_sick_leave'] ?? 0
+            ]);
+        }
+
+        $db->transComplete();
+
+        return $this->respondCreated(['message' => 'Employee created successfully via new API!']);
+    }
+
     // Update Employee
     public function update($id = null)
     {

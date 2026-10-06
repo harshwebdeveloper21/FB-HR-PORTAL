@@ -303,7 +303,7 @@
 
         <?php if ($resignation['status'] === 'fnf' && in_array($user->role, ['admin','hr'])): ?>
         <!-- F&F Preparation Form -->
-        <?php if (!$fnf || $fnf['status'] === 'draft'): ?>
+        <?php if (!$fnf || $fnf['status'] !== 'paid'): ?>
         <form action="<?= base_url('/resignation/hr/fnf/prepare/'.$resignation['id']) ?>" method="POST">
           <?= csrf_field() ?>
           <div class="row g-3">
@@ -313,14 +313,15 @@
                 <?php
                   $defaultEarnings = [['title'=>'Pending Salary till LWD','amount'=>''],['title'=>'Leave Encashment','amount'=>''],['title'=>'Bonus','amount'=>''],['title'=>'Gratuity (if 5+ yrs)','amount'=>''],['title'=>'Other Earnings','amount'=>'']];
                   $earningItems = (!empty($fnfItems) ? array_filter($fnfItems, fn($i)=>$i['type']==='earning') : $defaultEarnings);
-                  foreach ($earningItems as $i => $e):
+                  $ei = 0;
+                  foreach ($earningItems as $e):
                 ?>
                 <div class="d-flex gap-2 mb-2">
-                  <input type="text" name="earnings[<?= $i ?>][title]" class="form-control form-control-sm" placeholder="Title" value="<?= esc($e['title'] ?? '') ?>">
-                  <input type="number" step="0.01" name="earnings[<?= $i ?>][amount]" class="form-control form-control-sm" placeholder="₹0.00" value="<?= $e['amount'] ?? '' ?>">
+                  <input type="text" name="earnings[<?= $ei ?>][title]" class="form-control form-control-sm" placeholder="Title" value="<?= esc($e['title'] ?? '') ?>">
+                  <input type="number" step="0.01" name="earnings[<?= $ei ?>][amount]" class="form-control form-control-sm" placeholder="₹0.00" value="<?= $e['amount'] ?? '' ?>">
                   <button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="mdi mdi-close"></i></button>
                 </div>
-                <?php endforeach; ?>
+                <?php $ei++; endforeach; ?>
               </div>
               <button type="button" class="btn btn-sm btn-outline-success mt-1 add-row" data-target="earningsContainer" data-type="earnings">+ Add Row</button>
             </div>
@@ -343,10 +344,22 @@
               <button type="button" class="btn btn-sm btn-outline-danger mt-1 add-row" data-target="deductionsContainer" data-type="deductions">+ Add Row</button>
             </div>
           </div>
-          <div class="border-top mt-3 pt-3">
+          <div class="border-top mt-3 pt-3 d-flex gap-2">
             <button type="submit" class="btn fw-bold" style="background:#E66136;color:#fff;">
-              <i class="mdi mdi-send me-2"></i>Submit F&F to Finance
+              <i class="mdi mdi-content-save me-1"></i><?= $fnf ? 'Update F&F' : 'Submit F&F to Finance' ?>
             </button>
+            
+            <?php if ($fnf && $fnf['status'] === 'hr_prepared'): ?>
+              <button type="button" class="btn btn-outline-success fw-bold" onclick="fnfFinanceApprove(<?= $fnf['id'] ?>)">
+                <i class="mdi mdi-check-decagram me-1"></i>Finance Approve
+              </button>
+            <?php endif; ?>
+            
+            <?php if ($fnf && $fnf['status'] === 'finance_approved'): ?>
+              <button type="button" class="btn fw-bold" style="background:#10B981;color:#fff;" onclick="fnfMarkPaid(<?= $fnf['id'] ?>)">
+                <i class="mdi mdi-cash-check me-1"></i>Mark as Paid & Relieve
+              </button>
+            <?php endif; ?>
           </div>
         </form>
         <?php endif; ?>
@@ -374,17 +387,7 @@
           </table>
         </div>
 
-        <!-- Finance Approve / Mark Paid -->
-        <?php if ($fnf['status'] === 'hr_prepared' && in_array($user->role, ['admin','hr'])): ?>
-        <button class="btn btn-sm btn-outline-success" onclick="fnfFinanceApprove(<?= $fnf['id'] ?>)">
-          <i class="mdi mdi-check-decagram me-1"></i>Finance Approve
-        </button>
-        <?php endif; ?>
-        <?php if ($fnf['status'] === 'finance_approved' && in_array($user->role, ['admin','hr'])): ?>
-        <button class="btn btn-sm" style="background:#10B981;color:#fff;" onclick="fnfMarkPaid(<?= $fnf['id'] ?>)">
-          <i class="mdi mdi-cash-check me-1"></i>Mark as Paid
-        </button>
-        <?php endif; ?>
+        <!-- Finance Approve / Mark Paid removed from here (now in form) -->
         <?php if ($fnf['status'] === 'paid'): ?>
         <div class="alert alert-success mt-2 mb-0"><i class="mdi mdi-check-all me-2"></i>Paid on <?= $fnf['paid_date'] ?> · Ref: <?= esc($fnf['payment_ref'] ?? 'N/A') ?></div>
         <?php endif; ?>

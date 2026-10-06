@@ -40,9 +40,9 @@ jobs:
       - name: Deploy to cPanel via FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
-          server: 82.29.163.188
-          username: u378554361.korviahrftp
-          password: Z@44!m=DdX?e
+          server: 72.60.216.54
+          username: u573967329.devhrdemo
+          password: mHXqn0&d7+
           server-dir: /
           local-dir: ./build_output/
           protocol: ftp       # 🔥 switch to ftp first (stable)
